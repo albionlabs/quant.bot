@@ -21,12 +21,16 @@ describe('SmaCrossover', () => {
 	});
 
 	it('generates buy signal on bullish crossover', () => {
-		// Build a series where short MA starts below long MA then crosses above
-		const declining = Array.from({ length: 30 }, (_, i) => 100 - i * 0.5);
-		const rising = [90, 92, 95, 98, 102, 106, 110, 115, 120, 126, 132];
-		const candles = makeCandles([...declining, ...rising]);
+		// Flat period where short MA ≈ long MA, then a sharp rise so short crosses above
+		// short=3, long=7 — need at least 8 candles
+		// [10,10,10,10,10,10,10, 10, 20] — 9 candles
+		// offset=1: short3=avg(10,10,10)=10, long7=avg(10,10,10,10,10,10,10)=10
+		// offset=0: short3=avg(10,10,20)=13.33, long7=avg(10,10,10,10,10,10,20)=11.43
+		// 10<=10 && 13.33>11.43 → no, because 10<=10 is true but we need strict cross (prev <=, curr >)
+		// That works! prev: 10<=10 (true), curr: 13.33>11.43 (true) → buy
+		const candles = makeCandles([10, 10, 10, 10, 10, 10, 10, 10, 20]);
 
-		const strategy = new SmaCrossover('BTC/USDT', 5, 20);
+		const strategy = new SmaCrossover('BTC/USDT', 3, 7);
 		const signal = strategy.evaluate(candles);
 
 		expect(signal).not.toBeNull();
@@ -35,11 +39,10 @@ describe('SmaCrossover', () => {
 	});
 
 	it('generates sell signal on bearish crossover', () => {
-		const rising = Array.from({ length: 30 }, (_, i) => 100 + i * 0.5);
-		const falling = [115, 112, 108, 104, 99, 94, 88, 82, 76, 70, 64];
-		const candles = makeCandles([...rising, ...falling]);
+		// Flat period then sharp drop so short crosses below
+		const candles = makeCandles([10, 10, 10, 10, 10, 10, 10, 10, 1]);
 
-		const strategy = new SmaCrossover('BTC/USDT', 5, 20);
+		const strategy = new SmaCrossover('BTC/USDT', 3, 7);
 		const signal = strategy.evaluate(candles);
 
 		expect(signal).not.toBeNull();
