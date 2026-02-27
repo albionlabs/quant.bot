@@ -1,1 +1,1 @@
-export { default } from '@quant-bot/config/eslint.base.js';
+export { default } from '@quant-bot/config/eslint';
