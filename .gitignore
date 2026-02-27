@@ -8,4 +8,6 @@ dist/
 .eslintcache
 coverage/
 .turbo/
+.svelte-kit/
+.vercel/
 services/rest-api/data/
