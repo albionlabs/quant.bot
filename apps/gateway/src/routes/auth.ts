@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { SiweMessage } from 'siwe';
 import type { LoginRequest, LoginResponse, RefreshResponse } from '@quant-bot/shared-types';
-import { createToken, verifyToken, authMiddleware } from '../middleware/auth.js';
+import { createToken, authMiddleware } from '../middleware/auth.js';
 import type { GatewayConfig } from '../config.js';
 import type { JwtPayload } from '../middleware/auth.js';
 
