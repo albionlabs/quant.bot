@@ -32,6 +32,7 @@ jobs:
       - name: Deploy rest-api
         run: |
           cp ${{ github.workspace }}/fly.rest-api.toml fly.toml
+          cp ${{ github.workspace }}/docker/rest-api/Dockerfile Dockerfile
           flyctl deploy --local-only
         working-directory: services/rest-api
         env:
