@@ -24,6 +24,7 @@ COPY --from=build /app/packages/shared-types/dist ./packages/shared-types/dist
 COPY --from=build /app/packages/shared-types/package.json ./packages/shared-types/
 COPY --from=build /app/packages/evm-utils/dist ./packages/evm-utils/dist
 COPY --from=build /app/packages/evm-utils/package.json ./packages/evm-utils/
+COPY --from=build /app/packages/evm-utils/node_modules ./packages/evm-utils/node_modules
 COPY --from=build /app/apps/tools/dist ./apps/tools/dist
 COPY --from=build /app/apps/tools/package.json ./apps/tools/
 COPY --from=build /app/apps/tools/node_modules ./apps/tools/node_modules
