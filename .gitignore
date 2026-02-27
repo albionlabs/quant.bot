@@ -7,3 +7,5 @@ dist/
 *.tsbuildinfo
 .eslintcache
 coverage/
+.turbo/
+services/rest-api/data/

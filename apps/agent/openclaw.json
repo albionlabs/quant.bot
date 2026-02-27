@@ -1,0 +1,21 @@
+{
+	"model": "claude-sonnet-4-5-20250929",
+	"workspace": "./workspace",
+	"gateway": {
+		"host": "0.0.0.0",
+		"port": 18789,
+		"auth": {
+			"token": "${OPENCLAW_GATEWAY_TOKEN}"
+		}
+	},
+	"skills": [
+		"workspace/skills/npv-calculator",
+		"workspace/skills/evm-simulator",
+		"workspace/skills/tx-executor",
+		"workspace/skills/subgraph-query",
+		"workspace/skills/orderbook",
+		"workspace/skills/swap",
+		"workspace/skills/trades",
+		"workspace/skills/token-metadata"
+	]
+}

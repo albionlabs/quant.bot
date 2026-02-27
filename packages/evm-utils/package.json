@@ -1,0 +1,28 @@
+{
+	"name": "@quant-bot/evm-utils",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"check": "tsc --noEmit",
+		"test:run": "vitest run"
+	},
+	"dependencies": {
+		"cbor-x": "^1.6.0",
+		"viem": "^2.31.0"
+	},
+	"devDependencies": {
+		"@quant-bot/config": "workspace:*",
+		"@quant-bot/shared-types": "workspace:*",
+		"@types/node": "^25.3.0",
+		"typescript": "^5.9.3",
+		"vitest": "^4.0.18"
+	}
+}

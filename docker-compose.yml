@@ -1,0 +1,59 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - GATEWAY_PORT=3000
+      - AGENT_WS_URL=ws://agent:18789
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+    depends_on:
+      - agent
+      - tools
+    restart: unless-stopped
+
+  agent:
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    ports:
+      - '18789:18789'
+    environment:
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+
+  tools:
+    build:
+      context: .
+      dockerfile: apps/tools/Dockerfile
+    ports:
+      - '4000:4000'
+    environment:
+      - TOOLS_PORT=4000
+      - BASE_RPC_URL=${BASE_RPC_URL}
+      - CHAIN_NAME=${CHAIN_NAME:-base}
+      - EXECUTOR_PRIVATE_KEY=${EXECUTOR_PRIVATE_KEY}
+      - ALLOWED_SUBGRAPHS=${ALLOWED_SUBGRAPHS}
+    restart: unless-stopped
+
+  rest-api:
+    build:
+      context: services/rest-api
+      dockerfile: Dockerfile
+    ports:
+      - '8000:8000'
+    environment:
+      - REGISTRY_URL=${REGISTRY_URL}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///mnt/data/st0x-rest-api/st0x.db}
+      - ROCKET_ADDRESS=0.0.0.0
+      - ROCKET_PORT=8000
+    volumes:
+      - rest-api-data:/mnt/data/st0x-rest-api
+    restart: unless-stopped
+
+volumes:
+  rest-api-data:

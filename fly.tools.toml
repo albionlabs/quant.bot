@@ -1,0 +1,9 @@
+app = 'quant-bot-tools'
+primary_region = 'lhr'
+
+[build]
+  dockerfile = 'apps/tools/Dockerfile'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'

@@ -1,0 +1,9 @@
+app = 'quant-bot-agent'
+primary_region = 'lhr'
+
+[build]
+  dockerfile = 'apps/agent/Dockerfile'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'

@@ -1,0 +1,36 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy agent
+        run: flyctl deploy --config fly.agent.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy tools
+        run: flyctl deploy --config fly.tools.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy gateway
+        run: flyctl deploy --config fly.gateway.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy rest-api
+        run: flyctl deploy --remote-only
+        working-directory: services/rest-api
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

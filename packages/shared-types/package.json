@@ -1,0 +1,19 @@
+{
+	"name": "@quant-bot/shared-types",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc"
+	},
+	"devDependencies": {
+		"@quant-bot/config": "workspace:*",
+		"typescript": "^5.9.3"
+	}
+}
