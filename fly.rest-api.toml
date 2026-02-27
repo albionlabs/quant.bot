@@ -1,0 +1,27 @@
+app = 'albion'
+primary_region = 'lhr'
+
+[build]
+  dockerfile = 'services/rest-api/Dockerfile'
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[http_service.checks]]
+  grace_period = '10s'
+  interval = '30s'
+  method = 'GET'
+  path = '/health'
+  timeout = '5s'
+
+[mounts]
+  source = 'rest_api_data'
+  destination = '/mnt/data/st0x-rest-api'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
