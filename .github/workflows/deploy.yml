@@ -86,7 +86,7 @@ jobs:
           submodules: recursive
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: |
-          cp fly.rest-api.toml services/rest-api/fly.toml
+          cp ../../fly.rest-api.toml fly.toml
           flyctl deploy --local-only --wait-timeout 120
         working-directory: services/rest-api
         env:
