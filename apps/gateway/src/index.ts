@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import { loadConfig } from './config.js';
 import { registerRateLimit } from './middleware/rate-limit.js';
@@ -10,6 +11,7 @@ import { connectToAgent } from './services/agent-proxy.js';
 const config = loadConfig();
 const app = Fastify({ logger: true });
 
+await app.register(cors, { origin: config.corsOrigin });
 await app.register(websocket);
 await registerRateLimit(app, config);
 

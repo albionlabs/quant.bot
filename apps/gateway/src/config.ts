@@ -8,11 +8,16 @@ export interface GatewayConfig {
 	rateLimitMax: number;
 	rateLimitWindow: number;
 	authRateLimitMax: number;
+	corsOrigin: string[];
 }
 
 export function loadConfig(): GatewayConfig {
 	const jwtSecret = process.env.JWT_SECRET;
 	if (!jwtSecret) throw new Error('JWT_SECRET environment variable is required');
+
+	const corsOrigin = process.env.CORS_ORIGIN
+		? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+		: ['http://localhost:5173'];
 
 	return {
 		port: parseInt(process.env.GATEWAY_PORT ?? '3000', 10),
@@ -23,6 +28,7 @@ export function loadConfig(): GatewayConfig {
 		openclawGatewayToken: process.env.OPENCLAW_GATEWAY_TOKEN ?? '',
 		rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX ?? '30', 10),
 		rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW ?? '60000', 10),
-		authRateLimitMax: parseInt(process.env.AUTH_RATE_LIMIT_MAX ?? '5', 10)
+		authRateLimitMax: parseInt(process.env.AUTH_RATE_LIMIT_MAX ?? '5', 10),
+		corsOrigin
 	};
 }
