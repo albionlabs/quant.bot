@@ -4,7 +4,7 @@
 		"build": {
 			"dependsOn": ["^build"],
 			"env": ["PUBLIC_GATEWAY_URL", "CORS_ORIGIN"],
-			"outputs": ["dist/**"]
+			"outputs": ["dist/**", ".svelte-kit/**", ".vercel/output/**"]
 		},
 		"check": {
 			"dependsOn": ["^build"]
