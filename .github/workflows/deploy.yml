@@ -36,6 +36,7 @@ jobs:
             rest-api:
               - 'services/rest-api/**'
               - 'fly.rest-api.toml'
+              - '.github/workflows/deploy.yml'
 
   deploy-agent:
     needs: changes
