@@ -123,8 +123,8 @@ export function sendToAgent(message: string, sessionKey?: string): Promise<strin
 			method: 'chat.send',
 			params: {
 				sessionKey: sessionKey ?? 'agent:main:api:default',
-				text: message,
-				expectFinal: true
+				message,
+				idempotencyKey: id
 			}
 		}));
 
