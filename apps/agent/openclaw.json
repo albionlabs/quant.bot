@@ -1,21 +1,30 @@
 {
-	"model": "claude-sonnet-4-5-20250929",
-	"workspace": "./workspace",
 	"gateway": {
-		"host": "0.0.0.0",
+		"mode": "local",
 		"port": 18789,
+		"bind": "custom",
 		"auth": {
-			"token": "${OPENCLAW_GATEWAY_TOKEN}"
+			"mode": "token"
 		}
 	},
-	"skills": [
-		"workspace/skills/npv-calculator",
-		"workspace/skills/evm-simulator",
-		"workspace/skills/tx-executor",
-		"workspace/skills/subgraph-query",
-		"workspace/skills/orderbook",
-		"workspace/skills/swap",
-		"workspace/skills/trades",
-		"workspace/skills/token-metadata"
-	]
+	"agents": {
+		"defaults": {
+			"workspace": "/app/workspace",
+			"model": {
+				"primary": "anthropic/claude-sonnet-4-5"
+			}
+		}
+	},
+	"skills": {
+		"entries": {
+			"npv-calculator": { "enabled": true, "path": "/app/workspace/skills/npv-calculator" },
+			"evm-simulator": { "enabled": true, "path": "/app/workspace/skills/evm-simulator" },
+			"tx-executor": { "enabled": true, "path": "/app/workspace/skills/tx-executor" },
+			"subgraph-query": { "enabled": true, "path": "/app/workspace/skills/subgraph-query" },
+			"orderbook": { "enabled": true, "path": "/app/workspace/skills/orderbook" },
+			"swap": { "enabled": true, "path": "/app/workspace/skills/swap" },
+			"trades": { "enabled": true, "path": "/app/workspace/skills/trades" },
+			"token-metadata": { "enabled": true, "path": "/app/workspace/skills/token-metadata" }
+		}
+	}
 }
