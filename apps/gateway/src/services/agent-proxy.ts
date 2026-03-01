@@ -4,6 +4,10 @@ import type { GatewayConfig } from '../config.js';
 let agentWs: WebSocket | null = null;
 let messageId = 0;
 let connected = false;
+let savedConfig: GatewayConfig | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectDelay = 1000;
+const MAX_RECONNECT_DELAY = 30_000;
 
 type MessageHandler = (data: unknown) => void;
 const responseHandlers = new Map<string, MessageHandler>();
@@ -12,52 +16,70 @@ export function isAgentConnected(): boolean {
 	return connected;
 }
 
-export function connectToAgent(config: GatewayConfig): Promise<void> {
-	return new Promise((resolve, reject) => {
-		agentWs = new WebSocket(config.agentWsUrl);
+function scheduleReconnect(): void {
+	if (reconnectTimer || !savedConfig) return;
+	reconnectTimer = setTimeout(() => {
+		reconnectTimer = null;
+		connectToAgent(savedConfig!).catch(() => {});
+	}, reconnectDelay);
+	reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
+}
 
-		agentWs.on('open', () => {
-			const id = String(++messageId);
-			agentWs!.send(
-				JSON.stringify({
-					type: 'req',
-					id,
-					method: 'connect',
-					params: {
-						role: 'operator',
-						auth: { token: config.openclawGatewayToken }
-					}
-				})
-			);
-
-			responseHandlers.set(id, () => {
-				connected = true;
-				resolve();
-			});
-		});
-
-		agentWs.on('message', (raw) => {
-			try {
-				const msg = JSON.parse(raw.toString());
-				const handler = responseHandlers.get(msg.id);
-				if (handler) {
-					handler(msg);
-					responseHandlers.delete(msg.id);
-				}
-			} catch {
-				// ignore malformed messages
+function setupListeners(ws: WebSocket, resolve: () => void, reject: (err: Error) => void, isReconnect: boolean): void {
+	ws.on('message', (raw) => {
+		try {
+			const msg = JSON.parse(raw.toString());
+			const handler = responseHandlers.get(msg.id);
+			if (handler) {
+				handler(msg);
+				responseHandlers.delete(msg.id);
 			}
-		});
+		} catch {
+			// ignore malformed messages
+		}
+	});
 
-		agentWs.on('close', () => {
-			connected = false;
-			agentWs = null;
-		});
+	ws.on('close', () => {
+		connected = false;
+		agentWs = null;
+		scheduleReconnect();
+	});
 
-		agentWs.on('error', (err) => {
-			connected = false;
-			reject(err);
+	ws.on('error', (err) => {
+		connected = false;
+		agentWs = null;
+		if (!isReconnect) reject(err);
+		scheduleReconnect();
+	});
+
+	ws.on('open', () => {
+		reconnectDelay = 1000;
+		const id = String(++messageId);
+		ws.send(
+			JSON.stringify({
+				type: 'req',
+				id,
+				method: 'connect',
+				params: {
+					role: 'operator',
+					auth: { token: savedConfig!.openclawGatewayToken }
+				}
+			})
+		);
+
+		responseHandlers.set(id, () => {
+			connected = true;
+			resolve();
 		});
+	});
+}
+
+export function connectToAgent(config: GatewayConfig): Promise<void> {
+	savedConfig = config;
+	return new Promise((resolve, reject) => {
+		const isReconnect = agentWs === null && savedConfig === config;
+		agentWs = new WebSocket(config.agentWsUrl);
+		setupListeners(agentWs, resolve, reject, isReconnect);
 	});
 }
 
