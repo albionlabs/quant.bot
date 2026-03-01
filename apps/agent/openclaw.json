@@ -14,17 +14,5 @@
 				"primary": "anthropic/claude-sonnet-4-5"
 			}
 		}
-	},
-	"skills": {
-		"entries": {
-			"npv-calculator": { "enabled": true, "path": "/app/workspace/skills/npv-calculator" },
-			"evm-simulator": { "enabled": true, "path": "/app/workspace/skills/evm-simulator" },
-			"tx-executor": { "enabled": true, "path": "/app/workspace/skills/tx-executor" },
-			"subgraph-query": { "enabled": true, "path": "/app/workspace/skills/subgraph-query" },
-			"orderbook": { "enabled": true, "path": "/app/workspace/skills/orderbook" },
-			"swap": { "enabled": true, "path": "/app/workspace/skills/swap" },
-			"trades": { "enabled": true, "path": "/app/workspace/skills/trades" },
-			"token-metadata": { "enabled": true, "path": "/app/workspace/skills/token-metadata" }
-		}
 	}
 }
