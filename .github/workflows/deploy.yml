@@ -36,6 +36,7 @@ jobs:
             rest-api:
               - 'services/rest-api/**'
               - 'fly.rest-api.toml'
+              - '.github/workflows/deploy.yml'
 
   deploy-agent:
     needs: changes
@@ -85,9 +86,6 @@ jobs:
         with:
           submodules: recursive
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: |
-          cp ../../fly.rest-api.toml fly.toml
-          flyctl deploy --local-only --wait-timeout 120
-        working-directory: services/rest-api
+      - run: flyctl deploy services/rest-api --config fly.rest-api.toml --local-only --wait-timeout 120
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
