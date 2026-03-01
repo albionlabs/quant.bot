@@ -86,6 +86,8 @@ jobs:
         with:
           submodules: recursive
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy services/rest-api --config fly.rest-api.toml --local-only --wait-timeout 120
+      - run: |
+          cp fly.rest-api.toml services/rest-api/fly.toml
+          flyctl deploy services/rest-api --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
