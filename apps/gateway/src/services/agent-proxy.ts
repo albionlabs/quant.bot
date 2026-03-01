@@ -38,7 +38,7 @@ function scheduleReconnect(): void {
 function handleEvent(msg: { event: string; payload?: Record<string, unknown> }): void {
 	if (msg.event !== 'agent' || !msg.payload) return;
 
-	const runId = msg.payload.runId as string | undefined;
+	const runId = (msg.payload.run ?? msg.payload.runId) as string | undefined;
 	if (!runId) return;
 
 	const run = pendingRuns.get(runId);
