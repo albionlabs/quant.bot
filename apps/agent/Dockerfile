@@ -7,5 +7,7 @@ WORKDIR /app
 COPY apps/agent/workspace/ ./workspace/
 COPY apps/agent/openclaw.json ./
 
+ENV OPENCLAW_CONFIG_PATH=/app/openclaw.json
+
 EXPOSE 18789
-CMD ["openclaw", "gateway", "--config", "openclaw.json"]
+CMD ["openclaw", "gateway", "run", "--port", "18789", "--bind", "custom", "--auth", "token"]
