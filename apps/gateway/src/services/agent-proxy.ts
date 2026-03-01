@@ -1,16 +1,16 @@
 import WebSocket from 'ws';
+import { randomUUID } from 'crypto';
 import type { GatewayConfig } from '../config.js';
 
 let agentWs: WebSocket | null = null;
-let messageId = 0;
 let connected = false;
 let savedConfig: GatewayConfig | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 1000;
 const MAX_RECONNECT_DELAY = 30_000;
 
-type MessageHandler = (data: unknown) => void;
-const responseHandlers = new Map<string, MessageHandler>();
+type ResHandler = (msg: { ok: boolean; payload?: Record<string, unknown>; error?: { code: string; message: string } }) => void;
+const responseHandlers = new Map<string, ResHandler>();
 
 export function isAgentConnected(): boolean {
 	return connected;
@@ -18,6 +18,7 @@ export function isAgentConnected(): boolean {
 
 function scheduleReconnect(): void {
 	if (reconnectTimer || !savedConfig) return;
+	console.log(`[agent-proxy] reconnecting in ${reconnectDelay}ms`);
 	reconnectTimer = setTimeout(() => {
 		reconnectTimer = null;
 		connectToAgent(savedConfig!).catch(() => {});
@@ -25,66 +26,116 @@ function scheduleReconnect(): void {
 	reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
 }
 
-function setupListeners(ws: WebSocket, resolve: () => void, reject: (err: Error) => void, isReconnect: boolean): void {
-	ws.on('message', (raw) => {
-		try {
-			const msg = JSON.parse(raw.toString());
-			const handler = responseHandlers.get(msg.id);
-			if (handler) {
-				handler(msg);
-				responseHandlers.delete(msg.id);
-			}
-		} catch {
-			// ignore malformed messages
-		}
-	});
-
-	ws.on('close', () => {
-		connected = false;
-		agentWs = null;
-		scheduleReconnect();
-	});
-
-	ws.on('error', (err) => {
-		connected = false;
-		agentWs = null;
-		if (!isReconnect) reject(err);
-		scheduleReconnect();
-	});
-
-	ws.on('open', () => {
-		reconnectDelay = 1000;
-		connected = true;
-		resolve();
-	});
-}
-
 export function connectToAgent(config: GatewayConfig): Promise<void> {
+	const isReconnect = savedConfig !== null;
 	savedConfig = config;
-	return new Promise((resolve, reject) => {
-		const isReconnect = agentWs === null && savedConfig === config;
-		agentWs = new WebSocket(config.agentWsUrl);
-		setupListeners(agentWs, resolve, reject, isReconnect);
+
+	return new Promise<void>((resolve, reject) => {
+		const ws = new WebSocket(config.agentWsUrl);
+		agentWs = ws;
+
+		const fail = (err: Error) => {
+			connected = false;
+			agentWs = null;
+			if (!isReconnect) reject(err);
+			scheduleReconnect();
+		};
+
+		ws.on('message', (raw) => {
+			try {
+				const msg = JSON.parse(raw.toString());
+
+				// Handle connect.challenge — perform auth handshake
+				if (msg.type === 'event' && msg.event === 'connect.challenge') {
+					const id = randomUUID();
+					responseHandlers.set(id, (res) => {
+						if (res.ok) {
+							reconnectDelay = 1000;
+							connected = true;
+							console.log('[agent-proxy] connected to openclaw agent');
+							resolve();
+						} else {
+							fail(new Error(res.error?.message ?? 'Auth failed'));
+						}
+					});
+					ws.send(JSON.stringify({
+						type: 'req',
+						id,
+						method: 'connect',
+						params: {
+							minProtocol: 3,
+							maxProtocol: 3,
+							client: {
+								id: 'node-host',
+								version: '2026.2.27',
+								platform: 'linux',
+								mode: 'backend',
+								displayName: 'Quant Bot Gateway'
+							},
+							role: 'operator',
+							scopes: ['operator.admin'],
+							caps: [],
+							auth: {
+								token: config.openclawGatewayToken
+							}
+						}
+					}));
+					return;
+				}
+
+				// Handle response frames
+				if (msg.type === 'res' && msg.id) {
+					const handler = responseHandlers.get(msg.id);
+					if (handler) {
+						responseHandlers.delete(msg.id);
+						handler(msg);
+					}
+				}
+			} catch {
+				// ignore malformed messages
+			}
+		});
+
+		ws.on('close', () => {
+			connected = false;
+			agentWs = null;
+			console.log('[agent-proxy] disconnected from agent');
+			scheduleReconnect();
+		});
+
+		ws.on('error', (err) => {
+			console.error('[agent-proxy] ws error:', err.message);
+			fail(err);
+		});
 	});
 }
 
-export function sendToAgent(message: string): Promise<unknown> {
+export function sendToAgent(message: string, sessionKey?: string): Promise<string> {
 	return new Promise((resolve, reject) => {
-		if (!agentWs || agentWs.readyState !== WebSocket.OPEN) {
+		if (!agentWs || agentWs.readyState !== WebSocket.OPEN || !connected) {
 			return reject(new Error('Agent not connected'));
 		}
 
-		const id = String(++messageId);
-		agentWs.send(
-			JSON.stringify({
-				type: 'req',
-				id,
-				method: 'chat.send',
-				params: { message }
-			})
-		);
+		const id = randomUUID();
+		agentWs.send(JSON.stringify({
+			type: 'req',
+			id,
+			method: 'chat.send',
+			params: {
+				sessionKey: sessionKey ?? 'agent:main:api:default',
+				text: message,
+				expectFinal: true
+			}
+		}));
 
-		responseHandlers.set(id, resolve);
+		responseHandlers.set(id, (res) => {
+			if (res.ok) {
+				const reply = res.payload?.reply;
+				resolve(typeof reply === 'string' ? reply : JSON.stringify(reply ?? res.payload));
+			} else {
+				reject(new Error(res.error?.message ?? 'Agent error'));
+			}
+		});
 
 		setTimeout(() => {
 			if (responseHandlers.has(id)) {

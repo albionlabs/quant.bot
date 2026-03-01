@@ -1,10 +1,13 @@
 {
 	"gateway": {
 		"mode": "local",
-		"port": 18789,
-		"bind": "custom",
+		"port": 18790,
+		"bind": "loopback",
 		"auth": {
 			"mode": "token"
+		},
+		"controlUi": {
+			"enabled": false
 		}
 	},
 	"agents": {

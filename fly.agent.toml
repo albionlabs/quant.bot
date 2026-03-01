@@ -5,8 +5,8 @@ primary_region = 'lhr'
   dockerfile = 'apps/agent/Dockerfile'
 
 [env]
-  NODE_OPTIONS = '--max-old-space-size=768'
+  NODE_OPTIONS = '--max-old-space-size=1536'
 
 [[vm]]
-  size = 'shared-cpu-1x'
-  memory = '1gb'
+  size = 'shared-cpu-2x'
+  memory = '2gb'
