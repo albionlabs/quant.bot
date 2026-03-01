@@ -54,23 +54,8 @@ function setupListeners(ws: WebSocket, resolve: () => void, reject: (err: Error)
 
 	ws.on('open', () => {
 		reconnectDelay = 1000;
-		const id = String(++messageId);
-		ws.send(
-			JSON.stringify({
-				type: 'req',
-				id,
-				method: 'connect',
-				params: {
-					role: 'operator',
-					auth: { token: savedConfig!.openclawGatewayToken }
-				}
-			})
-		);
-
-		responseHandlers.set(id, () => {
-			connected = true;
-			resolve();
-		});
+		connected = true;
+		resolve();
 	});
 }
 
