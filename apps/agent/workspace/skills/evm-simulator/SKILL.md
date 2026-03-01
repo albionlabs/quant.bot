@@ -6,7 +6,7 @@ version: "1.0.0"
 
 To simulate an EVM transaction, make an HTTP POST request:
 
-URL: http://tools:4000/api/evm/simulate
+URL: http://quant-bot-tools.internal:4000/api/evm/simulate
 Content-Type: application/json
 
 For raw calldata:

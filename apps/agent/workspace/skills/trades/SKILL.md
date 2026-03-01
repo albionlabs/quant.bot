@@ -5,7 +5,7 @@ version: "1.0.0"
 ---
 
 All requests require HTTP Basic Auth with API key credentials.
-Base URL: http://rest-api:8000
+Base URL: http://albion.internal:8000
 
 ## Get Trades by Address
 

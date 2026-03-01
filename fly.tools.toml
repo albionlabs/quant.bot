@@ -4,6 +4,9 @@ primary_region = 'lhr'
 [build]
   dockerfile = 'apps/tools/Dockerfile'
 
+[env]
+  TOOLS_HOST = '::'
+
 [[vm]]
   size = 'shared-cpu-1x'
   memory = '512mb'

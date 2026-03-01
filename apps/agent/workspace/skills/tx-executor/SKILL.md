@@ -6,7 +6,7 @@ version: "1.0.0"
 
 To execute a transaction on Base, make an HTTP POST request:
 
-URL: http://tools:4000/api/evm/execute
+URL: http://quant-bot-tools.internal:4000/api/evm/execute
 Content-Type: application/json
 
 Body:

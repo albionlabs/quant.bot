@@ -6,7 +6,7 @@ version: "1.0.0"
 
 To query a subgraph, make an HTTP POST request:
 
-URL: http://tools:4000/api/subgraph/query
+URL: http://quant-bot-tools.internal:4000/api/subgraph/query
 Content-Type: application/json
 
 Body:

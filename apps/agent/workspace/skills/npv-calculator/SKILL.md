@@ -6,7 +6,7 @@ version: "1.0.0"
 
 To calculate NPV, make an HTTP POST request:
 
-URL: http://tools:4000/api/npv
+URL: http://quant-bot-tools.internal:4000/api/npv
 Content-Type: application/json
 
 Body:
