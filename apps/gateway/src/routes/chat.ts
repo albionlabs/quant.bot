@@ -49,7 +49,18 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 				touchSession(sessionId);
 
 				try {
-					const result = await sendToAgent(msg.content, user!.sub);
+					const result = await sendToAgent({
+						message: msg.content,
+						userId: user!.sub,
+						onDelta: (delta) => {
+							const streamMsg: ServerMessage = {
+								type: 'stream',
+								sessionId,
+								delta
+							};
+							socket.send(JSON.stringify(streamMsg));
+						}
+					});
 					const response: ServerMessage = {
 						type: 'message',
 						role: 'assistant',

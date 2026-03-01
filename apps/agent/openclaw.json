@@ -8,6 +8,13 @@
 		},
 		"controlUi": {
 			"enabled": false
+		},
+		"http": {
+			"endpoints": {
+				"chatCompletions": {
+					"enabled": true
+				}
+			}
 		}
 	},
 	"agents": {

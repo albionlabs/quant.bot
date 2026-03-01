@@ -12,6 +12,18 @@ const MAX_RECONNECT_DELAY = 30_000;
 type ResHandler = (msg: { ok: boolean; payload?: Record<string, unknown>; error?: { code: string; message: string } }) => void;
 const responseHandlers = new Map<string, ResHandler>();
 
+interface AgentEvent {
+	runId: string;
+	stream: string;
+	data: Record<string, unknown>;
+	sessionKey: string;
+	seq: number;
+	ts: number;
+}
+
+type AgentEventHandler = (event: AgentEvent) => void;
+const runHandlers = new Map<string, AgentEventHandler>();
+
 export function isAgentConnected(): boolean {
 	return connected;
 }
@@ -90,6 +102,14 @@ export function connectToAgent(config: GatewayConfig): Promise<void> {
 						responseHandlers.delete(msg.id);
 						handler(msg);
 					}
+					return;
+				}
+
+				// Handle agent events — dispatch to run handlers
+				if (msg.type === 'event' && msg.event === 'agent' && msg.payload) {
+					const payload = msg.payload as AgentEvent;
+					const handler = runHandlers.get(payload.runId);
+					if (handler) handler(payload);
 				}
 			} catch {
 				// ignore malformed messages
@@ -110,47 +130,72 @@ export function connectToAgent(config: GatewayConfig): Promise<void> {
 	});
 }
 
+export interface SendOptions {
+	message: string;
+	userId: string;
+	onDelta?: (delta: string) => void;
+}
+
 /**
- * Send a message to the agent via the OpenAI-compatible HTTP API.
- * This avoids the complexity of the WebSocket event streaming protocol.
+ * Send a message to the agent via WebSocket RPC and stream the response.
+ * Returns the final complete text.
  */
-export async function sendToAgent(message: string, userId?: string): Promise<string> {
-	if (!connected || !savedConfig) {
-		throw new Error('Agent not connected');
+export function sendToAgent(opts: SendOptions): Promise<string> {
+	if (!connected || !agentWs) {
+		return Promise.reject(new Error('Agent not connected'));
 	}
 
-	// Derive HTTP URL from WebSocket URL
-	const httpUrl = savedConfig.agentWsUrl
-		.replace(/^ws:/, 'http:')
-		.replace(/^wss:/, 'https:');
+	const ws = agentWs;
+	const sessionKey = `agent:main:web:${opts.userId}`;
 
-	const res = await fetch(`${httpUrl}/v1/chat/completions`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${savedConfig.openclawGatewayToken}`
-		},
-		body: JSON.stringify({
-			model: 'openclaw:main',
-			messages: [{ role: 'user', content: message }],
-			user: userId ?? 'default'
-		}),
-		signal: AbortSignal.timeout(120_000)
+	return new Promise<string>((resolve, reject) => {
+		const reqId = randomUUID();
+		const timeout = setTimeout(() => {
+			runHandlers.delete(reqId);
+			responseHandlers.delete(reqId);
+			reject(new Error('Agent response timeout'));
+		}, 120_000);
+
+		let runId: string | null = null;
+		let finalText = '';
+
+		// Register event handler for agent events on this run
+		const onAgentEvent = (event: AgentEvent) => {
+			if (event.stream === 'assistant' && event.data) {
+				const delta = event.data.delta as string | undefined;
+				if (delta && opts.onDelta) opts.onDelta(delta);
+				if (event.data.text) finalText = event.data.text as string;
+			}
+
+			if (event.stream === 'lifecycle' && event.data?.phase === 'end') {
+				clearTimeout(timeout);
+				if (runId) runHandlers.delete(runId);
+				resolve(finalText);
+			}
+		};
+
+		// Register response handler for the chat.send RPC
+		responseHandlers.set(reqId, (res) => {
+			if (!res.ok) {
+				clearTimeout(timeout);
+				reject(new Error(res.error?.message ?? 'chat.send failed'));
+				return;
+			}
+			runId = (res.payload?.runId as string) ?? null;
+			if (runId) {
+				runHandlers.set(runId, onAgentEvent);
+			}
+		});
+
+		ws.send(JSON.stringify({
+			type: 'req',
+			id: reqId,
+			method: 'chat.send',
+			params: {
+				message: opts.message,
+				idempotencyKey: randomUUID(),
+				sessionKey
+			}
+		}));
 	});
-
-	if (!res.ok) {
-		const text = await res.text();
-		throw new Error(`Agent HTTP error ${res.status}: ${text}`);
-	}
-
-	const json = await res.json() as {
-		choices?: Array<{ message?: { content?: string } }>;
-	};
-
-	const reply = json.choices?.[0]?.message?.content;
-	if (!reply) {
-		throw new Error('No response content from agent');
-	}
-
-	return reply;
 }
