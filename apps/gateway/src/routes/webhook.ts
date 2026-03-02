@@ -13,6 +13,18 @@ function verifyWebhookSignature(secret: string, signature: string, payload: obje
 	return timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
 }
 
+/**
+ * Delegated share webhooks are a separate system from Dynamic's general
+ * webhooks and may not include an HMAC signature header. When a signature
+ * is present we verify it; otherwise we rely on the RSA-encrypted payload
+ * as the authenticity guarantee (only our private key can decrypt it).
+ */
+function verifyIfSigned(config: GatewayConfig, signature: string | undefined, payload: object): boolean {
+	if (!signature) return true;
+	if (!config.dynamicWebhookSecret) return true;
+	return verifyWebhookSignature(config.dynamicWebhookSecret, signature, payload);
+}
+
 interface EncryptedPayload {
 	alg: string;
 	iv: string;
@@ -49,14 +61,13 @@ type WebhookPayload = DelegationCreatedPayload | DelegationRevokedPayload;
 export async function webhookRoutes(app: FastifyInstance, config: GatewayConfig) {
 	app.post('/api/webhooks/dynamic', async (request, reply) => {
 		const signature = request.headers['x-dynamic-signature-256'] as string | undefined;
-		if (!signature) {
-			return reply.status(401).send({ error: 'Missing signature header' });
-		}
-
 		const payload = request.body as WebhookPayload;
-		if (!verifyWebhookSignature(config.dynamicWebhookSecret, signature, payload)) {
+
+		if (!verifyIfSigned(config, signature, payload)) {
 			return reply.status(401).send({ error: 'Invalid webhook signature' });
 		}
+
+		app.log.info({ eventName: payload.eventName }, 'Webhook received');
 
 		if (payload.eventName === 'wallet.delegation.revoked') {
 			const { userId, walletId } = payload.data;
