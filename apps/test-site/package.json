@@ -9,8 +9,9 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
-		"@quant-bot/chat-widget": "workspace:*",
-		"viem": "^2.31.0"
+		"@dynamic-labs-sdk/client": "^0.13.0",
+		"@dynamic-labs-sdk/evm": "^0.13.0",
+		"@quant-bot/chat-widget": "workspace:*"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-vercel": "^5.0.0",

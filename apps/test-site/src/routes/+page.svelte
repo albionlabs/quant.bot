@@ -1,80 +1,80 @@
 <script lang="ts">
-	import { env } from '$env/dynamic/public';
-	import { ChatWidget, setAuth, clearAuth, auth } from '@quant-bot/chat-widget';
-	import { getWallet, getClient, connectWallet, disconnectWallet } from '$lib/wallet.svelte';
-	import { createSiweMessage, generateNonce } from '$lib/siwe';
-	import { getDelegationStatus, revokeDelegation } from '$lib/delegation';
-	import type { DelegationStatusResponse } from '@quant-bot/shared-types';
+	import { onMount } from 'svelte'
+	import { env } from '$env/dynamic/public'
+	import { ChatWidget, setAuth, clearAuth, auth } from '@quant-bot/chat-widget'
+	import {
+		getWalletState,
+		initDynamic,
+		startEmailLogin,
+		completeEmailLogin,
+		signSiweMessage,
+		delegateAccess,
+		checkDelegated,
+		revokeDynamic,
+		disconnect
+	} from '$lib/wallet.svelte'
+	import { createSiweMessage, generateNonce } from '$lib/siwe'
+	import { getDelegationStatus, revokeDelegation } from '$lib/delegation'
+	import type { DelegationStatusResponse } from '@quant-bot/shared-types'
+	import type { OTPVerification } from '@dynamic-labs-sdk/client'
 
-	const gatewayUrl = env.PUBLIC_GATEWAY_URL ?? 'http://localhost:3000';
-	const wsUrl = gatewayUrl.replace(/^http/, 'ws');
+	const gatewayUrl = env.PUBLIC_GATEWAY_URL ?? 'http://localhost:3000'
+	const wsUrl = gatewayUrl.replace(/^http/, 'ws')
 
-	const wallet = getWallet();
+	const wallet = getWalletState()
 
-	let signing = $state(false);
-	let error = $state<string | null>(null);
-	let delegationStatus = $state<DelegationStatusResponse | null>(null);
-	let loadingDelegation = $state(false);
+	type UiState = 'email' | 'otp' | 'signing' | 'authenticated'
 
-	async function fetchDelegationStatus() {
-		if (!$auth.token) return;
-		loadingDelegation = true;
+	let uiState = $state<UiState>('email')
+	let email = $state('')
+	let otpCode = $state('')
+	let otpVerification = $state<OTPVerification | null>(null)
+	let error = $state<string | null>(null)
+	let loading = $state(false)
+	let delegationStatus = $state<DelegationStatusResponse | null>(null)
+	let loadingDelegation = $state(false)
+
+	onMount(() => {
+		const envId = env.PUBLIC_DYNAMIC_ENVIRONMENT_ID
+		if (envId) {
+			initDynamic(envId)
+		}
+	})
+
+	async function handleSendOtp() {
+		if (!email.trim()) return
+		error = null
+		loading = true
 		try {
-			delegationStatus = await getDelegationStatus(gatewayUrl, $auth.token);
-		} catch {
-			delegationStatus = null;
+			otpVerification = await startEmailLogin(email.trim())
+			uiState = 'otp'
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to send OTP'
 		} finally {
-			loadingDelegation = false;
+			loading = false
 		}
 	}
 
-	async function handleRevokeDelegation() {
-		if (!$auth.token) return;
+	async function handleVerifyOtp() {
+		if (!otpCode.trim() || !otpVerification) return
+		error = null
+		loading = true
+		uiState = 'signing'
 		try {
-			await revokeDelegation(gatewayUrl, $auth.token);
-			delegationStatus = { active: false };
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to revoke delegation';
-		}
-	}
+			await completeEmailLogin(otpVerification, otpCode.trim())
 
-	async function handleConnect() {
-		error = null;
-		try {
-			await connectWallet();
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to connect wallet';
-		}
-	}
+			if (!wallet.address) throw new Error('No wallet address after login')
 
-	function handleDisconnect() {
-		disconnectWallet();
-		clearAuth();
-		delegationStatus = null;
-		error = null;
-	}
-
-	async function handleSignIn() {
-		const client = getClient();
-		if (!wallet.address || !client) return;
-
-		error = null;
-		signing = true;
-
-		try {
 			const message = createSiweMessage({
 				domain: window.location.host,
 				address: wallet.address,
 				uri: window.location.origin,
-				chainId: wallet.chainId,
+				chainId: 1,
 				nonce: generateNonce(),
 				statement: 'Sign in to quant.bot'
-			});
+			})
 
-			const signature = await client.signMessage({
-				account: wallet.address,
-				message
-			});
+			const signature = await signSiweMessage(message)
 
 			const res = await fetch(`${gatewayUrl}/api/auth/login`, {
 				method: 'POST',
@@ -84,21 +84,74 @@
 					message,
 					address: wallet.address
 				})
-			});
+			})
 
 			if (!res.ok) {
-				const body = await res.json().catch(() => ({}));
-				throw new Error(body.error ?? `Login failed (${res.status})`);
+				const body = await res.json().catch(() => ({}))
+				throw new Error(body.error ?? `Login failed (${res.status})`)
 			}
 
-			const { token, user } = await res.json();
-			setAuth(token, wallet.address, user.id);
-			// Fetch delegation status after login
-			delegationStatus = await getDelegationStatus(gatewayUrl, token);
+			const { token, user } = await res.json()
+			setAuth(token, wallet.address, user.id)
+
+			uiState = 'authenticated'
+
+			// Fetch delegation status and auto-delegate if needed
+			try {
+				delegationStatus = await getDelegationStatus(gatewayUrl, token)
+				if (!delegationStatus.active && !checkDelegated()) {
+					await delegateAccess()
+					delegationStatus = await getDelegationStatus(gatewayUrl, token)
+				}
+			} catch {
+				// Non-fatal — delegation can be retried
+			}
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Sign-in failed';
+			error = e instanceof Error ? e.message : 'Sign-in failed'
+			uiState = 'otp'
 		} finally {
-			signing = false;
+			loading = false
+		}
+	}
+
+	function handleBack() {
+		uiState = 'email'
+		otpCode = ''
+		otpVerification = null
+		error = null
+	}
+
+	async function handleDisconnect() {
+		await disconnect()
+		clearAuth()
+		delegationStatus = null
+		error = null
+		email = ''
+		otpCode = ''
+		otpVerification = null
+		uiState = 'email'
+	}
+
+	async function handleRevokeDelegation() {
+		if (!$auth.token) return
+		try {
+			await revokeDelegation(gatewayUrl, $auth.token)
+			await revokeDynamic()
+			delegationStatus = { active: false }
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to revoke delegation'
+		}
+	}
+
+	async function fetchDelegationStatus() {
+		if (!$auth.token) return
+		loadingDelegation = true
+		try {
+			delegationStatus = await getDelegationStatus(gatewayUrl, $auth.token)
+		} catch {
+			delegationStatus = null
+		} finally {
+			loadingDelegation = false
 		}
 	}
 </script>
@@ -123,19 +176,40 @@
 		<div class="chat-container">
 			<ChatWidget config={{ gatewayUrl: wsUrl, token: $auth.token ?? undefined }} />
 		</div>
-	{:else if wallet.connected}
+	{:else if uiState === 'otp'}
 		<div class="card">
-			<p class="addr">{wallet.address?.slice(0, 6)}...{wallet.address?.slice(-4)}</p>
-			<p class="hint">Sign in to start chatting</p>
-			<button class="btn" onclick={handleSignIn} disabled={signing}>
-				{signing ? 'Signing...' : 'Sign In with Ethereum'}
+			<p class="hint">Enter the code sent to <strong>{email}</strong></p>
+			<input
+				class="input"
+				type="text"
+				inputmode="numeric"
+				placeholder="Enter OTP code"
+				bind:value={otpCode}
+				onkeydown={(e) => e.key === 'Enter' && handleVerifyOtp()}
+			/>
+			<button class="btn" onclick={handleVerifyOtp} disabled={loading || !otpCode.trim()}>
+				{loading ? 'Verifying...' : 'Verify'}
 			</button>
-			<button class="btn btn-secondary" onclick={handleDisconnect}>Disconnect</button>
+			<button class="btn btn-secondary" onclick={handleBack} disabled={loading}>Back</button>
+		</div>
+	{:else if uiState === 'signing'}
+		<div class="card">
+			<p class="hint">Signing in...</p>
+			<div class="spinner"></div>
 		</div>
 	{:else}
 		<div class="card">
-			<p class="hint">Connect your wallet to get started</p>
-			<button class="btn" onclick={handleConnect}>Connect Wallet</button>
+			<p class="hint">Enter your email to get started</p>
+			<input
+				class="input"
+				type="email"
+				placeholder="you@example.com"
+				bind:value={email}
+				onkeydown={(e) => e.key === 'Enter' && handleSendOtp()}
+			/>
+			<button class="btn" onclick={handleSendOtp} disabled={loading || !email.trim()}>
+				{loading ? 'Sending...' : 'Continue'}
+			</button>
 		</div>
 	{/if}
 
@@ -206,6 +280,34 @@
 		color: #6b7280;
 		font-size: 0.9rem;
 		margin: 0;
+	}
+
+	.input {
+		width: 100%;
+		max-width: 300px;
+		padding: 0.5rem 0.75rem;
+		border: 1px solid #d1d5db;
+		border-radius: 0.5rem;
+		font-size: 0.875rem;
+		outline: none;
+	}
+
+	.input:focus {
+		border-color: #1f2937;
+		box-shadow: 0 0 0 1px #1f2937;
+	}
+
+	.spinner {
+		width: 1.5rem;
+		height: 1.5rem;
+		border: 2px solid #e5e7eb;
+		border-top-color: #1f2937;
+		border-radius: 50%;
+		animation: spin 0.6s linear infinite;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 
 	.btn {

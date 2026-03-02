@@ -1,75 +1,84 @@
-import { createWalletClient, custom, type WalletClient, type Address } from 'viem';
-import { mainnet } from 'viem/chains';
+import {
+	createDynamicClient,
+	sendEmailOTP,
+	verifyOTP,
+	getWalletAccounts,
+	signMessage,
+	logout
+} from '@dynamic-labs-sdk/client'
+import { addWaasEvmExtension } from '@dynamic-labs-sdk/evm/waas'
+import {
+	delegateWaasKeyShares,
+	hasDelegatedAccess,
+	revokeWaasDelegation
+} from '@dynamic-labs-sdk/client/waas'
+import type { DynamicClient, WalletAccount, OTPVerification } from '@dynamic-labs-sdk/client'
 
-interface WalletState {
-	address: Address | null;
-	connected: boolean;
-	chainId: number;
-}
+let dynamicClient = $state<DynamicClient | null>(null)
+let walletAccount = $state<WalletAccount | null>(null)
+let address = $state<string | null>(null)
 
-let state = $state<WalletState>({
-	address: null,
-	connected: false,
-	chainId: 1
-});
-
-let client: WalletClient | null = null;
-
-export function getWallet() {
+export function getWalletState() {
 	return {
-		get address() { return state.address; },
-		get connected() { return state.connected; },
-		get chainId() { return state.chainId; }
-	};
-}
-
-export function getClient(): WalletClient | null {
-	return client;
-}
-
-export async function connectWallet(): Promise<Address> {
-	if (!window.ethereum) {
-		throw new Error('No wallet found. Please install MetaMask or another browser wallet.');
-	}
-
-	client = createWalletClient({
-		chain: mainnet,
-		transport: custom(window.ethereum)
-	});
-
-	const [address] = await client.requestAddresses();
-	const chainId = await client.getChainId();
-
-	state.address = address;
-	state.connected = true;
-	state.chainId = chainId;
-
-	window.ethereum.on('accountsChanged', handleAccountsChanged);
-	window.ethereum.on('chainChanged', handleChainChanged);
-
-	return address;
-}
-
-export function disconnectWallet() {
-	if (window.ethereum) {
-		window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-		window.ethereum.removeListener('chainChanged', handleChainChanged);
-	}
-	client = null;
-	state.address = null;
-	state.connected = false;
-	state.chainId = 1;
-}
-
-function handleAccountsChanged(accounts: unknown) {
-	const accts = accounts as string[];
-	if (accts.length === 0) {
-		disconnectWallet();
-	} else {
-		state.address = accts[0] as Address;
+		get address() { return address },
+		get connected() { return !!walletAccount },
+		get walletAccount() { return walletAccount }
 	}
 }
 
-function handleChainChanged(chainId: unknown) {
-	state.chainId = Number(chainId);
+export function getDynamicClient(): DynamicClient | null {
+	return dynamicClient
+}
+
+export function initDynamic(environmentId: string) {
+	dynamicClient = createDynamicClient({ environmentId })
+	addWaasEvmExtension()
+}
+
+export async function startEmailLogin(email: string): Promise<OTPVerification> {
+	return sendEmailOTP({ email })
+}
+
+export async function completeEmailLogin(
+	otpVerification: OTPVerification,
+	verificationToken: string
+) {
+	await verifyOTP({ otpVerification, verificationToken })
+
+	const accounts = getWalletAccounts()
+	if (accounts.length === 0) {
+		throw new Error('No wallet accounts found after login')
+	}
+
+	walletAccount = accounts[0]
+	address = walletAccount.address
+}
+
+export async function signSiweMessage(message: string): Promise<string> {
+	if (!walletAccount) throw new Error('No wallet account available')
+
+	const { signature } = await signMessage({ walletAccount, message })
+	return signature
+}
+
+export async function delegateAccess(): Promise<void> {
+	if (!walletAccount) throw new Error('No wallet account available')
+	await delegateWaasKeyShares({ walletAccount })
+}
+
+export function checkDelegated(): boolean {
+	if (!walletAccount) return false
+	return hasDelegatedAccess({ walletAccount })
+}
+
+export async function revokeDynamic(): Promise<void> {
+	if (!walletAccount) throw new Error('No wallet account available')
+	await revokeWaasDelegation({ walletAccount })
+}
+
+export async function disconnect() {
+	await logout()
+	dynamicClient = null
+	walletAccount = null
+	address = null
 }
