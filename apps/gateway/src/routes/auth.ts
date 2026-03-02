@@ -1,10 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { SiweMessage } from 'siwe';
 import type { LoginRequest, LoginResponse, RefreshResponse } from '@quant-bot/shared-types';
-import { createToken, authMiddleware } from '../middleware/auth.js';
+import { createToken, authMiddleware, type JwtPayload } from '../middleware/auth.js';
 import type { GatewayConfig } from '../config.js';
-import type { JwtPayload } from '../middleware/auth.js';
 
 export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
 	app.post<{ Body: LoginRequest }>('/api/auth/login', async (request, reply) => {
@@ -26,7 +24,7 @@ export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
 				return reply.status(401).send({ error: 'Address mismatch' });
 			}
 
-			const userId = randomUUID();
+			const userId = result.data.address.toLowerCase();
 			const token = await createToken(address, userId, config);
 
 			const response: LoginResponse = {
@@ -54,18 +52,6 @@ export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
 		}
 	});
 
-	app.post<{ Body: { publicKey: string } }>('/api/auth/session-key', {
-		preHandler: authMiddleware(config),
-		handler: async (request) => {
-			const user = (request as FastifyRequest & { user: JwtPayload }).user;
-			const { publicKey } = request.body;
-
-			// In production, this would register with Dynamic's session key system
-			const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24h
-
-			return { userId: user.sub, publicKey, expiresAt };
-		}
-	});
 }
 
 type FastifyRequest = import('fastify').FastifyRequest;

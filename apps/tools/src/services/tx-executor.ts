@@ -1,34 +1,46 @@
-import { createBaseWalletClient, createBasePublicClient, getSessionKey } from '@quant-bot/evm-utils';
+import { createBasePublicClient } from '@quant-bot/evm-utils';
 import type { TxExecuteRequest, TxExecuteResponse, Address, Hex } from '@quant-bot/shared-types';
+import {
+	createDelegatedEvmWalletClient,
+	delegatedSignTransaction
+} from '@dynamic-labs-wallet/node-evm';
+import { fetchDelegationCredentials } from './delegation-client.js';
+import type { ToolsConfig } from '../config.js';
 
 export async function executeTransaction(
 	request: TxExecuteRequest,
-	rpcUrl: string,
-	chainName: string
+	config: ToolsConfig
 ): Promise<TxExecuteResponse> {
-	const sessionKey = getSessionKey(request.sessionKeyId);
-	if (!sessionKey) {
-		throw new Error(`Invalid or expired session key: ${request.sessionKeyId}`);
-	}
+	const credentials = await fetchDelegationCredentials(
+		request.userId,
+		config.gatewayInternalUrl,
+		config.internalSecret
+	);
 
-	if (sessionKey.userId !== request.userId) {
-		throw new Error('Session key does not belong to this user');
-	}
+	const client = createDelegatedEvmWalletClient({
+		environmentId: config.dynamicEnvironmentId,
+		apiKey: config.dynamicApiKey
+	});
 
-	// In production, this would use the session key's private key from a secure store.
-	// For now, we use an environment variable as a placeholder.
-	const signerKey = process.env.EXECUTOR_PRIVATE_KEY;
-	if (!signerKey) {
-		throw new Error('EXECUTOR_PRIVATE_KEY not configured');
-	}
-
-	const walletClient = createBaseWalletClient(signerKey as `0x${string}`, rpcUrl, chainName);
-	const publicClient = createBasePublicClient(rpcUrl, chainName);
-
-	const hash = await walletClient.sendTransaction({
+	const transaction = {
 		to: request.to as Address,
 		data: request.data as Hex,
 		value: request.value ? BigInt(request.value) : undefined
+	};
+
+	// keyShare is stored as a serialized ServerKeyShare object
+	const keyShare = JSON.parse(credentials.keyShare);
+
+	const signedTx = await delegatedSignTransaction(client, {
+		walletId: credentials.walletId,
+		walletApiKey: credentials.walletApiKey,
+		keyShare,
+		transaction
+	});
+
+	const publicClient = createBasePublicClient(config.rpcUrl, config.chainName);
+	const hash = await publicClient.sendRawTransaction({
+		serializedTransaction: signedTx as Hex
 	});
 
 	const receipt = await publicClient.waitForTransactionReceipt({ hash });

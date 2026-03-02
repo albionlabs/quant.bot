@@ -11,6 +11,35 @@ export interface SessionKey {
 	expiresAt: number;
 }
 
+export type DelegationStatus = 'active' | 'revoked' | 'expired'
+
+export interface Delegation {
+	id: string;
+	userId: string;
+	walletId: string;
+	walletAddress: string;
+	status: DelegationStatus;
+	chainId: number;
+	createdAt: number;
+	expiresAt: number;
+}
+
+export interface DelegationActivateRequest {
+	delegationId: string;
+	walletAddress: string;
+}
+
+export interface DelegationActivateResponse {
+	activeDelegationId: string;
+}
+
+export interface DelegationStatusResponse {
+	active: boolean;
+	delegationId?: string;
+	walletAddress?: string;
+	expiresAt?: number;
+}
+
 export interface AuthToken {
 	token: string;
 	expiresAt: number;

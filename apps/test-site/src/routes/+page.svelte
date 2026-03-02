@@ -3,6 +3,8 @@
 	import { ChatWidget, setAuth, clearAuth, auth } from '@quant-bot/chat-widget';
 	import { getWallet, getClient, connectWallet, disconnectWallet } from '$lib/wallet.svelte';
 	import { createSiweMessage, generateNonce } from '$lib/siwe';
+	import { getDelegationStatus, revokeDelegation } from '$lib/delegation';
+	import type { DelegationStatusResponse } from '@quant-bot/shared-types';
 
 	const gatewayUrl = env.PUBLIC_GATEWAY_URL ?? 'http://localhost:3000';
 	const wsUrl = gatewayUrl.replace(/^http/, 'ws');
@@ -11,6 +13,30 @@
 
 	let signing = $state(false);
 	let error = $state<string | null>(null);
+	let delegationStatus = $state<DelegationStatusResponse | null>(null);
+	let loadingDelegation = $state(false);
+
+	async function fetchDelegationStatus() {
+		if (!$auth.token) return;
+		loadingDelegation = true;
+		try {
+			delegationStatus = await getDelegationStatus(gatewayUrl, $auth.token);
+		} catch {
+			delegationStatus = null;
+		} finally {
+			loadingDelegation = false;
+		}
+	}
+
+	async function handleRevokeDelegation() {
+		if (!$auth.token) return;
+		try {
+			await revokeDelegation(gatewayUrl, $auth.token);
+			delegationStatus = { active: false };
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to revoke delegation';
+		}
+	}
 
 	async function handleConnect() {
 		error = null;
@@ -24,6 +50,7 @@
 	function handleDisconnect() {
 		disconnectWallet();
 		clearAuth();
+		delegationStatus = null;
 		error = null;
 	}
 
@@ -66,6 +93,8 @@
 
 			const { token, user } = await res.json();
 			setAuth(token, wallet.address, user.id);
+			// Fetch delegation status after login
+			delegationStatus = await getDelegationStatus(gatewayUrl, token);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Sign-in failed';
 		} finally {
@@ -78,7 +107,18 @@
 	{#if $auth.authenticated}
 		<div class="status-bar">
 			<span class="addr">{$auth.address?.slice(0, 6)}...{$auth.address?.slice(-4)}</span>
-			<button class="btn btn-sm" onclick={handleDisconnect}>Disconnect</button>
+			<div class="status-bar-actions">
+				{#if delegationStatus?.active}
+					<span class="delegation-badge active">Delegation Active</span>
+					<button class="btn btn-sm btn-secondary" onclick={handleRevokeDelegation}>Revoke</button>
+				{:else}
+					<span class="delegation-badge inactive">No Delegation</span>
+					<button class="btn btn-sm" onclick={fetchDelegationStatus} disabled={loadingDelegation}>
+						{loadingDelegation ? 'Checking...' : 'Refresh'}
+					</button>
+				{/if}
+				<button class="btn btn-sm" onclick={handleDisconnect}>Disconnect</button>
+			</div>
 		</div>
 		<div class="chat-container">
 			<ChatWidget config={{ gatewayUrl: wsUrl, token: $auth.token ?? undefined }} />
@@ -127,6 +167,29 @@
 		justify-content: space-between;
 		align-items: center;
 		padding: 0.5rem 0;
+	}
+
+	.status-bar-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.delegation-badge {
+		font-size: 0.75rem;
+		font-weight: 500;
+		padding: 0.2rem 0.5rem;
+		border-radius: 0.25rem;
+	}
+
+	.delegation-badge.active {
+		background: #dcfce7;
+		color: #166534;
+	}
+
+	.delegation-badge.inactive {
+		background: #f3f4f6;
+		color: #6b7280;
 	}
 
 	.chat-container {

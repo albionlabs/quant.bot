@@ -28,7 +28,7 @@ export interface TxExecuteRequest {
 	to: string;
 	data: string;
 	value?: string;
-	sessionKeyId: string;
+	delegationId: string;
 	userId: string;
 }
 

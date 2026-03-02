@@ -9,6 +9,10 @@ export interface GatewayConfig {
 	rateLimitWindow: number;
 	authRateLimitMax: number;
 	corsOrigin: string[];
+	delegationEncryptionKey: string;
+	dynamicWebhookSecret: string;
+	internalSecret: string;
+	delegationTtlMs: number;
 }
 
 export function loadConfig(): GatewayConfig {
@@ -18,6 +22,10 @@ export function loadConfig(): GatewayConfig {
 	const corsOrigin = process.env.CORS_ORIGIN
 		? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
 		: ['http://localhost:5173'];
+
+	const delegationEncryptionKey = process.env.DELEGATION_ENCRYPTION_KEY ?? '';
+	const dynamicWebhookSecret = process.env.DYNAMIC_WEBHOOK_SECRET ?? '';
+	const internalSecret = process.env.INTERNAL_SECRET ?? '';
 
 	return {
 		port: parseInt(process.env.GATEWAY_PORT ?? '3000', 10),
@@ -29,6 +37,10 @@ export function loadConfig(): GatewayConfig {
 		rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX ?? '30', 10),
 		rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW ?? '60000', 10),
 		authRateLimitMax: parseInt(process.env.AUTH_RATE_LIMIT_MAX ?? '5', 10),
-		corsOrigin
+		corsOrigin,
+		delegationEncryptionKey,
+		dynamicWebhookSecret,
+		internalSecret,
+		delegationTtlMs: parseInt(process.env.DELEGATION_TTL_MS ?? '86400000', 10)
 	};
 }

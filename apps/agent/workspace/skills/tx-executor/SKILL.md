@@ -1,7 +1,7 @@
 ---
 name: "Transaction Executor"
-description: "Execute transactions on Base using delegated session keys"
-version: "1.0.0"
+description: "Execute transactions on Base using delegated wallet signing"
+version: "2.0.0"
 ---
 
 To execute a transaction on Base, make an HTTP POST request:
@@ -15,8 +15,8 @@ Body:
   "to": "0x1234567890abcdef1234567890abcdef12345678",
   "data": "0xabcdef...",
   "value": "0",
-  "sessionKeyId": "sk_abc123",
-  "userId": "user_xyz"
+  "delegationId": "uuid-of-active-delegation",
+  "userId": "0xuserwalletaddress"
 }
 ```
 
@@ -24,8 +24,8 @@ Parameters:
 - `to`: Target contract address (must be valid 0x address)
 - `data`: Encoded calldata (hex string starting with 0x)
 - `value`: Optional ETH value in wei as string
-- `sessionKeyId`: The user's active session key ID
-- `userId`: The authenticated user ID
+- `delegationId`: The user's active delegation ID
+- `userId`: The authenticated user ID (wallet address, lowercase)
 
 Response:
 ```json
