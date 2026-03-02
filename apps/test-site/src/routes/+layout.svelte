@@ -1,8 +1,11 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import type { Snippet } from 'svelte'
+	import DynamicSvelteWrapper from '$lib/dynamic/DynamicSvelteWrapper.svelte'
 
-	let { children }: { children: Snippet } = $props();
+	let { children }: { children: Snippet } = $props()
 </script>
+
+<DynamicSvelteWrapper />
 
 <div class="layout">
 	<header>

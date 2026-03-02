@@ -9,9 +9,12 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
-		"@dynamic-labs-sdk/client": "^0.13.0",
-		"@dynamic-labs-sdk/evm": "^0.13.0",
-		"@quant-bot/chat-widget": "workspace:*"
+		"@dynamic-labs/ethereum": "^4.65.0",
+		"@dynamic-labs/sdk-react-core": "^4.65.0",
+		"@quant-bot/chat-widget": "workspace:*",
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4",
+		"svelte-preprocess-react": "^3.0.0"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-vercel": "^5.0.0",

@@ -1,89 +1,63 @@
 <script lang="ts">
-	import { onMount } from 'svelte'
 	import { env } from '$env/dynamic/public'
 	import { ChatWidget, setAuth, clearAuth, auth } from '@quant-bot/chat-widget'
 	import {
-		getWalletState,
-		initDynamic,
-		startEmailLogin,
-		completeEmailLogin,
-		signSiweMessage,
-		delegateAccess,
-		checkDelegated,
-		revokeDynamic,
-		disconnect
-	} from '$lib/wallet.svelte'
+		dynamicSession,
+		dynamicLoading,
+		dynamicError,
+		dynamicReady,
+		dynamicWalletProvider,
+		loginWithDynamic,
+		logoutDynamic
+	} from '$lib/stores/dynamicStore'
 	import { createSiweMessage, generateNonce } from '$lib/siwe'
 	import { getDelegationStatus, revokeDelegation } from '$lib/delegation'
 	import type { DelegationStatusResponse } from '@quant-bot/shared-types'
-	import type { OTPVerification } from '@dynamic-labs-sdk/client'
 
 	const gatewayUrl = env.PUBLIC_GATEWAY_URL ?? 'http://localhost:3000'
 	const wsUrl = gatewayUrl.replace(/^http/, 'ws')
 
-	const wallet = getWalletState()
-
-	type UiState = 'email' | 'otp' | 'signing' | 'authenticated'
-
-	let uiState = $state<UiState>('email')
-	let email = $state('')
-	let otpCode = $state('')
-	let otpVerification = $state<OTPVerification | null>(null)
 	let error = $state<string | null>(null)
-	let loading = $state(false)
+	let signingIn = $state(false)
 	let delegationStatus = $state<DelegationStatusResponse | null>(null)
 	let loadingDelegation = $state(false)
 
-	onMount(() => {
-		const envId = env.PUBLIC_DYNAMIC_ENVIRONMENT_ID
-		if (envId) {
-			initDynamic(envId)
+	// When Dynamic authenticates, auto-SIWE to gateway
+	let lastSignedAddress: string | null = null
+	$effect(() => {
+		const session = $dynamicSession
+		if (session?.walletAddress && session.walletAddress !== lastSignedAddress && !signingIn && !$auth.authenticated) {
+			lastSignedAddress = session.walletAddress
+			handleSiweLogin(session.walletAddress)
 		}
 	})
 
-	async function handleSendOtp() {
-		if (!email.trim()) return
+	async function handleSiweLogin(walletAddress: string) {
 		error = null
-		loading = true
+		signingIn = true
+
 		try {
-			otpVerification = await startEmailLogin(email.trim())
-			uiState = 'otp'
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to send OTP'
-		} finally {
-			loading = false
-		}
-	}
-
-	async function handleVerifyOtp() {
-		if (!otpCode.trim() || !otpVerification) return
-		error = null
-		loading = true
-		uiState = 'signing'
-		try {
-			await completeEmailLogin(otpVerification, otpCode.trim())
-
-			if (!wallet.address) throw new Error('No wallet address after login')
-
 			const message = createSiweMessage({
 				domain: window.location.host,
-				address: wallet.address,
+				address: walletAddress,
 				uri: window.location.origin,
 				chainId: 1,
 				nonce: generateNonce(),
 				statement: 'Sign in to quant.bot'
 			})
 
-			const signature = await signSiweMessage(message)
+			const provider = $dynamicWalletProvider
+			if (!provider) throw new Error('Wallet provider not ready')
+
+			const signature = await provider.request({
+				method: 'personal_sign',
+				params: [message, walletAddress]
+			}) as string
 
 			const res = await fetch(`${gatewayUrl}/api/auth/login`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					signature,
-					message,
-					address: wallet.address
-				})
+				body: JSON.stringify({ signature, message, address: walletAddress })
 			})
 
 			if (!res.ok) {
@@ -92,51 +66,39 @@
 			}
 
 			const { token, user } = await res.json()
-			setAuth(token, wallet.address, user.id)
+			setAuth(token, walletAddress, user.id)
 
-			uiState = 'authenticated'
-
-			// Fetch delegation status and auto-delegate if needed
+			// Fetch delegation status
 			try {
 				delegationStatus = await getDelegationStatus(gatewayUrl, token)
-				if (!delegationStatus.active && !checkDelegated()) {
-					await delegateAccess()
-					delegationStatus = await getDelegationStatus(gatewayUrl, token)
-				}
 			} catch {
-				// Non-fatal — delegation can be retried
+				// Non-fatal
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Sign-in failed'
-			uiState = 'otp'
+			lastSignedAddress = null
 		} finally {
-			loading = false
+			signingIn = false
 		}
 	}
 
-	function handleBack() {
-		uiState = 'email'
-		otpCode = ''
-		otpVerification = null
+	function handleLogin() {
 		error = null
+		loginWithDynamic()
 	}
 
-	async function handleDisconnect() {
-		await disconnect()
+	function handleDisconnect() {
+		logoutDynamic()
 		clearAuth()
 		delegationStatus = null
 		error = null
-		email = ''
-		otpCode = ''
-		otpVerification = null
-		uiState = 'email'
+		lastSignedAddress = null
 	}
 
 	async function handleRevokeDelegation() {
 		if (!$auth.token) return
 		try {
 			await revokeDelegation(gatewayUrl, $auth.token)
-			await revokeDynamic()
 			delegationStatus = { active: false }
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to revoke delegation'
@@ -176,45 +138,26 @@
 		<div class="chat-container">
 			<ChatWidget config={{ gatewayUrl: wsUrl, token: $auth.token ?? undefined }} />
 		</div>
-	{:else if uiState === 'otp'}
-		<div class="card">
-			<p class="hint">Enter the code sent to <strong>{email}</strong></p>
-			<input
-				class="input"
-				type="text"
-				inputmode="numeric"
-				placeholder="Enter OTP code"
-				bind:value={otpCode}
-				onkeydown={(e) => e.key === 'Enter' && handleVerifyOtp()}
-			/>
-			<button class="btn" onclick={handleVerifyOtp} disabled={loading || !otpCode.trim()}>
-				{loading ? 'Verifying...' : 'Verify'}
-			</button>
-			<button class="btn btn-secondary" onclick={handleBack} disabled={loading}>Back</button>
-		</div>
-	{:else if uiState === 'signing'}
+	{:else if signingIn}
 		<div class="card">
 			<p class="hint">Signing in...</p>
 			<div class="spinner"></div>
 		</div>
 	{:else}
 		<div class="card">
-			<p class="hint">Enter your email to get started</p>
-			<input
-				class="input"
-				type="email"
-				placeholder="you@example.com"
-				bind:value={email}
-				onkeydown={(e) => e.key === 'Enter' && handleSendOtp()}
-			/>
-			<button class="btn" onclick={handleSendOtp} disabled={loading || !email.trim()}>
-				{loading ? 'Sending...' : 'Continue'}
+			<p class="hint">Sign in with email or social to get started</p>
+			<button class="btn" onclick={handleLogin} disabled={$dynamicLoading || !$dynamicReady}>
+				{#if $dynamicLoading}
+					Loading...
+				{:else}
+					Sign In
+				{/if}
 			</button>
 		</div>
 	{/if}
 
-	{#if error}
-		<div class="error">{error}</div>
+	{#if error || $dynamicError}
+		<div class="error">{error || $dynamicError}</div>
 	{/if}
 </div>
 
@@ -280,21 +223,6 @@
 		color: #6b7280;
 		font-size: 0.9rem;
 		margin: 0;
-	}
-
-	.input {
-		width: 100%;
-		max-width: 300px;
-		padding: 0.5rem 0.75rem;
-		border: 1px solid #d1d5db;
-		border-radius: 0.5rem;
-		font-size: 0.875rem;
-		outline: none;
-	}
-
-	.input:focus {
-		border-color: #1f2937;
-		box-shadow: 0 0 0 1px #1f2937;
 	}
 
 	.spinner {
