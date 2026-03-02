@@ -11,6 +11,7 @@ export interface GatewayConfig {
 	corsOrigin: string[];
 	delegationEncryptionKey: string;
 	dynamicWebhookSecret: string;
+	dynamicDelegationPrivateKey: string;
 	internalSecret: string;
 	delegationTtlMs: number;
 }
@@ -25,6 +26,7 @@ export function loadConfig(): GatewayConfig {
 
 	const delegationEncryptionKey = process.env.DELEGATION_ENCRYPTION_KEY ?? '';
 	const dynamicWebhookSecret = process.env.DYNAMIC_WEBHOOK_SECRET ?? '';
+	const dynamicDelegationPrivateKey = process.env.DYNAMIC_DELEGATION_PRIVATE_KEY ?? '';
 	const internalSecret = process.env.INTERNAL_SECRET ?? '';
 
 	return {
@@ -40,6 +42,7 @@ export function loadConfig(): GatewayConfig {
 		corsOrigin,
 		delegationEncryptionKey,
 		dynamicWebhookSecret,
+		dynamicDelegationPrivateKey,
 		internalSecret,
 		delegationTtlMs: parseInt(process.env.DELEGATION_TTL_MS ?? '86400000', 10)
 	};
