@@ -3,12 +3,13 @@ import {
 	DynamicContextProvider,
 	useDynamicContext,
 	useUserWallets,
+	useWalletDelegation,
 	getAuthToken
 } from '@dynamic-labs/sdk-react-core'
 import { EthereumWalletConnectors, isEthereumWallet } from '@dynamic-labs/ethereum'
 
 export interface DynamicEventData {
-	type: 'ready' | 'authenticated' | 'logout' | 'wallet' | 'error' | 'token_refreshed'
+	type: 'ready' | 'authenticated' | 'logout' | 'wallet' | 'error' | 'token_refreshed' | 'delegation_complete'
 	payload?: {
 		userId?: string
 		walletAddress?: string
@@ -30,6 +31,7 @@ interface DynamicBridgeProps {
 	) => void
 	triggerLogin?: boolean
 	triggerLogout?: boolean
+	triggerDelegate?: boolean
 }
 
 const TOKEN_REFRESH_INTERVAL = 50 * 60 * 1000
@@ -38,10 +40,12 @@ function DynamicBridge({
 	onEvent,
 	onWalletProviderReady,
 	triggerLogin,
-	triggerLogout
+	triggerLogout,
+	triggerDelegate
 }: Omit<DynamicBridgeProps, 'environmentId'>) {
 	const { sdkHasLoaded, user, primaryWallet, handleLogOut, setShowAuthFlow } = useDynamicContext()
 	const userWallets = useUserWallets()
+	const { delegateKeyShares } = useWalletDelegation()
 
 	const embeddedWallet = userWallets.find((wallet) => wallet.connector?.isEmbeddedWallet)
 	const activeWallet = embeddedWallet || primaryWallet
@@ -161,6 +165,27 @@ function DynamicBridge({
 			handleLogOut()
 		}
 	}, [triggerLogout, sdkHasLoaded, user, handleLogOut])
+
+	// Handle delegation trigger
+	const isDelegatingRef = useRef(false)
+	useEffect(() => {
+		if (triggerDelegate && sdkHasLoaded && user && embeddedWallet && !isDelegatingRef.current) {
+			isDelegatingRef.current = true
+			delegateKeyShares()
+				.then(() => {
+					onEventRef.current({ type: 'delegation_complete' })
+				})
+				.catch((error) => {
+					onEventRef.current({
+						type: 'error',
+						payload: { error: (error as Error).message || 'Delegation failed' }
+					})
+				})
+				.finally(() => {
+					isDelegatingRef.current = false
+				})
+		}
+	}, [triggerDelegate, sdkHasLoaded, user, embeddedWallet, delegateKeyShares])
 
 	return null
 }

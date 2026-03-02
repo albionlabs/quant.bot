@@ -9,8 +9,10 @@
 		dynamicReady,
 		dynamicTriggerLogin,
 		dynamicTriggerLogout,
+		dynamicTriggerDelegate,
 		dynamicAccessToken,
 		dynamicWalletProvider,
+		dynamicDelegationComplete,
 		type DynamicSession
 	} from '$lib/stores/dynamicStore'
 
@@ -73,6 +75,10 @@
 					dynamicAccessToken.set(event.payload.accessToken)
 				}
 				break
+
+			case 'delegation_complete':
+				dynamicDelegationComplete.set(true)
+				break
 		}
 	}
 </script>
@@ -84,5 +90,6 @@
 		onWalletProviderReady={handleWalletProviderReady}
 		triggerLogin={$dynamicTriggerLogin}
 		triggerLogout={$dynamicTriggerLogout}
+		triggerDelegate={$dynamicTriggerDelegate}
 	></react.DynamicReactProvider>
 {/if}

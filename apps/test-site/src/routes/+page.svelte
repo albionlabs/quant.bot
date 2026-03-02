@@ -7,8 +7,10 @@
 		dynamicError,
 		dynamicReady,
 		dynamicWalletProvider,
+		dynamicDelegationComplete,
 		loginWithDynamic,
-		logoutDynamic
+		logoutDynamic,
+		triggerDelegation
 	} from '$lib/stores/dynamicStore'
 	import { createSiweMessage, generateNonce } from '$lib/siwe'
 	import { getDelegationStatus, revokeDelegation } from '$lib/delegation'
@@ -19,6 +21,7 @@
 
 	let error = $state<string | null>(null)
 	let signingIn = $state(false)
+	let delegating = $state(false)
 	let delegationStatus = $state<DelegationStatusResponse | null>(null)
 	let loadingDelegation = $state(false)
 
@@ -82,6 +85,21 @@
 		}
 	}
 
+	// When delegation completes (webhook fires → gateway stores it), refresh status
+	$effect(() => {
+		if ($dynamicDelegationComplete && $auth.token) {
+			delegating = false
+			// Give the webhook a moment to be processed by gateway
+			setTimeout(() => fetchDelegationStatus(), 2000)
+		}
+	})
+
+	function handleDelegate() {
+		delegating = true
+		error = null
+		triggerDelegation()
+	}
+
 	function handleLogin() {
 		error = null
 		loginWithDynamic()
@@ -128,7 +146,10 @@
 					<button class="btn btn-sm btn-secondary" onclick={handleRevokeDelegation}>Revoke</button>
 				{:else}
 					<span class="delegation-badge inactive">No Delegation</span>
-					<button class="btn btn-sm" onclick={fetchDelegationStatus} disabled={loadingDelegation}>
+					<button class="btn btn-sm" onclick={handleDelegate} disabled={delegating}>
+						{delegating ? 'Delegating...' : 'Delegate'}
+					</button>
+					<button class="btn btn-sm btn-secondary" onclick={fetchDelegationStatus} disabled={loadingDelegation}>
 						{loadingDelegation ? 'Checking...' : 'Refresh'}
 					</button>
 				{/if}

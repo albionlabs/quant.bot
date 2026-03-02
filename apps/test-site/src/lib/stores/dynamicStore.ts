@@ -16,6 +16,10 @@ export const dynamicReady = writable<boolean>(false)
 // Action triggers (Svelte → React)
 export const dynamicTriggerLogin = writable<boolean>(false)
 export const dynamicTriggerLogout = writable<boolean>(false)
+export const dynamicTriggerDelegate = writable<boolean>(false)
+
+// Delegation state
+export const dynamicDelegationComplete = writable<boolean>(false)
 
 // Token management
 export const dynamicAccessToken = writable<string | null>(null)
@@ -44,4 +48,10 @@ export function logoutDynamic(): void {
 	dynamicLoading.set(true)
 	dynamicTriggerLogout.set(true)
 	setTimeout(() => dynamicTriggerLogout.set(false), 100)
+}
+
+export function triggerDelegation(): void {
+	dynamicDelegationComplete.set(false)
+	dynamicTriggerDelegate.set(true)
+	setTimeout(() => dynamicTriggerDelegate.set(false), 100)
 }
