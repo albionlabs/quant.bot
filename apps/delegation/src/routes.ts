@@ -129,8 +129,9 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 
 		const revoked = revokeByWalletId(walletId);
 		if (!revoked) {
-			app.log.warn({ userId, walletId }, 'Delegation revocation webhook received but no active delegation matched walletId');
-			return { status: 'not_found' };
+			// Idempotent case: delegation may already be locally reconciled (e.g. explicit /revoke call).
+			app.log.info({ userId, walletId }, 'Delegation revocation webhook already reconciled');
+			return { status: 'already_revoked' };
 		}
 
 		app.log.info({ userId, walletId }, 'Delegation revoked via webhook');
