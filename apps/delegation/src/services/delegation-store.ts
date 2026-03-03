@@ -6,8 +6,7 @@ interface StoredDelegation {
 	userId: string;
 	walletId: string;
 	walletAddress: string;
-	encryptedWalletApiKey: string;
-	encryptedKeyShare: string;
+	encryptedCredentials: string;
 	iv: string;
 	authTag: string;
 	status: DelegationStatus;
@@ -45,8 +44,7 @@ export function storeDelegation(
 		userId,
 		walletId,
 		walletAddress,
-		encryptedWalletApiKey: ciphertext,
-		encryptedKeyShare: '',
+		encryptedCredentials: ciphertext,
 		iv,
 		authTag,
 		status: 'active',
@@ -63,10 +61,13 @@ export function getActiveDelegation(userId: string): StoredDelegation | undefine
 	const delegation = delegations.get(delegationId);
 	if (!delegation) return undefined;
 
-	if (delegation.status !== 'active' || delegation.expiresAt <= Date.now()) {
-		if (delegation.expiresAt <= Date.now()) {
-			delegation.status = 'expired';
-		}
+	if (delegation.expiresAt <= Date.now()) {
+		delegation.status = 'expired';
+		activeDelegations.delete(userId);
+		return undefined;
+	}
+
+	if (delegation.status !== 'active') {
 		activeDelegations.delete(userId);
 		return undefined;
 	}
@@ -82,7 +83,7 @@ export function getDecryptedCredentials(delegationId: string, encryptionKey: str
 		return undefined;
 	}
 
-	const decrypted = decrypt(delegation.encryptedWalletApiKey, delegation.iv, delegation.authTag, encryptionKey);
+	const decrypted = decrypt(delegation.encryptedCredentials, delegation.iv, delegation.authTag, encryptionKey);
 	const { walletApiKey, keyShare } = JSON.parse(decrypted);
 
 	return {
@@ -121,6 +122,12 @@ export function isDelegationActive(userId: string): boolean {
 
 export function getDelegation(delegationId: string): StoredDelegation | undefined {
 	return delegations.get(delegationId);
+}
+
+export function revokeByUserId(userId: string): boolean {
+	const delegationId = activeDelegations.get(userId);
+	if (!delegationId) return false;
+	return revokeDelegation(delegationId);
 }
 
 export function clearAll(): void {

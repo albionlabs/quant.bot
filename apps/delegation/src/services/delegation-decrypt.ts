@@ -1,6 +1,6 @@
 import { privateDecrypt, createDecipheriv, constants } from 'node:crypto';
 
-interface EncryptedDelegatedPayload {
+export interface EncryptedDelegatedPayload {
 	alg: string;
 	iv: string;
 	ct: string;

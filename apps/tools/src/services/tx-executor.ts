@@ -13,7 +13,7 @@ export async function executeTransaction(
 ): Promise<TxExecuteResponse> {
 	const credentials = await fetchDelegationCredentials(
 		request.userId,
-		config.gatewayInternalUrl,
+		config.delegationServiceUrl,
 		config.internalSecret
 	);
 

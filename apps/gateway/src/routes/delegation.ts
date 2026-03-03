@@ -1,22 +1,21 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type {
 	DelegationActivateRequest,
-	DelegationActivateResponse,
-	DelegationStatusResponse
+	DelegationActivateResponse
 } from '@quant-bot/shared-types';
 import { authMiddleware, type JwtPayload } from '../middleware/auth.js';
 import {
+	getDelegationStatus,
+	getDelegationById,
 	activateDelegation,
-	getActiveDelegation,
-	getDelegation,
-	getDecryptedCredentials,
-	revokeDelegation
-} from '../services/delegation-store.js';
+	revokeDelegation,
+	getCredentials
+} from '../services/delegation-client.js';
 import type { GatewayConfig } from '../config.js';
 
 type AuthenticatedRequest = FastifyRequest & { user: JwtPayload };
 
-export async function delegationRoutes(app: FastifyInstance, config: GatewayConfig) {
+export async function delegationRoutes(app: FastifyInstance, config: GatewayConfig): Promise<void> {
 	app.post<{ Body: DelegationActivateRequest }>('/api/auth/delegation/activate', {
 		preHandler: authMiddleware(config),
 		handler: async (request, reply) => {
@@ -27,21 +26,22 @@ export async function delegationRoutes(app: FastifyInstance, config: GatewayConf
 				return reply.status(400).send({ error: 'delegationId and walletAddress are required' });
 			}
 
-			const delegation = getDelegation(delegationId);
-			if (!delegation) {
+			try {
+				const delegation = await getDelegationById(config, delegationId);
+				if (delegation.userId !== user.sub) {
+					return reply.status(403).send({ error: 'Delegation does not belong to this user' });
+				}
+			} catch {
 				return reply.status(404).send({ error: 'Delegation not found' });
 			}
 
-			if (delegation.userId !== user.sub) {
-				return reply.status(403).send({ error: 'Delegation does not belong to this user' });
-			}
-
-			if (!activateDelegation(user.sub, delegationId)) {
+			try {
+				const result = await activateDelegation(config, user.sub, delegationId);
+				const response: DelegationActivateResponse = { activeDelegationId: result.activeDelegationId };
+				return response;
+			} catch {
 				return reply.status(400).send({ error: 'Delegation is expired or revoked' });
 			}
-
-			const response: DelegationActivateResponse = { activeDelegationId: delegationId };
-			return response;
 		}
 	});
 
@@ -49,18 +49,7 @@ export async function delegationRoutes(app: FastifyInstance, config: GatewayConf
 		preHandler: authMiddleware(config),
 		handler: async (request) => {
 			const user = (request as AuthenticatedRequest).user;
-			const delegation = getActiveDelegation(user.sub);
-
-			const response: DelegationStatusResponse = delegation
-				? {
-						active: true,
-						delegationId: delegation.id,
-						walletAddress: delegation.walletAddress,
-						expiresAt: delegation.expiresAt
-					}
-				: { active: false };
-
-			return response;
+			return getDelegationStatus(config, user.sub);
 		}
 	});
 
@@ -68,14 +57,12 @@ export async function delegationRoutes(app: FastifyInstance, config: GatewayConf
 		preHandler: authMiddleware(config),
 		handler: async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
-			const delegation = getActiveDelegation(user.sub);
 
-			if (!delegation) {
+			try {
+				return await revokeDelegation(config, user.sub);
+			} catch {
 				return reply.status(404).send({ error: 'No active delegation found' });
 			}
-
-			revokeDelegation(delegation.id);
-			return { status: 'revoked' };
 		}
 	});
 
@@ -90,16 +77,10 @@ export async function delegationRoutes(app: FastifyInstance, config: GatewayConf
 			return reply.status(400).send({ error: 'userId is required' });
 		}
 
-		const delegation = getActiveDelegation(userId);
-		if (!delegation) {
+		try {
+			return await getCredentials(config, userId);
+		} catch {
 			return reply.status(404).send({ error: 'No active delegation found for user' });
 		}
-
-		const credentials = getDecryptedCredentials(delegation.id, config.delegationEncryptionKey);
-		if (!credentials) {
-			return reply.status(404).send({ error: 'Failed to decrypt delegation credentials' });
-		}
-
-		return credentials;
 	});
 }
