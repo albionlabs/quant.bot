@@ -7,7 +7,7 @@ export interface ToolsConfig {
 	delegationServiceUrl: string;
 	internalSecret: string;
 	dynamicEnvironmentId: string;
-	dynamicApiKey: string;
+	dynamicSigningKey: string;
 }
 
 export function loadConfig(): ToolsConfig {
@@ -20,6 +20,6 @@ export function loadConfig(): ToolsConfig {
 		delegationServiceUrl: process.env.DELEGATION_SERVICE_URL ?? 'http://quant-bot.internal:5000',
 		internalSecret: process.env.INTERNAL_SECRET ?? '',
 		dynamicEnvironmentId: process.env.DYNAMIC_ENVIRONMENT_ID ?? '',
-		dynamicApiKey: process.env.DYNAMIC_API_KEY ?? ''
+		dynamicSigningKey: process.env.DYNAMIC_SIGNING_KEY ?? ''
 	};
 }
