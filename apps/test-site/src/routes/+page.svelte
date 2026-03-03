@@ -25,6 +25,8 @@
 	let delegationStatus = $state<DelegationStatusResponse | null>(null)
 	let loadingDelegation = $state(false)
 	let lastStatusToken = $state<string | null>(null)
+	let delegationWatchdog: ReturnType<typeof setTimeout> | null = null
+	const DELEGATION_UI_TIMEOUT_MS = 120_000
 
 	// When Dynamic authenticates, auto-SIWE to gateway
 	let lastSignedAddress: string | null = null
@@ -88,12 +90,37 @@
 		}
 	}
 
+	function clearDelegationWatchdog() {
+		if (delegationWatchdog) {
+			clearTimeout(delegationWatchdog)
+			delegationWatchdog = null
+		}
+	}
+
+	function startDelegationWatchdog() {
+		clearDelegationWatchdog()
+		delegationWatchdog = setTimeout(() => {
+			if (delegating) {
+				delegating = false
+				error = 'Delegation timed out. Check your connection and retry.'
+			}
+		}, DELEGATION_UI_TIMEOUT_MS)
+	}
+
 	// When delegation completes (webhook fires → gateway stores it), refresh status
 	$effect(() => {
 		if ($dynamicDelegationComplete && $auth.token) {
 			delegating = false
+			clearDelegationWatchdog()
 			// Give the webhook a moment to be processed by gateway
 			setTimeout(() => fetchDelegationStatus(), 2000)
+		}
+	})
+
+	$effect(() => {
+		if ($dynamicError && delegating) {
+			delegating = false
+			clearDelegationWatchdog()
 		}
 	})
 
@@ -112,6 +139,7 @@
 	function handleDelegate() {
 		delegating = true
 		error = null
+		startDelegationWatchdog()
 		triggerDelegation()
 	}
 
@@ -126,6 +154,7 @@
 		delegationStatus = null
 		error = null
 		lastSignedAddress = null
+		clearDelegationWatchdog()
 	}
 
 	async function handleRevokeDelegation() {
@@ -147,6 +176,10 @@
 		loadingDelegation = true
 		try {
 			delegationStatus = await getDelegationStatus(gatewayUrl, $auth.token)
+			if (delegationStatus.active) {
+				delegating = false
+				clearDelegationWatchdog()
+			}
 		} catch (e) {
 			delegationStatus = null
 			error = e instanceof Error ? e.message : 'Failed to fetch delegation status'

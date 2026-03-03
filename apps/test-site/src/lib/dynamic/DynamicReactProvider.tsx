@@ -35,6 +35,25 @@ interface DynamicBridgeProps {
 }
 
 const TOKEN_REFRESH_INTERVAL = 50 * 60 * 1000
+const DELEGATION_OPERATION_TIMEOUT_MS = 90 * 1000
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timeoutId = setTimeout(() => {
+			reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`))
+		}, timeoutMs)
+
+		promise
+			.then((value) => {
+				clearTimeout(timeoutId)
+				resolve(value)
+			})
+			.catch((error) => {
+				clearTimeout(timeoutId)
+				reject(error)
+			})
+	})
+}
 
 function DynamicBridge({
 	onEvent,
@@ -45,7 +64,7 @@ function DynamicBridge({
 }: Omit<DynamicBridgeProps, 'environmentId'>) {
 	const { sdkHasLoaded, user, primaryWallet, handleLogOut, setShowAuthFlow } = useDynamicContext()
 	const userWallets = useUserWallets()
-	const { delegateKeyShares, revokeDelegation } = useWalletDelegation()
+	const { delegateKeyShares, revokeDelegation, getWalletsDelegatedStatus } = useWalletDelegation()
 
 	const embeddedWallet = userWallets.find((wallet) => wallet.connector?.isEmbeddedWallet)
 	const activeWallet = embeddedWallet || primaryWallet
@@ -176,21 +195,48 @@ function DynamicBridge({
 				chainName,
 				accountAddress: embeddedWallet.address
 			}]
-			delegateKeyShares(delegationTarget)
-				.then(() => {
+
+			const isWalletDelegated = () => {
+				return getWalletsDelegatedStatus().some(
+					(w) =>
+						w.address.toLowerCase() === embeddedWallet.address.toLowerCase() &&
+						w.chain === chainName &&
+						w.status === 'delegated'
+				)
+			}
+
+			const runDelegation = async () => {
+				try {
+					await withTimeout(
+						delegateKeyShares(delegationTarget),
+						DELEGATION_OPERATION_TIMEOUT_MS,
+						'Delegation'
+					)
 					onEventRef.current({ type: 'delegation_complete' })
-				})
-				.catch(async (error) => {
+					return
+				} catch (error) {
 					const message = (error as Error).message || 'Delegation failed'
 					const shouldRecover = message.toLowerCase().includes('no eligible wallets to delegate')
 
 					if (shouldRecover) {
 						try {
-							await revokeDelegation(delegationTarget)
-							await delegateKeyShares(delegationTarget)
+							await withTimeout(
+								revokeDelegation(delegationTarget),
+								DELEGATION_OPERATION_TIMEOUT_MS,
+								'Delegation recovery revoke'
+							)
+							await withTimeout(
+								delegateKeyShares(delegationTarget),
+								DELEGATION_OPERATION_TIMEOUT_MS,
+								'Delegation recovery delegate'
+							)
 							onEventRef.current({ type: 'delegation_complete' })
 							return
 						} catch (recoveryError) {
+							if (isWalletDelegated()) {
+								onEventRef.current({ type: 'delegation_complete' })
+								return
+							}
 							onEventRef.current({
 								type: 'error',
 								payload: {
@@ -201,16 +247,23 @@ function DynamicBridge({
 						}
 					}
 
+					if (isWalletDelegated()) {
+						onEventRef.current({ type: 'delegation_complete' })
+						return
+					}
+
 					onEventRef.current({
 						type: 'error',
 						payload: { error: message }
 					})
-				})
-				.finally(() => {
-					isDelegatingRef.current = false
-				})
+				}
+			}
+
+			void runDelegation().finally(() => {
+				isDelegatingRef.current = false
+			})
 		}
-	}, [triggerDelegate, sdkHasLoaded, user, embeddedWallet, delegateKeyShares, revokeDelegation])
+	}, [triggerDelegate, sdkHasLoaded, user, embeddedWallet, delegateKeyShares, revokeDelegation, getWalletsDelegatedStatus])
 
 	return null
 }
