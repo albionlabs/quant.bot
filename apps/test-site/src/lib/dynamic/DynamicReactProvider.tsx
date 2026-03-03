@@ -66,7 +66,12 @@ function DynamicBridge({
 }: Omit<DynamicBridgeProps, 'environmentId'>) {
 	const { sdkHasLoaded, user, primaryWallet, handleLogOut, setShowAuthFlow } = useDynamicContext()
 	const userWallets = useUserWallets()
-	const { delegateKeyShares, revokeDelegation, getWalletsDelegatedStatus } = useWalletDelegation()
+	const {
+		delegateKeyShares,
+		revokeDelegation,
+		getWalletsDelegatedStatus,
+		dismissDelegationPrompt
+	} = useWalletDelegation()
 
 	const embeddedWallet = userWallets.find((wallet) => wallet.connector?.isEmbeddedWallet)
 	const activeWallet = embeddedWallet || primaryWallet
@@ -301,6 +306,9 @@ function DynamicBridge({
 
 			const runRevocation = async () => {
 				try {
+					// Prevent Dynamic's auto prompt from re-opening delegation immediately after revoke refresh.
+					dismissDelegationPrompt()
+
 					if (!isWalletDelegated()) {
 						onEventRef.current({ type: 'delegation_revoked' })
 						return
@@ -348,7 +356,7 @@ function DynamicBridge({
 				isRevokingRef.current = false
 			})
 		}
-	}, [triggerRevoke, sdkHasLoaded, user, embeddedWallet, revokeDelegation, getWalletsDelegatedStatus])
+	}, [triggerRevoke, sdkHasLoaded, user, embeddedWallet, revokeDelegation, getWalletsDelegatedStatus, dismissDelegationPrompt])
 
 	return null
 }
