@@ -4,6 +4,8 @@ export interface DelegationConfig {
 	delegationEncryptionKey: string;
 	dynamicDelegationPrivateKey: string;
 	dynamicWebhookSecret: string;
+	dynamicEnvironmentId: string;
+	dynamicApiToken: string;
 	internalSecret: string;
 	delegationTtlMs: number;
 }
@@ -15,6 +17,8 @@ export function loadConfig(): DelegationConfig {
 		delegationEncryptionKey: process.env.DELEGATION_ENCRYPTION_KEY ?? '',
 		dynamicDelegationPrivateKey: process.env.DYNAMIC_DELEGATION_PRIVATE_KEY ?? '',
 		dynamicWebhookSecret: process.env.DYNAMIC_WEBHOOK_SECRET ?? '',
+		dynamicEnvironmentId: process.env.DYNAMIC_ENVIRONMENT_ID ?? '',
+		dynamicApiToken: process.env.DYNAMIC_API_TOKEN ?? '',
 		internalSecret: process.env.INTERNAL_SECRET ?? '',
 		delegationTtlMs: parseInt(process.env.DELEGATION_TTL_MS ?? '86400000', 10)
 	};

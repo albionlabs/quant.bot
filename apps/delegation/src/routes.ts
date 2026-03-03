@@ -187,6 +187,27 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 			return reply.status(404).send({ error: 'No active delegation found' });
 		}
 
+		// Revoke on Dynamic's side so re-delegation triggers a new webhook
+		if (config.dynamicEnvironmentId && config.dynamicApiToken) {
+			try {
+				const url = `https://app.dynamicauth.com/api/v0/sdk/${config.dynamicEnvironmentId}/waas/${delegation.walletId}/delegatedAccess/revoke`;
+				const res = await fetch(url, {
+					method: 'POST',
+					headers: {
+						'Authorization': `Bearer ${config.dynamicApiToken}`,
+						'Content-Type': 'application/json'
+					}
+				});
+				if (!res.ok) {
+					app.log.warn({ status: res.status, walletId: delegation.walletId }, 'Failed to revoke delegation on Dynamic');
+				} else {
+					app.log.info({ walletId: delegation.walletId }, 'Delegation revoked on Dynamic');
+				}
+			} catch (err) {
+				app.log.warn({ err, walletId: delegation.walletId }, 'Error revoking delegation on Dynamic');
+			}
+		}
+
 		revokeDelegation(delegation.id);
 		return { status: 'revoked' };
 	});
