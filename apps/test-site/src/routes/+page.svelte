@@ -24,6 +24,7 @@
 	let delegating = $state(false)
 	let delegationStatus = $state<DelegationStatusResponse | null>(null)
 	let loadingDelegation = $state(false)
+	let lastStatusToken = $state<string | null>(null)
 
 	// When Dynamic authenticates, auto-SIWE to gateway
 	let lastSignedAddress: string | null = null
@@ -74,8 +75,10 @@
 			// Fetch delegation status
 			try {
 				delegationStatus = await getDelegationStatus(gatewayUrl, token)
-			} catch {
-				// Non-fatal
+			} catch (e) {
+				error = e instanceof Error
+					? `Signed in, but failed to fetch delegation status: ${e.message}`
+					: 'Signed in, but failed to fetch delegation status'
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Sign-in failed'
@@ -92,6 +95,18 @@
 			// Give the webhook a moment to be processed by gateway
 			setTimeout(() => fetchDelegationStatus(), 2000)
 		}
+	})
+
+	// Ensure delegation status is fetched whenever auth token becomes available.
+	$effect(() => {
+		const token = $auth.token
+		if (!token) {
+			lastStatusToken = null
+			return
+		}
+		if (token === lastStatusToken) return
+		lastStatusToken = token
+		fetchDelegationStatus()
 	})
 
 	function handleDelegate() {
@@ -132,8 +147,9 @@
 		loadingDelegation = true
 		try {
 			delegationStatus = await getDelegationStatus(gatewayUrl, $auth.token)
-		} catch {
+		} catch (e) {
 			delegationStatus = null
+			error = e instanceof Error ? e.message : 'Failed to fetch delegation status'
 		} finally {
 			loadingDelegation = false
 		}

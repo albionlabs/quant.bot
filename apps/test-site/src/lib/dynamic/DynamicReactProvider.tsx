@@ -45,7 +45,7 @@ function DynamicBridge({
 }: Omit<DynamicBridgeProps, 'environmentId'>) {
 	const { sdkHasLoaded, user, primaryWallet, handleLogOut, setShowAuthFlow } = useDynamicContext()
 	const userWallets = useUserWallets()
-	const { delegateKeyShares } = useWalletDelegation()
+	const { delegateKeyShares, revokeDelegation } = useWalletDelegation()
 
 	const embeddedWallet = userWallets.find((wallet) => wallet.connector?.isEmbeddedWallet)
 	const activeWallet = embeddedWallet || primaryWallet
@@ -171,21 +171,46 @@ function DynamicBridge({
 	useEffect(() => {
 		if (triggerDelegate && sdkHasLoaded && user && embeddedWallet && !isDelegatingRef.current) {
 			isDelegatingRef.current = true
-			delegateKeyShares()
+			const chainName = (embeddedWallet.chain?.toUpperCase() === 'ETH' ? 'ETH' : 'EVM') as const
+			const delegationTarget = [{
+				chainName,
+				accountAddress: embeddedWallet.address
+			}]
+			delegateKeyShares(delegationTarget)
 				.then(() => {
 					onEventRef.current({ type: 'delegation_complete' })
 				})
-				.catch((error) => {
+				.catch(async (error) => {
+					const message = (error as Error).message || 'Delegation failed'
+					const shouldRecover = message.toLowerCase().includes('no eligible wallets to delegate')
+
+					if (shouldRecover) {
+						try {
+							await revokeDelegation(delegationTarget)
+							await delegateKeyShares(delegationTarget)
+							onEventRef.current({ type: 'delegation_complete' })
+							return
+						} catch (recoveryError) {
+							onEventRef.current({
+								type: 'error',
+								payload: {
+									error: (recoveryError as Error).message || 'Delegation recovery failed'
+								}
+							})
+							return
+						}
+					}
+
 					onEventRef.current({
 						type: 'error',
-						payload: { error: (error as Error).message || 'Delegation failed' }
+						payload: { error: message }
 					})
 				})
 				.finally(() => {
 					isDelegatingRef.current = false
 				})
 		}
-	}, [triggerDelegate, sdkHasLoaded, user, embeddedWallet, delegateKeyShares])
+	}, [triggerDelegate, sdkHasLoaded, user, embeddedWallet, delegateKeyShares, revokeDelegation])
 
 	return null
 }

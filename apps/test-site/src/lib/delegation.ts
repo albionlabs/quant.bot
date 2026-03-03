@@ -7,7 +7,10 @@ export async function getDelegationStatus(
 	const res = await fetch(`${gatewayUrl}/api/auth/delegation/status`, {
 		headers: { Authorization: `Bearer ${token}` }
 	});
-	if (!res.ok) throw new Error('Failed to fetch delegation status');
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({}));
+		throw new Error(body.error ?? 'Failed to fetch delegation status');
+	}
 	return res.json();
 }
 
