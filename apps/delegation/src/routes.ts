@@ -188,13 +188,13 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 		}
 
 		// Revoke on Dynamic's side so re-delegation triggers a new webhook
-		if (config.dynamicEnvironmentId && config.dynamicApiToken) {
+		if (config.dynamicEnvironmentId && config.dynamicApiKey) {
 			try {
 				const url = `https://app.dynamicauth.com/api/v0/sdk/${config.dynamicEnvironmentId}/waas/${delegation.walletId}/delegatedAccess/revoke`;
 				const res = await fetch(url, {
 					method: 'POST',
 					headers: {
-						'Authorization': `Bearer ${config.dynamicApiToken}`,
+						'Authorization': `Bearer ${config.dynamicApiKey}`,
 						'Content-Type': 'application/json'
 					}
 				});
