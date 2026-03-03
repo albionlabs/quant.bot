@@ -10,7 +10,7 @@ primary_region = 'lhr'
 
 [env]
   DELEGATION_HOST = '::'
-  DELEGATION_SERVICE_URL = 'http://delegation.quant-bot.internal:5000'
+  DELEGATION_SERVICE_URL = 'http://quant-bot.internal:5000'
 
 [http_service]
   internal_port = 3000

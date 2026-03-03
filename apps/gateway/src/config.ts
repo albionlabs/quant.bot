@@ -32,7 +32,7 @@ export function loadConfig(): GatewayConfig {
 		rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW ?? '60000', 10),
 		authRateLimitMax: parseInt(process.env.AUTH_RATE_LIMIT_MAX ?? '5', 10),
 		corsOrigin,
-		delegationServiceUrl: process.env.DELEGATION_SERVICE_URL ?? 'http://delegation.quant-bot.internal:5000',
+		delegationServiceUrl: process.env.DELEGATION_SERVICE_URL ?? 'http://quant-bot.internal:5000',
 		internalSecret: process.env.INTERNAL_SECRET ?? ''
 	};
 }
