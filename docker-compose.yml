@@ -43,6 +43,9 @@ services:
       - ALLOWED_SUBGRAPHS=${ALLOWED_SUBGRAPHS}
       - DELEGATION_SERVICE_URL=http://delegation:5000
       - INTERNAL_SECRET=${INTERNAL_SECRET}
+      - ORDERBOOK_API_URL=http://rest-api:8000
+      - ORDERBOOK_API_KEY=${REST_API_KEY}
+      - ORDERBOOK_API_SECRET=${REST_API_SECRET}
     restart: unless-stopped
 
   delegation:

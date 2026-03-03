@@ -6,6 +6,7 @@ primary_region = 'lhr'
 
 [env]
   TOOLS_HOST = '::'
+  ORDERBOOK_API_URL = 'http://albion.internal:8000'
 
 [[vm]]
   size = 'shared-cpu-1x'

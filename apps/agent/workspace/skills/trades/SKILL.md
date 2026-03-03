@@ -4,12 +4,13 @@ description: "Query trade history from the Raindex orderbook"
 version: "1.0.0"
 ---
 
-All requests require HTTP Basic Auth with API key credentials.
-Base URL: http://albion.internal:8000
+Backend-managed credentials are used automatically by the tools service.
+Users should never be asked for API keys.
+Base URL: http://quant-bot-tools.internal:4000
 
 ## Get Trades by Address
 
-GET /v1/trades/{address}?page=1&pageSize=20&startTime=1718452800&endTime=1718539200
+GET /api/trades/{address}?page=1&pageSize=20&startTime=1718452800&endTime=1718539200
 
 Parameters:
 - `address` (path): Owner address to query trades for
@@ -45,7 +46,7 @@ Response:
 
 ## Get Trades by Transaction
 
-GET /v1/trades/tx/{tx_hash}
+GET /api/trades/tx/{tx_hash}
 
 Response:
 ```json

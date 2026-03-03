@@ -4,12 +4,13 @@ description: "Retrieve supported token information from the registry"
 version: "1.0.0"
 ---
 
-All requests require HTTP Basic Auth with API key credentials.
-Base URL: http://albion.internal:8000
+Backend-managed credentials are used automatically by the tools service.
+Users should never be asked for API keys.
+Base URL: http://quant-bot-tools.internal:4000
 
 ## Get Token List
 
-GET /v1/tokens
+GET /api/tokens
 
 Returns the list of supported tokens on Base, filtered from the on-chain token registry.
 

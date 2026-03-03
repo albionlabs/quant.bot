@@ -4,12 +4,13 @@ description: "Deploy, cancel, and query Raindex orderbook orders"
 version: "1.0.0"
 ---
 
-All requests require HTTP Basic Auth with API key credentials.
-Base URL: http://albion.internal:8000
+Backend-managed credentials are used automatically by the tools service.
+Users should never be asked for API keys.
+Base URL: http://quant-bot-tools.internal:4000
 
 ## Deploy DCA Order
 
-POST /v1/order/dca
+POST /api/order/dca
 Content-Type: application/json
 
 Body:
@@ -41,7 +42,7 @@ Response returns `{ to, data, value, approvals }` — a transaction to sign and 
 
 ## Deploy Solver Order
 
-POST /v1/order/solver
+POST /api/order/solver
 Content-Type: application/json
 
 Body:
@@ -66,7 +67,7 @@ Response returns `{ to, data, value, approvals }`.
 
 ## Deploy Custom Strategy (Dotrain/Rainlang)
 
-POST /v1/order/custom
+POST /api/order/custom
 Content-Type: application/json
 
 Body:
@@ -105,13 +106,13 @@ Before proceeding to signing/execution for any strategy transaction:
 
 ## Get Order Detail
 
-GET /v1/order/{order_hash}
+GET /api/order/{order_hash}
 
 Returns full order details including owner, token pair, vault balances, IO ratio, and trade history.
 
 ## Cancel Order
 
-POST /v1/order/cancel
+POST /api/order/cancel
 Content-Type: application/json
 
 Body:
@@ -125,13 +126,13 @@ Response returns `{ transactions, summary }` with withdrawal transactions and a 
 
 ## Query Orders by Owner
 
-GET /v1/orders/{address}?page=1&pageSize=20
+GET /api/orders/address/{address}?page=1&pageSize=20
 
 Returns a paginated list of orders owned by the given address.
 
 ## Query Orders by Transaction
 
-GET /v1/orders/tx/{tx_hash}
+GET /api/orders/tx/{tx_hash}
 
 Returns all orders created in a given transaction.
 

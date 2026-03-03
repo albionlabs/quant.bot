@@ -4,12 +4,13 @@ description: "Get swap quotes and calldata for Raindex orderbook swaps"
 version: "1.0.0"
 ---
 
-All requests require HTTP Basic Auth with API key credentials.
-Base URL: http://albion.internal:8000
+Backend-managed credentials are used automatically by the tools service.
+Users should never be asked for API keys.
+Base URL: http://quant-bot-tools.internal:4000
 
 ## Get Swap Quote
 
-POST /v1/swap/quote
+POST /api/swap/quote
 Content-Type: application/json
 
 Body:
@@ -40,7 +41,7 @@ Response:
 
 ## Get Swap Calldata
 
-POST /v1/swap/calldata
+POST /api/swap/calldata
 Content-Type: application/json
 
 Body:

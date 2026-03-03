@@ -8,6 +8,9 @@ export interface ToolsConfig {
 	internalSecret: string;
 	dynamicEnvironmentId: string;
 	dynamicSigningKey: string;
+	orderbookApiUrl: string;
+	orderbookApiKey: string;
+	orderbookApiSecret: string;
 }
 
 export function loadConfig(): ToolsConfig {
@@ -20,6 +23,9 @@ export function loadConfig(): ToolsConfig {
 		delegationServiceUrl: process.env.DELEGATION_SERVICE_URL ?? 'http://quant-bot.internal:5000',
 		internalSecret: process.env.INTERNAL_SECRET ?? '',
 		dynamicEnvironmentId: process.env.DYNAMIC_ENVIRONMENT_ID ?? '',
-		dynamicSigningKey: process.env.DYNAMIC_SIGNING_KEY ?? ''
+		dynamicSigningKey: process.env.DYNAMIC_SIGNING_KEY ?? '',
+		orderbookApiUrl: process.env.ORDERBOOK_API_URL ?? 'http://albion.internal:8000',
+		orderbookApiKey: process.env.ORDERBOOK_API_KEY ?? process.env.REST_API_KEY ?? '',
+		orderbookApiSecret: process.env.ORDERBOOK_API_SECRET ?? process.env.REST_API_SECRET ?? ''
 	};
 }
