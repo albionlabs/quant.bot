@@ -9,7 +9,8 @@ import {
 	getDelegationById,
 	activateDelegation,
 	revokeDelegation,
-	getCredentials
+	getCredentials,
+	DelegationServiceError
 } from '../services/delegation-client.js';
 import type { GatewayConfig } from '../config.js';
 
@@ -60,8 +61,11 @@ export async function delegationRoutes(app: FastifyInstance, config: GatewayConf
 
 			try {
 				return await revokeDelegation(config, user.sub);
-			} catch {
-				return reply.status(404).send({ error: 'No active delegation found' });
+			} catch (err) {
+				if (err instanceof DelegationServiceError) {
+					return reply.status(err.status).send({ error: err.message });
+				}
+				return reply.status(502).send({ error: 'Delegation service unavailable' });
 			}
 		}
 	});

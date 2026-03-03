@@ -130,6 +130,18 @@ export function revokeByUserId(userId: string): boolean {
 	return revokeDelegation(delegationId);
 }
 
+export function revokeByWalletId(walletId: string): boolean {
+	let revoked = false;
+	for (const delegation of delegations.values()) {
+		if (delegation.walletId !== walletId) continue;
+		if (delegation.status !== 'active') continue;
+		if (revokeDelegation(delegation.id)) {
+			revoked = true;
+		}
+	}
+	return revoked;
+}
+
 export function clearAll(): void {
 	delegations.clear();
 	activeDelegations.clear();

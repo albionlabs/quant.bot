@@ -37,6 +37,9 @@ export async function revokeDelegation(
 		method: 'POST',
 		headers: { Authorization: `Bearer ${token}` }
 	});
-	if (!res.ok) throw new Error('Failed to revoke delegation');
+	if (!res.ok) {
+		const body = await res.json().catch(() => ({}));
+		throw new Error(body.error ?? 'Failed to revoke delegation');
+	}
 	return res.json();
 }

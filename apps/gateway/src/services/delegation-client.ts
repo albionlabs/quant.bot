@@ -5,6 +5,16 @@ interface DelegationClientConfig {
 	internalSecret: string;
 }
 
+export class DelegationServiceError extends Error {
+	status: number;
+
+	constructor(status: number, message: string) {
+		super(message);
+		this.name = 'DelegationServiceError';
+		this.status = status;
+	}
+}
+
 interface DelegationCredentials {
 	walletId: string;
 	walletApiKey: string;
@@ -41,7 +51,7 @@ async function requestJson<T>(
 	if (!res.ok) {
 		const err = await res.json().catch(() => ({}));
 		const message = (err as { error?: string }).error ?? `Delegation service returned ${res.status}`;
-		throw new Error(message);
+		throw new DelegationServiceError(res.status, message);
 	}
 
 	return res.json() as Promise<T>;

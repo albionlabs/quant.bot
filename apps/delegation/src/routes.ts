@@ -7,6 +7,7 @@ import {
 	getActiveDelegation,
 	getDelegation,
 	getDecryptedCredentials,
+	revokeByWalletId,
 	revokeDelegation
 } from './services/delegation-store.js';
 import type { DelegationConfig } from './config.js';
@@ -122,8 +123,17 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 		}
 
 		const { userId, walletId } = payload.data;
+		if (!walletId) {
+			return reply.status(400).send({ error: 'walletId is required' });
+		}
+
+		const revoked = revokeByWalletId(walletId);
+		if (!revoked) {
+			app.log.warn({ userId, walletId }, 'Delegation revocation webhook received but no active delegation matched walletId');
+			return { status: 'not_found' };
+		}
+
 		app.log.info({ userId, walletId }, 'Delegation revoked via webhook');
-		// TODO: look up delegation by walletId and revoke
 		return { status: 'revoked' };
 	});
 
@@ -187,25 +197,45 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 			return reply.status(404).send({ error: 'No active delegation found' });
 		}
 
-		// Revoke on Dynamic's side so re-delegation triggers a new webhook
-		if (config.dynamicEnvironmentId && config.dynamicAdminKey) {
-			try {
-				const url = `https://app.dynamicauth.com/api/v0/sdk/${config.dynamicEnvironmentId}/waas/${delegation.walletId}/delegatedAccess/revoke`;
-				const res = await fetch(url, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${config.dynamicAdminKey}`,
-						'Content-Type': 'application/json'
-					}
-				});
-				if (!res.ok) {
-					app.log.warn({ status: res.status, walletId: delegation.walletId }, 'Failed to revoke delegation on Dynamic');
-				} else {
-					app.log.info({ walletId: delegation.walletId }, 'Delegation revoked on Dynamic');
+		// Revoke on Dynamic's side first so local and upstream state stay consistent.
+		if (!config.dynamicEnvironmentId || !config.dynamicAdminKey) {
+			return reply.status(503).send({
+				error: 'Dynamic admin credentials are not configured; cannot revoke upstream delegation safely'
+			});
+		}
+
+		try {
+			const url = `https://app.dynamicauth.com/api/v0/sdk/${config.dynamicEnvironmentId}/waas/${delegation.walletId}/delegatedAccess/revoke`;
+			const res = await fetch(url, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${config.dynamicAdminKey}`,
+					'Content-Type': 'application/json'
 				}
-			} catch (err) {
-				app.log.warn({ err, walletId: delegation.walletId }, 'Error revoking delegation on Dynamic');
+			});
+
+			if (!res.ok) {
+				// 404/409 are treated as idempotent already-revoked cases.
+				if (res.status !== 404 && res.status !== 409) {
+					const responseText = await res.text().catch(() => '');
+					app.log.warn(
+						{ status: res.status, walletId: delegation.walletId, responseText },
+						'Failed to revoke delegation on Dynamic'
+					);
+					return reply.status(502).send({
+						error: `Dynamic revoke failed with status ${res.status}`
+					});
+				}
+				app.log.info(
+					{ status: res.status, walletId: delegation.walletId },
+					'Delegation already revoked on Dynamic, revoking local record'
+				);
+			} else {
+				app.log.info({ walletId: delegation.walletId }, 'Delegation revoked on Dynamic');
 			}
+		} catch (err) {
+			app.log.warn({ err, walletId: delegation.walletId }, 'Error revoking delegation on Dynamic');
+			return reply.status(502).send({ error: 'Failed to reach Dynamic revoke endpoint' });
 		}
 
 		revokeDelegation(delegation.id);

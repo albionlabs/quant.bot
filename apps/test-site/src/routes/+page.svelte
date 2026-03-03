@@ -117,7 +117,11 @@
 		if (!$auth.token) return
 		try {
 			await revokeDelegation(gatewayUrl, $auth.token)
-			delegationStatus = { active: false }
+			const status = await getDelegationStatus(gatewayUrl, $auth.token)
+			delegationStatus = status
+			if (status.active) {
+				error = 'Delegation is still active after revoke attempt. Please retry.'
+			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to revoke delegation'
 		}

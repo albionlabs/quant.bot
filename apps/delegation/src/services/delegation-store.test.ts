@@ -5,6 +5,7 @@ import {
 	getDecryptedCredentials,
 	activateDelegation,
 	revokeDelegation,
+	revokeByWalletId,
 	isDelegationActive,
 	getDelegation,
 	clearAll
@@ -68,6 +69,18 @@ describe('delegation-store', () => {
 		activateDelegation(USER_ID, DELEGATION_ID);
 
 		expect(revokeDelegation(DELEGATION_ID)).toBe(true);
+		expect(isDelegationActive(USER_ID)).toBe(false);
+		expect(getDelegation(DELEGATION_ID)!.status).toBe('revoked');
+	});
+
+	it('revokes by wallet id', () => {
+		storeDelegation(
+			DELEGATION_ID, USER_ID, 'wallet-1', '0xwallet',
+			'api-key', 'key-share', ENC_KEY, 8453, 60_000
+		);
+		activateDelegation(USER_ID, DELEGATION_ID);
+
+		expect(revokeByWalletId('wallet-1')).toBe(true);
 		expect(isDelegationActive(USER_ID)).toBe(false);
 		expect(getDelegation(DELEGATION_ID)!.status).toBe('revoked');
 	});
