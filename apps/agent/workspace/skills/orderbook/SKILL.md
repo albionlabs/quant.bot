@@ -64,6 +64,45 @@ Parameters:
 
 Response returns `{ to, data, value, approvals }`.
 
+## Deploy Custom Strategy (Dotrain/Rainlang)
+
+POST /v1/order/custom
+Content-Type: application/json
+
+Body:
+```json
+{
+  "dotrain": "version: 1\n...\n---\n#calculate-io\n_: 0;\n#handle-io\n_: 0;",
+  "deploymentKey": "some-deployment",
+  "owner": "0x1234567890abcdef1234567890abcdef12345678",
+  "additionalSettings": [],
+  "selectTokens": {
+    "input-token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "output-token": "0x4200000000000000000000000000000000000006"
+  },
+  "fieldValues": {
+    "fixed-io": "1850",
+    "amount-per-trade": "250"
+  },
+  "deposits": {
+    "usdc": "5000"
+  }
+}
+```
+
+Response returns `{ to, data, value, chainId, approvals, composedRainlang, emitMetaCall }`.
+Use this when the user wants a strategy not covered by the fixed DCA/solver request shapes.
+
+Before proceeding to signing/execution for any strategy transaction:
+- Ask: `Do you want to review the Rainlang strategy before signing?`
+- If yes, present the composed Rainlang in a modal-compatible block:
+```text
+<rainlang-review title="Rainlang Strategy Review">
+...composed Rainlang...
+</rainlang-review>
+```
+- Then ask for explicit execute confirmation.
+
 ## Get Order Detail
 
 GET /v1/order/{order_hash}

@@ -38,6 +38,13 @@ Response:
 
 CRITICAL RULES:
 1. ALWAYS simulate the transaction first using the EVM Simulator skill
-2. ALWAYS ask for explicit user confirmation before executing
-3. Display the simulation results and explain what the transaction will do
-4. Never execute a transaction if the simulation fails
+2. Before signing/executing strategy transactions, ALWAYS ask: "Do you want to review the Rainlang strategy before signing?"
+3. If user says yes, render Rainlang in a modal-compatible block:
+```text
+<rainlang-review title="Rainlang Strategy Review">
+...composed Rainlang...
+</rainlang-review>
+```
+4. ALWAYS ask for explicit user confirmation before executing (after any requested review)
+5. Display the simulation results and explain what the transaction will do
+6. Never execute a transaction if the simulation fails
