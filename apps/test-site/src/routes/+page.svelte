@@ -29,6 +29,7 @@
 	let loadingDelegation = $state(false)
 	let lastStatusToken = $state<string | null>(null)
 	let delegationWatchdog: ReturnType<typeof setTimeout> | null = null
+	let revocationRecoveryInFlight = $state(false)
 	const DELEGATION_UI_TIMEOUT_MS = 120_000
 
 	// When Dynamic authenticates, auto-SIWE to gateway
@@ -129,6 +130,42 @@
 		return false
 	}
 
+	function isLikelyRevocationTimeoutError(message: string): boolean {
+		const normalized = message.toLowerCase()
+		return (
+			normalized.includes('timed out') ||
+			normalized.includes('timeout') ||
+			normalized.includes('walletqueuemanager')
+		)
+	}
+
+	async function recoverRevocationAfterTimeout(initialMessage: string) {
+		if (!$auth.token || revocationRecoveryInFlight) return
+		revocationRecoveryInFlight = true
+
+		try {
+			const syncedViaWebhook = await waitForDelegationState(false, 20_000, 2_000)
+			if (!syncedViaWebhook) {
+				// Reconcile local delegation state when Dynamic succeeded but webhook/status propagation lagged.
+				await revokeDelegation(gatewayUrl, $auth.token)
+				const syncedAfterReconcile = await waitForDelegationState(false, 20_000, 2_000)
+				if (!syncedAfterReconcile) {
+					throw new Error('Revocation timed out and status is still active. Please retry.')
+				}
+			}
+
+			error = null
+		} catch (e) {
+			const recoveryMessage = e instanceof Error ? e.message : 'Failed to reconcile revocation status'
+			error = `${initialMessage}. ${recoveryMessage}`
+		} finally {
+			revoking = false
+			revocationRecoveryInFlight = false
+			clearDelegationWatchdog()
+			dynamicError.set(null)
+		}
+	}
+
 	// When delegation completes (webhook fires → gateway stores it), refresh status
 	$effect(() => {
 		if ($dynamicDelegationComplete && $auth.token) {
@@ -167,9 +204,21 @@
 	})
 
 	$effect(() => {
-		if ($dynamicError && (delegating || revoking)) {
-			delegating = false
+		const sdkError = $dynamicError
+		if (!sdkError) return
+
+		if (revoking) {
+			if (isLikelyRevocationTimeoutError(sdkError)) {
+				void recoverRevocationAfterTimeout(sdkError)
+				return
+			}
 			revoking = false
+			clearDelegationWatchdog()
+			return
+		}
+
+		if (delegating) {
+			delegating = false
 			clearDelegationWatchdog()
 		}
 	})
