@@ -30,6 +30,7 @@ jobs:
               - 'pnpm-lock.yaml'
             gateway:
               - 'apps/gateway/**'
+              - 'apps/delegation/**'
               - 'packages/**'
               - 'fly.gateway.toml'
               - 'pnpm-lock.yaml'
