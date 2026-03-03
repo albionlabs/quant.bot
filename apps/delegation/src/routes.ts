@@ -194,51 +194,13 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 
 		const delegation = getActiveDelegation(userId);
 		if (!delegation) {
-			return reply.status(404).send({ error: 'No active delegation found' });
+			return { status: 'already_revoked' };
 		}
 
-		// Revoke on Dynamic's side first so local and upstream state stay consistent.
-		if (!config.dynamicEnvironmentId || !config.dynamicAdminKey) {
-			return reply.status(503).send({
-				error: 'Dynamic admin credentials are not configured; cannot revoke upstream delegation safely'
-			});
-		}
-
-		try {
-			const url = `https://app.dynamicauth.com/api/v0/sdk/${config.dynamicEnvironmentId}/waas/${delegation.walletId}/delegatedAccess/revoke`;
-			const res = await fetch(url, {
-				method: 'POST',
-				headers: {
-					'Authorization': `Bearer ${config.dynamicAdminKey}`,
-					'Content-Type': 'application/json'
-				}
-			});
-
-			if (!res.ok) {
-				// 404/409 are treated as idempotent already-revoked cases.
-				if (res.status !== 404 && res.status !== 409) {
-					const responseText = await res.text().catch(() => '');
-					app.log.warn(
-						{ status: res.status, walletId: delegation.walletId, responseText },
-						'Failed to revoke delegation on Dynamic'
-					);
-					return reply.status(502).send({
-						error: `Dynamic revoke failed with status ${res.status}`
-					});
-				}
-				app.log.info(
-					{ status: res.status, walletId: delegation.walletId },
-					'Delegation already revoked on Dynamic, revoking local record'
-				);
-			} else {
-				app.log.info({ walletId: delegation.walletId }, 'Delegation revoked on Dynamic');
-			}
-		} catch (err) {
-			app.log.warn({ err, walletId: delegation.walletId }, 'Error revoking delegation on Dynamic');
-			return reply.status(502).send({ error: 'Failed to reach Dynamic revoke endpoint' });
-		}
-
+		// Dynamic v4.65+ performs delegation revoke through user-driven MPC reshare in the client SDK.
+		// This endpoint only reconciles local delegation state after that flow (or webhook) completes.
 		revokeDelegation(delegation.id);
+		app.log.info({ userId, walletId: delegation.walletId }, 'Delegation revoked locally');
 		return { status: 'revoked' };
 	});
 

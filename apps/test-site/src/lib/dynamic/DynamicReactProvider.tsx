@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import {
 	DynamicContextProvider,
 	useDynamicContext,
@@ -9,7 +9,7 @@ import {
 import { EthereumWalletConnectors, isEthereumWallet } from '@dynamic-labs/ethereum'
 
 export interface DynamicEventData {
-	type: 'ready' | 'authenticated' | 'logout' | 'wallet' | 'error' | 'token_refreshed' | 'delegation_complete'
+	type: 'ready' | 'authenticated' | 'logout' | 'wallet' | 'error' | 'token_refreshed' | 'delegation_complete' | 'delegation_revoked'
 	payload?: {
 		userId?: string
 		walletAddress?: string
@@ -32,6 +32,7 @@ interface DynamicBridgeProps {
 	triggerLogin?: boolean
 	triggerLogout?: boolean
 	triggerDelegate?: boolean
+	triggerRevoke?: boolean
 }
 
 const TOKEN_REFRESH_INTERVAL = 50 * 60 * 1000
@@ -60,7 +61,8 @@ function DynamicBridge({
 	onWalletProviderReady,
 	triggerLogin,
 	triggerLogout,
-	triggerDelegate
+	triggerDelegate,
+	triggerRevoke
 }: Omit<DynamicBridgeProps, 'environmentId'>) {
 	const { sdkHasLoaded, user, primaryWallet, handleLogOut, setShowAuthFlow } = useDynamicContext()
 	const userWallets = useUserWallets()
@@ -185,33 +187,51 @@ function DynamicBridge({
 		}
 	}, [triggerLogout, sdkHasLoaded, user, handleLogOut])
 
+	const getDelegationTarget = () => {
+		if (!embeddedWallet) return null
+		const chainName = (embeddedWallet.chain?.toUpperCase() === 'ETH' ? 'ETH' : 'EVM') as const
+		return {
+			chainName,
+			walletAddress: embeddedWallet.address,
+			target: [{
+				chainName,
+				accountAddress: embeddedWallet.address
+			}]
+		}
+	}
+
+	const isWalletDelegated = () => {
+		const delegationTarget = getDelegationTarget()
+		if (!delegationTarget) return false
+		return getWalletsDelegatedStatus().some(
+			(w) =>
+				w.address.toLowerCase() === delegationTarget.walletAddress.toLowerCase() &&
+				w.chain === delegationTarget.chainName &&
+				w.status === 'delegated'
+		)
+	}
+
 	// Handle delegation trigger
 	const isDelegatingRef = useRef(false)
 	useEffect(() => {
 		if (triggerDelegate && sdkHasLoaded && user && embeddedWallet && !isDelegatingRef.current) {
 			isDelegatingRef.current = true
-			const chainName = (embeddedWallet.chain?.toUpperCase() === 'ETH' ? 'ETH' : 'EVM') as const
-			const delegationTarget = [{
-				chainName,
-				accountAddress: embeddedWallet.address
-			}]
-
-			const isWalletDelegated = () => {
-				return getWalletsDelegatedStatus().some(
-					(w) =>
-						w.address.toLowerCase() === embeddedWallet.address.toLowerCase() &&
-						w.chain === chainName &&
-						w.status === 'delegated'
-				)
+			const delegationTarget = getDelegationTarget()
+			if (!delegationTarget) {
+				isDelegatingRef.current = false
+				return
 			}
 
 			const runDelegation = async () => {
 				try {
 					await withTimeout(
-						delegateKeyShares(delegationTarget),
+						delegateKeyShares(delegationTarget.target),
 						DELEGATION_OPERATION_TIMEOUT_MS,
 						'Delegation'
 					)
+					if (!isWalletDelegated()) {
+						throw new Error('Delegation did not complete. Please retry.')
+					}
 					onEventRef.current({ type: 'delegation_complete' })
 					return
 				} catch (error) {
@@ -221,15 +241,18 @@ function DynamicBridge({
 					if (shouldRecover) {
 						try {
 							await withTimeout(
-								revokeDelegation(delegationTarget),
+								revokeDelegation(delegationTarget.target),
 								DELEGATION_OPERATION_TIMEOUT_MS,
 								'Delegation recovery revoke'
 							)
 							await withTimeout(
-								delegateKeyShares(delegationTarget),
+								delegateKeyShares(delegationTarget.target),
 								DELEGATION_OPERATION_TIMEOUT_MS,
 								'Delegation recovery delegate'
 							)
+							if (!isWalletDelegated()) {
+								throw new Error('Delegation recovery did not complete. Please retry.')
+							}
 							onEventRef.current({ type: 'delegation_complete' })
 							return
 						} catch (recoveryError) {
@@ -264,6 +287,68 @@ function DynamicBridge({
 			})
 		}
 	}, [triggerDelegate, sdkHasLoaded, user, embeddedWallet, delegateKeyShares, revokeDelegation, getWalletsDelegatedStatus])
+
+	// Handle revoke trigger
+	const isRevokingRef = useRef(false)
+	useEffect(() => {
+		if (triggerRevoke && sdkHasLoaded && user && embeddedWallet && !isRevokingRef.current) {
+			isRevokingRef.current = true
+			const delegationTarget = getDelegationTarget()
+			if (!delegationTarget) {
+				isRevokingRef.current = false
+				return
+			}
+
+			const runRevocation = async () => {
+				try {
+					if (!isWalletDelegated()) {
+						onEventRef.current({ type: 'delegation_revoked' })
+						return
+					}
+
+					await withTimeout(
+						revokeDelegation(delegationTarget.target),
+						DELEGATION_OPERATION_TIMEOUT_MS,
+						'Revocation'
+					)
+
+					if (!isWalletDelegated()) {
+						onEventRef.current({ type: 'delegation_revoked' })
+						return
+					}
+
+					// Retry once because Dynamic SDK swallows connector errors in this hook.
+					await withTimeout(
+						revokeDelegation(delegationTarget.target),
+						DELEGATION_OPERATION_TIMEOUT_MS,
+						'Revocation retry'
+					)
+
+					if (!isWalletDelegated()) {
+						onEventRef.current({ type: 'delegation_revoked' })
+						return
+					}
+
+					throw new Error('Delegation is still active after revoke attempt')
+				} catch (error) {
+					if (!isWalletDelegated()) {
+						onEventRef.current({ type: 'delegation_revoked' })
+						return
+					}
+					onEventRef.current({
+						type: 'error',
+						payload: {
+							error: (error as Error).message || 'Failed to revoke delegation'
+						}
+					})
+				}
+			}
+
+			void runRevocation().finally(() => {
+				isRevokingRef.current = false
+			})
+		}
+	}, [triggerRevoke, sdkHasLoaded, user, embeddedWallet, revokeDelegation, getWalletsDelegatedStatus])
 
 	return null
 }

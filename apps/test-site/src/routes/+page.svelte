@@ -8,9 +8,11 @@
 		dynamicReady,
 		dynamicWalletProvider,
 		dynamicDelegationComplete,
+		dynamicRevocationComplete,
 		loginWithDynamic,
 		logoutDynamic,
-		triggerDelegation
+		triggerDelegation,
+		triggerRevocation
 	} from '$lib/stores/dynamicStore'
 	import { createSiweMessage, generateNonce } from '$lib/siwe'
 	import { getDelegationStatus, revokeDelegation } from '$lib/delegation'
@@ -22,6 +24,7 @@
 	let error = $state<string | null>(null)
 	let signingIn = $state(false)
 	let delegating = $state(false)
+	let revoking = $state(false)
 	let delegationStatus = $state<DelegationStatusResponse | null>(null)
 	let loadingDelegation = $state(false)
 	let lastStatusToken = $state<string | null>(null)
@@ -103,8 +106,27 @@
 			if (delegating) {
 				delegating = false
 				error = 'Delegation timed out. Check your connection and retry.'
+				return
+			}
+			if (revoking) {
+				revoking = false
+				error = 'Revocation timed out. Check your connection and retry.'
 			}
 		}, DELEGATION_UI_TIMEOUT_MS)
+	}
+
+	async function waitForDelegationState(expectedActive: boolean, timeoutMs = 45_000, intervalMs = 2_000): Promise<boolean> {
+		if (!$auth.token) return false
+		const deadline = Date.now() + timeoutMs
+		while (Date.now() <= deadline) {
+			const status = await getDelegationStatus(gatewayUrl, $auth.token)
+			delegationStatus = status
+			if (status.active === expectedActive) {
+				return true
+			}
+			await new Promise((resolve) => setTimeout(resolve, intervalMs))
+		}
+		return false
 	}
 
 	// When delegation completes (webhook fires → gateway stores it), refresh status
@@ -112,14 +134,42 @@
 		if ($dynamicDelegationComplete && $auth.token) {
 			delegating = false
 			clearDelegationWatchdog()
-			// Give the webhook a moment to be processed by gateway
-			setTimeout(() => fetchDelegationStatus(), 2000)
+			void (async () => {
+				try {
+					const synced = await waitForDelegationState(true)
+					if (!synced) {
+						error = 'Delegation completed in wallet, but status sync timed out. Please refresh.'
+					}
+				} catch (e) {
+					error = e instanceof Error ? e.message : 'Failed to refresh delegation status'
+				}
+			})()
+		}
+	})
+
+	// When revoke completes in Dynamic, clear local delegation record then refresh status
+	$effect(() => {
+		if ($dynamicRevocationComplete && $auth.token) {
+			revoking = false
+			clearDelegationWatchdog()
+			void (async () => {
+				try {
+					await revokeDelegation(gatewayUrl, $auth.token)
+					const synced = await waitForDelegationState(false)
+					if (!synced) {
+						error = 'Revocation completed in wallet, but status sync timed out. Please refresh.'
+					}
+				} catch (e) {
+					error = e instanceof Error ? e.message : 'Failed to revoke delegation'
+				}
+			})()
 		}
 	})
 
 	$effect(() => {
-		if ($dynamicError && delegating) {
+		if ($dynamicError && (delegating || revoking)) {
 			delegating = false
+			revoking = false
 			clearDelegationWatchdog()
 		}
 	})
@@ -137,8 +187,10 @@
 	})
 
 	function handleDelegate() {
+		if (delegating || revoking) return
 		delegating = true
 		error = null
+		dynamicError.set(null)
 		startDelegationWatchdog()
 		triggerDelegation()
 	}
@@ -154,21 +206,18 @@
 		delegationStatus = null
 		error = null
 		lastSignedAddress = null
+		delegating = false
+		revoking = false
 		clearDelegationWatchdog()
 	}
 
 	async function handleRevokeDelegation() {
-		if (!$auth.token) return
-		try {
-			await revokeDelegation(gatewayUrl, $auth.token)
-			const status = await getDelegationStatus(gatewayUrl, $auth.token)
-			delegationStatus = status
-			if (status.active) {
-				error = 'Delegation is still active after revoke attempt. Please retry.'
-			}
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Failed to revoke delegation'
-		}
+		if (delegating || revoking) return
+		revoking = true
+		error = null
+		dynamicError.set(null)
+		startDelegationWatchdog()
+		triggerRevocation()
 	}
 
 	async function fetchDelegationStatus() {
@@ -178,6 +227,9 @@
 			delegationStatus = await getDelegationStatus(gatewayUrl, $auth.token)
 			if (delegationStatus.active) {
 				delegating = false
+				clearDelegationWatchdog()
+			} else if (revoking) {
+				revoking = false
 				clearDelegationWatchdog()
 			}
 		} catch (e) {
@@ -193,19 +245,21 @@
 	{#if $auth.authenticated}
 		<div class="status-bar">
 			<span class="addr">{$auth.address?.slice(0, 6)}...{$auth.address?.slice(-4)}</span>
-			<div class="status-bar-actions">
-				{#if delegationStatus?.active}
-					<span class="delegation-badge active">Delegation Active</span>
-					<button class="btn btn-sm btn-secondary" onclick={handleRevokeDelegation}>Revoke</button>
-				{:else}
-					<span class="delegation-badge inactive">No Delegation</span>
-					<button class="btn btn-sm" onclick={handleDelegate} disabled={delegating}>
-						{delegating ? 'Delegating...' : 'Delegate'}
-					</button>
-					<button class="btn btn-sm btn-secondary" onclick={fetchDelegationStatus} disabled={loadingDelegation}>
-						{loadingDelegation ? 'Checking...' : 'Refresh'}
-					</button>
-				{/if}
+				<div class="status-bar-actions">
+					{#if delegationStatus?.active}
+						<span class="delegation-badge active">Delegation Active</span>
+						<button class="btn btn-sm btn-secondary" onclick={handleRevokeDelegation} disabled={revoking || delegating}>
+							{revoking ? 'Revoking...' : 'Revoke'}
+						</button>
+					{:else}
+						<span class="delegation-badge inactive">No Delegation</span>
+						<button class="btn btn-sm" onclick={handleDelegate} disabled={delegating || revoking}>
+							{delegating ? 'Delegating...' : 'Delegate'}
+						</button>
+						<button class="btn btn-sm btn-secondary" onclick={fetchDelegationStatus} disabled={loadingDelegation || delegating || revoking}>
+							{loadingDelegation ? 'Checking...' : 'Refresh'}
+						</button>
+					{/if}
 				<button class="btn btn-sm" onclick={handleDisconnect}>Disconnect</button>
 			</div>
 		</div>

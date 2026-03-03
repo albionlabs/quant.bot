@@ -10,9 +10,11 @@
 		dynamicTriggerLogin,
 		dynamicTriggerLogout,
 		dynamicTriggerDelegate,
+		dynamicTriggerRevoke,
 		dynamicAccessToken,
 		dynamicWalletProvider,
 		dynamicDelegationComplete,
+		dynamicRevocationComplete,
 		type DynamicSession
 	} from '$lib/stores/dynamicStore'
 
@@ -79,6 +81,10 @@
 			case 'delegation_complete':
 				dynamicDelegationComplete.set(true)
 				break
+
+			case 'delegation_revoked':
+				dynamicRevocationComplete.set(true)
+				break
 		}
 	}
 </script>
@@ -91,5 +97,6 @@
 		triggerLogin={$dynamicTriggerLogin}
 		triggerLogout={$dynamicTriggerLogout}
 		triggerDelegate={$dynamicTriggerDelegate}
+		triggerRevoke={$dynamicTriggerRevoke}
 	></react.DynamicReactProvider>
 {/if}
