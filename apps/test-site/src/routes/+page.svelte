@@ -17,6 +17,7 @@
 	} from '$lib/stores/dynamicStore'
 	import { createSiweMessage, generateNonce } from '$lib/siwe'
 	import { getDelegationStatus, revokeDelegation } from '$lib/delegation'
+	import { waitUntil } from '$lib/async'
 	import type { DelegationStatusResponse } from '@quant-bot/shared-types'
 
 	const gatewayUrl = env.PUBLIC_GATEWAY_URL ?? 'http://localhost:3000'
@@ -120,29 +121,20 @@
 	}
 
 	async function waitForDelegationState(expectedActive: boolean, timeoutMs = 45_000, intervalMs = 2_000): Promise<boolean> {
-		if (!$auth.token) return false
-		const deadline = Date.now() + timeoutMs
-		while (Date.now() <= deadline) {
-			const status = await getDelegationStatus(gatewayUrl, $auth.token)
+		const token = $auth.token
+		if (!token) return false
+		return waitUntil(async () => {
+			const status = await getDelegationStatus(gatewayUrl, token)
 			delegationStatus = status
-			if (status.active === expectedActive) {
-				return true
-			}
-			await new Promise((resolve) => setTimeout(resolve, intervalMs))
-		}
-		return false
+			return status.active === expectedActive
+		}, { timeoutMs, intervalMs })
 	}
 
 	async function waitForDynamicDelegationState(expectedDelegated: boolean, timeoutMs = 20_000, intervalMs = 500): Promise<boolean> {
-		const deadline = Date.now() + timeoutMs
-		while (Date.now() <= deadline) {
+		return waitUntil(() => {
 			const delegated = $dynamicDelegatedStatus
-			if (delegated !== null && delegated === expectedDelegated) {
-				return true
-			}
-			await new Promise((resolve) => setTimeout(resolve, intervalMs))
-		}
-		return false
+			return delegated !== null && delegated === expectedDelegated
+		}, { timeoutMs, intervalMs })
 	}
 
 	async function recoverRevocationAfterSdkError(initialMessage: string) {

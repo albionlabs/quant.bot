@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { SiweMessage } from 'siwe';
 import type { LoginRequest, LoginResponse, RefreshResponse } from '@quant-bot/shared-types';
 import { createToken, authMiddleware, type JwtPayload } from '../middleware/auth.js';
@@ -53,5 +53,3 @@ export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
 	});
 
 }
-
-type FastifyRequest = import('fastify').FastifyRequest;

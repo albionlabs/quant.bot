@@ -1,10 +1,17 @@
-import { writable, derived } from 'svelte/store'
+import { writable, derived, type Writable } from 'svelte/store'
 
 export interface DynamicSession {
 	userId: string
 	walletAddress: string
 	email?: string
 	walletType?: 'embedded' | 'external'
+}
+
+const TRIGGER_PULSE_MS = 100
+
+function pulseTrigger(trigger: Writable<boolean>, durationMs = TRIGGER_PULSE_MS): void {
+	trigger.set(true)
+	setTimeout(() => trigger.set(false), durationMs)
 }
 
 // State
@@ -24,9 +31,6 @@ export const dynamicDelegationComplete = writable<boolean>(false)
 export const dynamicRevocationComplete = writable<boolean>(false)
 export const dynamicDelegatedStatus = writable<boolean | null>(null)
 
-// Token management
-export const dynamicAccessToken = writable<string | null>(null)
-
 // Wallet provider (set by DynamicSvelteWrapper when React exposes it)
 export type WalletProvider = {
 	request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
@@ -35,32 +39,24 @@ export const dynamicWalletProvider = writable<WalletProvider | null>(null)
 
 // Derived
 export const isDynamicAuthenticated = derived(dynamicSession, ($session) => $session !== null)
-export const dynamicWalletAddress = derived(
-	dynamicSession,
-	($session) => $session?.walletAddress ?? null
-)
 
 export function loginWithDynamic(): void {
 	dynamicLoading.set(true)
-	dynamicTriggerLogin.set(true)
-	setTimeout(() => dynamicTriggerLogin.set(false), 100)
+	pulseTrigger(dynamicTriggerLogin)
 	setTimeout(() => dynamicLoading.set(false), 2000)
 }
 
 export function logoutDynamic(): void {
 	dynamicLoading.set(true)
-	dynamicTriggerLogout.set(true)
-	setTimeout(() => dynamicTriggerLogout.set(false), 100)
+	pulseTrigger(dynamicTriggerLogout)
 }
 
 export function triggerDelegation(): void {
 	dynamicDelegationComplete.set(false)
-	dynamicTriggerDelegate.set(true)
-	setTimeout(() => dynamicTriggerDelegate.set(false), 100)
+	pulseTrigger(dynamicTriggerDelegate)
 }
 
 export function triggerRevocation(): void {
 	dynamicRevocationComplete.set(false)
-	dynamicTriggerRevoke.set(true)
-	setTimeout(() => dynamicTriggerRevoke.set(false), 100)
+	pulseTrigger(dynamicTriggerRevoke)
 }

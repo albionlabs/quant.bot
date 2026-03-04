@@ -11,7 +11,6 @@
 		dynamicTriggerLogout,
 		dynamicTriggerDelegate,
 		dynamicTriggerRevoke,
-		dynamicAccessToken,
 		dynamicWalletProvider,
 		dynamicDelegationComplete,
 		dynamicRevocationComplete,
@@ -72,12 +71,6 @@
 			case 'error':
 				dynamicError.set(event.payload?.error || 'Unknown error')
 				dynamicLoading.set(false)
-				break
-
-			case 'token_refreshed':
-				if (event.payload?.accessToken) {
-					dynamicAccessToken.set(event.payload.accessToken)
-				}
 				break
 
 			case 'delegation_complete':
