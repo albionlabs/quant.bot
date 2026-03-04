@@ -28,7 +28,7 @@ export interface TxExecuteRequest {
 	to: string;
 	data: string;
 	value?: string;
-	delegationId: string;
+	delegationId?: string;
 	userId: string;
 }
 
@@ -48,4 +48,3 @@ export interface SubgraphQueryResponse {
 	data: unknown;
 	errors?: Array<{ message: string }>;
 }
-

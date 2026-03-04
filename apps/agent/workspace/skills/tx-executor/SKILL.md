@@ -15,7 +15,6 @@ Body:
   "to": "0x1234567890abcdef1234567890abcdef12345678",
   "data": "0xabcdef...",
   "value": "0",
-  "delegationId": "uuid-of-active-delegation",
   "userId": "0xuserwalletaddress"
 }
 ```
@@ -24,8 +23,8 @@ Parameters:
 - `to`: Target contract address (must be valid 0x address)
 - `data`: Encoded calldata (hex string starting with 0x)
 - `value`: Optional ETH value in wei as string
-- `delegationId`: The user's active delegation ID
-- `userId`: The authenticated user ID (wallet address, lowercase)
+- `delegationId`: Optional. If provided, should be the active delegation ID.
+- `userId`: Required wallet address (lowercase). This is provided in trusted gateway context; do not ask the user for it.
 
 Response:
 ```json

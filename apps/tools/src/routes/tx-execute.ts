@@ -5,7 +5,7 @@ import type { ToolsConfig } from '../config.js';
 
 export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig) {
 	app.post<{ Body: TxExecuteRequest }>('/api/evm/execute', async (request, reply) => {
-		const { to, data, delegationId, userId } = request.body;
+		const { to, data, userId } = request.body;
 
 		if (!to || !/^0x[a-fA-F0-9]{40}$/.test(to)) {
 			return reply.status(400).send({ error: 'Invalid "to" address' });
@@ -13,8 +13,8 @@ export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig)
 		if (!data || !data.startsWith('0x')) {
 			return reply.status(400).send({ error: 'Invalid "data" field' });
 		}
-		if (!delegationId || !userId) {
-			return reply.status(400).send({ error: 'delegationId and userId are required' });
+		if (!userId) {
+			return reply.status(400).send({ error: 'userId is required' });
 		}
 
 		try {

@@ -10,6 +10,31 @@ export class OrderbookProxyError extends Error {
 	}
 }
 
+function extractErrorMessage(payload: unknown, status: number): string {
+	const defaultMessage = `Orderbook API returned ${status}`;
+	if (!payload || typeof payload !== 'object') return defaultMessage;
+
+	const raw = payload as {
+		error?: unknown;
+		message?: unknown;
+		code?: unknown;
+	};
+
+	if (typeof raw.message === 'string' && raw.message.trim()) return raw.message;
+
+	if (typeof raw.error === 'string' && raw.error.trim()) return raw.error;
+
+	if (raw.error && typeof raw.error === 'object') {
+		const nested = raw.error as { code?: unknown; message?: unknown };
+		const nestedCode = typeof nested.code === 'string' ? nested.code : null;
+		const nestedMessage = typeof nested.message === 'string' ? nested.message : null;
+		if (nestedCode && nestedMessage) return `${nestedCode}: ${nestedMessage}`;
+		if (nestedMessage) return nestedMessage;
+	}
+
+	return defaultMessage;
+}
+
 function authHeader(config: ToolsConfig): string | null {
 	const hasKey = Boolean(config.orderbookApiKey);
 	const hasSecret = Boolean(config.orderbookApiSecret);
@@ -46,11 +71,16 @@ export async function requestOrderbook<TResponse>(
 	});
 
 	if (!res.ok) {
-		const errorJson = await res.json().catch(() => ({}));
-		const message =
-			(errorJson as { error?: string; message?: string }).error ??
-			(errorJson as { error?: string; message?: string }).message ??
-			`Orderbook API returned ${res.status}`;
+		const rawBody = await res.text().catch(() => '');
+		let errorPayload: unknown = null;
+		if (rawBody) {
+			try {
+				errorPayload = JSON.parse(rawBody) as unknown;
+			} catch {
+				errorPayload = { message: rawBody };
+			}
+		}
+		const message = extractErrorMessage(errorPayload, res.status);
 		throw new OrderbookProxyError(res.status, message);
 	}
 

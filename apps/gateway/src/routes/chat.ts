@@ -3,6 +3,7 @@ import type { WebSocket } from 'ws';
 import { verifyToken } from '../middleware/auth.js';
 import { createSession, getSession, touchSession } from '../services/session.js';
 import { sendToAgent, isAgentConnected } from '../services/agent-proxy.js';
+import { getDelegationStatus } from '../services/delegation-client.js';
 import type { GatewayConfig } from '../config.js';
 import type { ClientMessage, ServerMessage } from '@quant-bot/shared-types';
 
@@ -49,8 +50,32 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 				touchSession(sessionId);
 
 				try {
+					let delegationContext = `Authenticated userId: ${user!.sub}\n`;
+					try {
+						const status = await getDelegationStatus(config, user!.sub);
+						if (status.active) {
+							delegationContext += `Delegation active: true\n`;
+							if (status.delegationId) {
+								delegationContext += `Active delegationId: ${status.delegationId}\n`;
+							}
+						} else {
+							delegationContext += `Delegation active: false\n`;
+						}
+					} catch {
+						delegationContext += 'Delegation status unavailable\n';
+					}
+
+					const messageWithContext = [
+						'[Trusted execution context from authenticated gateway session]',
+						delegationContext.trim(),
+						'Never ask the user for userId or delegationId. Use this context for execution.',
+						'[/Trusted execution context]',
+						'',
+						msg.content
+					].join('\n');
+
 					const result = await sendToAgent({
-						message: msg.content,
+						message: messageWithContext,
 						userId: user!.sub,
 						timeoutMs: config.agentResponseTimeoutMs,
 						onDelta: (delta) => {
