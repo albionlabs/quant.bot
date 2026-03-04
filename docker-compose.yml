@@ -69,18 +69,11 @@ services:
 
   rest-api:
     build:
-      context: services/rest-api
+      context: services/rest-api-stub
       dockerfile: Dockerfile
     ports:
       - '8000:8000'
     environment:
-      - REGISTRY_URL=${REGISTRY_URL}
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///mnt/data/st0x-rest-api/st0x.db}
       - ROCKET_ADDRESS=0.0.0.0
       - ROCKET_PORT=8000
-    volumes:
-      - rest-api-data:/mnt/data/st0x-rest-api
     restart: unless-stopped
-
-volumes:
-  rest-api-data:
