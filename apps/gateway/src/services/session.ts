@@ -4,11 +4,12 @@ import type { ChatSession } from '@quant-bot/shared-types';
 const sessions = new Map<string, ChatSession>();
 
 export function createSession(userId: string): ChatSession {
+	const now = Date.now();
 	const session: ChatSession = {
 		id: randomUUID(),
 		userId,
-		createdAt: Date.now(),
-		lastMessageAt: Date.now()
+		createdAt: now,
+		lastMessageAt: now
 	};
 	sessions.set(session.id, session);
 	return session;
@@ -23,8 +24,4 @@ export function touchSession(sessionId: string): void {
 	if (session) {
 		session.lastMessageAt = Date.now();
 	}
-}
-
-export function getUserSessions(userId: string): ChatSession[] {
-	return Array.from(sessions.values()).filter((s) => s.userId === userId);
 }

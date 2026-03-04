@@ -1,6 +1,5 @@
-import { createPublicClient, createWalletClient, http, type Chain } from 'viem';
+import { createPublicClient, http, type Chain } from 'viem';
 import { base, baseSepolia } from 'viem/chains';
-import { privateKeyToAccount } from 'viem/accounts';
 import type { Address } from '@quant-bot/shared-types';
 
 const CHAIN_MAP: Record<string, Chain> = {
@@ -18,16 +17,6 @@ export function createBasePublicClient(rpcUrl?: string, chainName = 'base') {
 	const chain = getChain(chainName);
 	return createPublicClient({
 		chain,
-		transport: http(rpcUrl)
-	});
-}
-
-export function createBaseWalletClient(privateKey: `0x${string}`, rpcUrl?: string, chainName = 'base') {
-	const chain = getChain(chainName);
-	const account = privateKeyToAccount(privateKey);
-	return createWalletClient({
-		chain,
-		account,
 		transport: http(rpcUrl)
 	});
 }

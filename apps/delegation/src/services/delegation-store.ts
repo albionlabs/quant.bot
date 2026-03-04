@@ -124,12 +124,6 @@ export function getDelegation(delegationId: string): StoredDelegation | undefine
 	return delegations.get(delegationId);
 }
 
-export function revokeByUserId(userId: string): boolean {
-	const delegationId = activeDelegations.get(userId);
-	if (!delegationId) return false;
-	return revokeDelegation(delegationId);
-}
-
 export function revokeByWalletId(walletId: string): boolean {
 	let revoked = false;
 	for (const delegation of delegations.values()) {

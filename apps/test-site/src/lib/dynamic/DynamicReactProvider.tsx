@@ -7,6 +7,7 @@ import {
 	getAuthToken
 } from '@dynamic-labs/sdk-react-core'
 import { EthereumWalletConnectors, isEthereumWallet } from '@dynamic-labs/ethereum'
+import { waitUntil } from '../async'
 
 export interface DynamicEventData {
 	type:
@@ -15,7 +16,6 @@ export interface DynamicEventData {
 		| 'logout'
 		| 'wallet'
 		| 'error'
-		| 'token_refreshed'
 		| 'delegation_complete'
 		| 'delegation_revoked'
 		| 'delegation_status'
@@ -26,7 +26,6 @@ export interface DynamicEventData {
 		isAuthenticated?: boolean
 		error?: string
 		walletType?: 'embedded' | 'external'
-		accessToken?: string
 		isDelegated?: boolean
 	}
 }
@@ -45,7 +44,6 @@ interface DynamicBridgeProps {
 	triggerRevoke?: boolean
 }
 
-const TOKEN_REFRESH_INTERVAL = 50 * 60 * 1000
 const DELEGATION_OPERATION_TIMEOUT_MS = 90 * 1000
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
@@ -176,25 +174,6 @@ function DynamicBridge({
 		}
 	}, [triggerLogin, sdkHasLoaded, user, setShowAuthFlow])
 
-	// Token refresh
-	useEffect(() => {
-		if (!sdkHasLoaded || !user) return
-
-		const emitToken = () => {
-			const token = getAuthToken()
-			if (token) {
-				onEventRef.current({
-					type: 'token_refreshed',
-					payload: { accessToken: token }
-				})
-			}
-		}
-
-		emitToken()
-		const intervalId = setInterval(emitToken, TOKEN_REFRESH_INTERVAL)
-		return () => clearInterval(intervalId)
-	}, [sdkHasLoaded, user])
-
 	// Handle logout trigger
 	useEffect(() => {
 		if (triggerLogout && sdkHasLoaded && user) {
@@ -237,16 +216,8 @@ function DynamicBridge({
 		expectedDelegated: boolean,
 		timeoutMs = 20_000,
 		intervalMs = 1_000
-	): Promise<boolean> => {
-		const deadline = Date.now() + timeoutMs
-		while (Date.now() <= deadline) {
-			if (isWalletDelegated() === expectedDelegated) {
-				return true
-			}
-			await new Promise((resolve) => setTimeout(resolve, intervalMs))
-		}
-		return false
-	}
+	): Promise<boolean> =>
+		waitUntil(() => isWalletDelegated() === expectedDelegated, { timeoutMs, intervalMs })
 
 	useEffect(() => {
 		if (!sdkHasLoaded) return
