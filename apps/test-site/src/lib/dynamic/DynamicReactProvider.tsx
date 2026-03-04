@@ -9,7 +9,16 @@ import {
 import { EthereumWalletConnectors, isEthereumWallet } from '@dynamic-labs/ethereum'
 
 export interface DynamicEventData {
-	type: 'ready' | 'authenticated' | 'logout' | 'wallet' | 'error' | 'token_refreshed' | 'delegation_complete' | 'delegation_revoked'
+	type:
+		| 'ready'
+		| 'authenticated'
+		| 'logout'
+		| 'wallet'
+		| 'error'
+		| 'token_refreshed'
+		| 'delegation_complete'
+		| 'delegation_revoked'
+		| 'delegation_status'
 	payload?: {
 		userId?: string
 		walletAddress?: string
@@ -18,6 +27,7 @@ export interface DynamicEventData {
 		error?: string
 		walletType?: 'embedded' | 'external'
 		accessToken?: string
+		isDelegated?: boolean
 	}
 }
 
@@ -216,6 +226,24 @@ function DynamicBridge({
 		)
 	}
 
+	const emitDelegationStatus = () => {
+		onEventRef.current({
+			type: 'delegation_status',
+			payload: { isDelegated: isWalletDelegated() }
+		})
+	}
+
+	useEffect(() => {
+		if (!sdkHasLoaded) return
+		emitDelegationStatus()
+		if (!user || !embeddedWallet) return
+
+		const intervalId = setInterval(() => {
+			emitDelegationStatus()
+		}, 5000)
+		return () => clearInterval(intervalId)
+	}, [sdkHasLoaded, user, embeddedWallet, getWalletsDelegatedStatus])
+
 	// Handle delegation trigger
 	const isDelegatingRef = useRef(false)
 	useEffect(() => {
@@ -237,6 +265,7 @@ function DynamicBridge({
 					if (!isWalletDelegated()) {
 						throw new Error('Delegation did not complete. Please retry.')
 					}
+					emitDelegationStatus()
 					onEventRef.current({ type: 'delegation_complete' })
 					return
 				} catch (error) {
@@ -258,10 +287,12 @@ function DynamicBridge({
 							if (!isWalletDelegated()) {
 								throw new Error('Delegation recovery did not complete. Please retry.')
 							}
+							emitDelegationStatus()
 							onEventRef.current({ type: 'delegation_complete' })
 							return
 						} catch (recoveryError) {
 							if (isWalletDelegated()) {
+								emitDelegationStatus()
 								onEventRef.current({ type: 'delegation_complete' })
 								return
 							}
@@ -276,6 +307,7 @@ function DynamicBridge({
 					}
 
 					if (isWalletDelegated()) {
+						emitDelegationStatus()
 						onEventRef.current({ type: 'delegation_complete' })
 						return
 					}
@@ -310,6 +342,7 @@ function DynamicBridge({
 					dismissDelegationPrompt()
 
 					if (!isWalletDelegated()) {
+						emitDelegationStatus()
 						onEventRef.current({ type: 'delegation_revoked' })
 						return
 					}
@@ -321,6 +354,7 @@ function DynamicBridge({
 					)
 
 					if (!isWalletDelegated()) {
+						emitDelegationStatus()
 						onEventRef.current({ type: 'delegation_revoked' })
 						return
 					}
@@ -333,6 +367,7 @@ function DynamicBridge({
 					)
 
 					if (!isWalletDelegated()) {
+						emitDelegationStatus()
 						onEventRef.current({ type: 'delegation_revoked' })
 						return
 					}
@@ -340,6 +375,7 @@ function DynamicBridge({
 					throw new Error('Delegation is still active after revoke attempt')
 				} catch (error) {
 					if (!isWalletDelegated()) {
+						emitDelegationStatus()
 						onEventRef.current({ type: 'delegation_revoked' })
 						return
 					}

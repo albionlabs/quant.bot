@@ -9,6 +9,7 @@
 		dynamicWalletProvider,
 		dynamicDelegationComplete,
 		dynamicRevocationComplete,
+		dynamicDelegatedStatus,
 		loginWithDynamic,
 		logoutDynamic,
 		triggerDelegation,
@@ -253,6 +254,7 @@
 		logoutDynamic()
 		clearAuth()
 		delegationStatus = null
+		dynamicDelegatedStatus.set(null)
 		error = null
 		lastSignedAddress = null
 		delegating = false
@@ -288,6 +290,14 @@
 			loadingDelegation = false
 		}
 	}
+
+	function isDelegationActiveUi(): boolean {
+		return Boolean(delegationStatus?.active || $dynamicDelegatedStatus === true)
+	}
+
+	function isDelegationOutOfSync(): boolean {
+		return $dynamicDelegatedStatus === true && !delegationStatus?.active
+	}
 </script>
 
 <div class="page">
@@ -295,10 +305,24 @@
 		<div class="status-bar">
 			<span class="addr">{$auth.address?.slice(0, 6)}...{$auth.address?.slice(-4)}</span>
 				<div class="status-bar-actions">
-					{#if delegationStatus?.active}
-						<span class="delegation-badge active">Delegation Active</span>
+					{#if isDelegationActiveUi()}
+						<span class="delegation-badge active">
+							{#if isDelegationOutOfSync()}
+								Delegation Active (Re-sync Needed)
+							{:else}
+								Delegation Active
+							{/if}
+						</span>
+						{#if isDelegationOutOfSync()}
+							<button class="btn btn-sm btn-secondary" onclick={handleDelegate} disabled={delegating || revoking}>
+								{delegating ? 'Re-syncing...' : 'Re-sync'}
+							</button>
+						{/if}
 						<button class="btn btn-sm btn-secondary" onclick={handleRevokeDelegation} disabled={revoking || delegating}>
 							{revoking ? 'Revoking...' : 'Revoke'}
+						</button>
+						<button class="btn btn-sm btn-secondary" onclick={fetchDelegationStatus} disabled={loadingDelegation || delegating || revoking}>
+							{loadingDelegation ? 'Checking...' : 'Refresh'}
 						</button>
 					{:else}
 						<span class="delegation-badge inactive">No Delegation</span>

@@ -22,6 +22,7 @@ export const dynamicTriggerRevoke = writable<boolean>(false)
 // Delegation state
 export const dynamicDelegationComplete = writable<boolean>(false)
 export const dynamicRevocationComplete = writable<boolean>(false)
+export const dynamicDelegatedStatus = writable<boolean | null>(null)
 
 // Token management
 export const dynamicAccessToken = writable<string | null>(null)

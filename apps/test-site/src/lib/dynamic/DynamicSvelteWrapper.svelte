@@ -15,6 +15,7 @@
 		dynamicWalletProvider,
 		dynamicDelegationComplete,
 		dynamicRevocationComplete,
+		dynamicDelegatedStatus,
 		type DynamicSession
 	} from '$lib/stores/dynamicStore'
 
@@ -56,6 +57,7 @@
 
 			case 'logout':
 				dynamicSession.set(null)
+				dynamicDelegatedStatus.set(null)
 				dynamicLoading.set(false)
 				break
 
@@ -84,6 +86,10 @@
 
 			case 'delegation_revoked':
 				dynamicRevocationComplete.set(true)
+				break
+
+			case 'delegation_status':
+				dynamicDelegatedStatus.set(event.payload?.isDelegated ?? null)
 				break
 		}
 	}
