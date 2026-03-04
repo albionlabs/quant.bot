@@ -52,6 +52,7 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 					const result = await sendToAgent({
 						message: msg.content,
 						userId: user!.sub,
+						timeoutMs: config.agentResponseTimeoutMs,
 						onDelta: (delta) => {
 							const streamMsg: ServerMessage = {
 								type: 'stream',

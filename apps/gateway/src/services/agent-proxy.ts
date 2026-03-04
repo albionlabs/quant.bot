@@ -134,6 +134,7 @@ export interface SendOptions {
 	message: string;
 	userId: string;
 	onDelta?: (delta: string) => void;
+	timeoutMs?: number;
 }
 
 /**
@@ -154,7 +155,7 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 			runHandlers.delete(reqId);
 			responseHandlers.delete(reqId);
 			reject(new Error('Agent response timeout'));
-		}, 120_000);
+		}, opts.timeoutMs ?? 120_000);
 
 		let runId: string | null = null;
 		let finalText = '';
