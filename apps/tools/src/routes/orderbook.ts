@@ -8,7 +8,11 @@ interface RequestBody {
 
 function handleOrderbookError(reply: { status: (code: number) => { send: (payload: unknown) => unknown } }, err: unknown) {
 	if (err instanceof OrderbookProxyError) {
-		return reply.status(err.status).send({ error: err.message });
+		return reply.status(err.status).send({
+			error: err.message,
+			source: 'orderbook-api',
+			...(err.upstreamPath ? { upstreamPath: err.upstreamPath } : {})
+		});
 	}
 	const message = err instanceof Error ? err.message : 'Orderbook request failed';
 	return reply.status(500).send({ error: message });

@@ -2,11 +2,13 @@ import type { ToolsConfig } from '../config.js';
 
 export class OrderbookProxyError extends Error {
 	status: number;
+	upstreamPath?: string;
 
-	constructor(status: number, message: string) {
+	constructor(status: number, message: string, upstreamPath?: string) {
 		super(message);
 		this.name = 'OrderbookProxyError';
 		this.status = status;
+		this.upstreamPath = upstreamPath;
 	}
 }
 
@@ -81,7 +83,7 @@ export async function requestOrderbook<TResponse>(
 			}
 		}
 		const message = extractErrorMessage(errorPayload, res.status);
-		throw new OrderbookProxyError(res.status, message);
+		throw new OrderbookProxyError(res.status, message, path);
 	}
 
 	return res.json() as Promise<TResponse>;

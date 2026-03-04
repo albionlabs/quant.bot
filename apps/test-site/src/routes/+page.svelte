@@ -131,27 +131,41 @@
 		return false
 	}
 
-	function isLikelyRevocationTimeoutError(message: string): boolean {
-		const normalized = message.toLowerCase()
-		return (
-			normalized.includes('timed out') ||
-			normalized.includes('timeout') ||
-			normalized.includes('walletqueuemanager')
-		)
+	async function waitForDynamicDelegationState(expectedDelegated: boolean, timeoutMs = 20_000, intervalMs = 500): Promise<boolean> {
+		const deadline = Date.now() + timeoutMs
+		while (Date.now() <= deadline) {
+			const delegated = $dynamicDelegatedStatus
+			if (delegated !== null && delegated === expectedDelegated) {
+				return true
+			}
+			await new Promise((resolve) => setTimeout(resolve, intervalMs))
+		}
+		return false
 	}
 
-	async function recoverRevocationAfterTimeout(initialMessage: string) {
+	async function recoverRevocationAfterSdkError(initialMessage: string) {
 		if (!$auth.token || revocationRecoveryInFlight) return
 		revocationRecoveryInFlight = true
 
 		try {
-			const syncedViaWebhook = await waitForDelegationState(false, 20_000, 2_000)
+			let syncedViaWebhook = false
+			try {
+				syncedViaWebhook = await waitForDelegationState(false, 20_000, 2_000)
+			} catch {
+				syncedViaWebhook = false
+			}
+
 			if (!syncedViaWebhook) {
-				// Reconcile local delegation state when Dynamic succeeded but webhook/status propagation lagged.
+				const walletShowsRevoked = await waitForDynamicDelegationState(false, 20_000, 500)
+				if (!walletShowsRevoked) {
+					throw new Error('Delegation is still active in wallet. Please retry.')
+				}
+
+				// Dynamic can complete revoke before webhook propagation. Reconcile backend state.
 				await revokeDelegation(gatewayUrl, $auth.token)
 				const syncedAfterReconcile = await waitForDelegationState(false, 20_000, 2_000)
 				if (!syncedAfterReconcile) {
-					throw new Error('Revocation timed out and status is still active. Please retry.')
+					throw new Error('Revocation completed in wallet, but backend status did not reconcile yet.')
 				}
 			}
 
@@ -209,12 +223,7 @@
 		if (!sdkError) return
 
 		if (revoking) {
-			if (isLikelyRevocationTimeoutError(sdkError)) {
-				void recoverRevocationAfterTimeout(sdkError)
-				return
-			}
-			revoking = false
-			clearDelegationWatchdog()
+			void recoverRevocationAfterSdkError(sdkError)
 			return
 		}
 

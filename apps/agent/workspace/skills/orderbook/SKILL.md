@@ -8,6 +8,11 @@ Backend-managed credentials are used automatically by the tools service.
 Users should never be asked for API keys.
 Base URL: http://quant-bot-tools.internal:4000
 
+Error interpretation:
+- `/api/order/*` endpoints are implemented on the tools service.
+- If a call returns an error payload with `source: "orderbook-api"` (especially 404/500), that came from the upstream orderbook API, not from a missing tools route.
+- For upstream failures, report the returned `upstreamPath` and message exactly.
+
 ## Deploy DCA Order
 
 POST /api/order/dca
