@@ -4,6 +4,7 @@ import { verifyToken } from '../middleware/auth.js';
 import { createSession, getSession, touchSession } from '../services/session.js';
 import { sendToAgent, isAgentConnected } from '../services/agent-proxy.js';
 import { getDelegationStatus } from '../services/delegation-client.js';
+import { createExecutionToken } from '../services/execution-token.js';
 import type { GatewayConfig } from '../config.js';
 import type { ClientMessage, ServerMessage } from '@quant-bot/shared-types';
 
@@ -50,6 +51,12 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 				touchSession(sessionId);
 
 				try {
+					const executionToken = await createExecutionToken(
+						user!.sub,
+						config.internalSecret,
+						config.executionTokenTtlSeconds
+					);
+
 					let delegationContext = `Authenticated userId: ${user!.sub}\n`;
 					try {
 						const status = await getDelegationStatus(config, user!.sub);
@@ -68,7 +75,8 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 					const messageWithContext = [
 						'[Trusted execution context from authenticated gateway session]',
 						delegationContext.trim(),
-						'Never ask the user for userId or delegationId. Use this context for execution.',
+						`Execution token for /api/evm/execute: ${executionToken}`,
+						'Never ask the user for userId or delegationId. Always use the execution token for /api/evm/execute.',
 						'[/Trusted execution context]',
 						'',
 						msg.content

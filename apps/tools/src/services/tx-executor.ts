@@ -1,5 +1,5 @@
 import { createBasePublicClient } from '@quant-bot/evm-utils';
-import type { TxExecuteRequest, TxExecuteResponse, Address, Hex } from '@quant-bot/shared-types';
+import type { TxExecuteResponse, Address, Hex } from '@quant-bot/shared-types';
 import {
 	createDelegatedEvmWalletClient,
 	delegatedSignTransaction
@@ -8,11 +8,12 @@ import { fetchDelegationCredentials } from './delegation-client.js';
 import type { ToolsConfig } from '../config.js';
 
 export async function executeTransaction(
-	request: TxExecuteRequest,
+	request: { to: string; data: string; value?: string },
+	userId: string,
 	config: ToolsConfig
 ): Promise<TxExecuteResponse> {
 	const credentials = await fetchDelegationCredentials(
-		request.userId,
+		userId,
 		config.delegationServiceUrl,
 		config.internalSecret
 	);

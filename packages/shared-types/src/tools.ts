@@ -28,8 +28,9 @@ export interface TxExecuteRequest {
 	to: string;
 	data: string;
 	value?: string;
+	executionToken: string;
 	delegationId?: string;
-	userId: string;
+	userId?: string;
 }
 
 export interface TxExecuteResponse {

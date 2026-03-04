@@ -15,7 +15,7 @@ Body:
   "to": "0x1234567890abcdef1234567890abcdef12345678",
   "data": "0xabcdef...",
   "value": "0",
-  "userId": "0xuserwalletaddress"
+  "executionToken": "<trusted-execution-token>"
 }
 ```
 
@@ -23,8 +23,9 @@ Parameters:
 - `to`: Target contract address (must be valid 0x address)
 - `data`: Encoded calldata (hex string starting with 0x)
 - `value`: Optional ETH value in wei as string
-- `delegationId`: Optional. If provided, should be the active delegation ID.
-- `userId`: Required wallet address (lowercase). This is provided in trusted gateway context; do not ask the user for it.
+- `executionToken`: Required short-lived token from trusted gateway context. Never ask the user for this.
+- `delegationId`: Optional (ignored by executor path).
+- `userId`: Optional legacy field. Do not ask the user for this.
 
 Response:
 ```json
