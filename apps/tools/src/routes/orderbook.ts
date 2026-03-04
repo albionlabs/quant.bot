@@ -8,10 +8,36 @@ interface RequestBody {
 
 function handleOrderbookError(reply: { status: (code: number) => { send: (payload: unknown) => unknown } }, err: unknown) {
 	if (err instanceof OrderbookProxyError) {
+		const message = err.message.toLowerCase();
+		const upstreamPath = err.upstreamPath ?? '';
+
+		// Upstream legacy handlers currently panic for these strategy endpoints.
+		// Return a deterministic guidance error so agent flows pivot to /api/order/custom.
+		if (
+			err.status === 500 &&
+			(upstreamPath === '/v1/order/dca' || upstreamPath === '/v1/order/solver') &&
+			message.includes('failed to initialize client runtime')
+		) {
+			return reply.status(501).send({
+				error: 'Upstream DCA/Solver strategy endpoints are unavailable. Use /api/order/custom.',
+				source: 'orderbook-api',
+				upstreamPath
+			});
+		}
+
+		// If custom is missing upstream, surface a concrete deployment/config hint.
+		if (err.status === 404 && upstreamPath === '/v1/order/custom') {
+			return reply.status(503).send({
+				error: 'Upstream custom strategy endpoint is unavailable. Ensure albion.rest.api is deployed with /v1/order/custom support.',
+				source: 'orderbook-api',
+				upstreamPath
+			});
+		}
+
 		return reply.status(err.status).send({
 			error: err.message,
 			source: 'orderbook-api',
-			...(err.upstreamPath ? { upstreamPath: err.upstreamPath } : {})
+			...(upstreamPath ? { upstreamPath } : {})
 		});
 	}
 	const message = err instanceof Error ? err.message : 'Orderbook request failed';

@@ -12,6 +12,9 @@ Error interpretation:
 - `/api/order/*` endpoints are implemented on the tools service.
 - If a call returns an error payload with `source: "orderbook-api"` (especially 404/500), that came from the upstream orderbook API, not from a missing tools route.
 - For upstream failures, report the returned `upstreamPath` and message exactly.
+- Current production caveat: `/api/order/dca` and `/api/order/solver` may return a known upstream runtime failure.
+  - If so, do not retry those endpoints.
+  - Switch to `/api/order/custom` flow immediately.
 
 ## Deploy DCA Order
 
@@ -44,6 +47,7 @@ Parameters:
 - `inputVaultId` / `outputVaultId`: Optional vault IDs (auto-generated if null)
 
 Response returns `{ to, data, value, approvals }` — a transaction to sign and submit.
+If this route returns upstream runtime-unavailable errors, switch to `/api/order/custom`.
 
 ## Deploy Solver Order
 
@@ -69,6 +73,7 @@ Parameters:
 - `inputVaultId` / `outputVaultId`: Optional vault IDs
 
 Response returns `{ to, data, value, approvals }`.
+If this route returns upstream runtime-unavailable errors, switch to `/api/order/custom`.
 
 ## Deploy Custom Strategy (Dotrain/Rainlang)
 
@@ -98,6 +103,7 @@ Body:
 
 Response returns `{ to, data, value, chainId, approvals, composedRainlang, emitMetaCall }`.
 Use this when the user wants a strategy not covered by the fixed DCA/solver request shapes.
+Use this as the primary deploy path whenever DCA/Solver legacy routes are unavailable.
 
 Before proceeding to signing/execution for any strategy transaction:
 - Ask: `Do you want to review the Rainlang strategy before signing?`
