@@ -31,6 +31,8 @@
 	let lastStatusToken = $state<string | null>(null)
 	let delegationWatchdog: ReturnType<typeof setTimeout> | null = null
 	let revocationRecoveryInFlight = $state(false)
+	let serverRevocationConfirmed = $state(false)
+	let revokeInitiatedWithBackendActive = $state(false)
 	const DELEGATION_UI_TIMEOUT_MS = 120_000
 
 	// When Dynamic authenticates, auto-SIWE to gateway
@@ -148,11 +150,6 @@
 		revocationRecoveryInFlight = true
 
 		try {
-			const walletShowsRevoked = await waitForDynamicDelegationState(false, 30_000, 500)
-			if (!walletShowsRevoked) {
-				throw new Error('Delegation is still active in wallet. Please retry.')
-			}
-
 			let backendShowsRevoked = false
 			try {
 				backendShowsRevoked = await waitForDelegationState(false, 20_000, 2_000)
@@ -160,7 +157,16 @@
 				backendShowsRevoked = false
 			}
 
+			if (backendShowsRevoked && revokeInitiatedWithBackendActive) {
+				serverRevocationConfirmed = true
+			}
+
 			if (!backendShowsRevoked) {
+				const walletShowsRevoked = await waitForDynamicDelegationState(false, 30_000, 500)
+				if (!walletShowsRevoked) {
+					throw new Error('Delegation is still active in wallet. Please retry.')
+				}
+
 				// Dynamic can complete revoke before webhook propagation. Reconcile backend state.
 				await revokeDelegation(gatewayUrl, $auth.token)
 				backendShowsRevoked = await waitForDelegationState(false, 20_000, 2_000)
@@ -177,6 +183,7 @@
 		} finally {
 			revoking = false
 			revocationRecoveryInFlight = false
+			revokeInitiatedWithBackendActive = false
 			clearDelegationWatchdog()
 			dynamicError.set(null)
 		}
@@ -237,6 +244,7 @@
 	function handleDelegate() {
 		if (delegating || revoking) return
 		delegating = true
+		serverRevocationConfirmed = false
 		error = null
 		dynamicError.set(null)
 		startDelegationWatchdog()
@@ -257,16 +265,36 @@
 		lastSignedAddress = null
 		delegating = false
 		revoking = false
+		serverRevocationConfirmed = false
+		revokeInitiatedWithBackendActive = false
 		clearDelegationWatchdog()
 	}
 
 	async function handleRevokeDelegation() {
 		if (delegating || revoking) return
 		revoking = true
+		revokeInitiatedWithBackendActive = delegationStatus?.active === true
+		serverRevocationConfirmed = false
 		error = null
 		dynamicError.set(null)
 		startDelegationWatchdog()
 		triggerRevocation()
+
+		void (async () => {
+			if (!$auth.token) return
+
+			try {
+				const backendShowsRevoked = await waitForDelegationState(false, 45_000, 2_000)
+				if (!backendShowsRevoked) return
+				serverRevocationConfirmed = true
+				revoking = false
+				revokeInitiatedWithBackendActive = false
+				clearDelegationWatchdog()
+				dynamicError.set(null)
+			} catch {
+				// Best-effort observer path; recovery handler will surface explicit errors.
+			}
+		})()
 	}
 
 	async function fetchDelegationStatus() {
@@ -275,10 +303,15 @@
 		try {
 			delegationStatus = await getDelegationStatus(gatewayUrl, $auth.token)
 			if (delegationStatus.active) {
+				serverRevocationConfirmed = false
 				delegating = false
 				clearDelegationWatchdog()
-			} else if (revoking && $dynamicDelegatedStatus !== true) {
+			} else if (revoking) {
+				if (revokeInitiatedWithBackendActive || serverRevocationConfirmed) {
+					serverRevocationConfirmed = true
+				}
 				revoking = false
+				revokeInitiatedWithBackendActive = false
 				clearDelegationWatchdog()
 			}
 		} catch (e) {
@@ -290,6 +323,9 @@
 	}
 
 	function isDelegationActiveUi(): boolean {
+		if (serverRevocationConfirmed && delegationStatus?.active === false) {
+			return false
+		}
 		return Boolean(delegationStatus?.active || $dynamicDelegatedStatus === true)
 	}
 
