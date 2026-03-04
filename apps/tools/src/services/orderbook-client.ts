@@ -10,12 +10,19 @@ export class OrderbookProxyError extends Error {
 	}
 }
 
-function authHeader(config: ToolsConfig): string {
-	if (!config.orderbookApiKey || !config.orderbookApiSecret) {
+function authHeader(config: ToolsConfig): string | null {
+	const hasKey = Boolean(config.orderbookApiKey);
+	const hasSecret = Boolean(config.orderbookApiSecret);
+
+	if (hasKey !== hasSecret) {
 		throw new OrderbookProxyError(
 			503,
-			'Orderbook API credentials are not configured on the tools service'
+			'Orderbook API auth is misconfigured: set both ORDERBOOK_API_KEY and ORDERBOOK_API_SECRET'
 		);
+	}
+
+	if (!hasKey) {
+		return null;
 	}
 
 	return `Basic ${Buffer.from(`${config.orderbookApiKey}:${config.orderbookApiSecret}`).toString('base64')}`;
@@ -27,11 +34,13 @@ export async function requestOrderbook<TResponse>(
 	path: string,
 	body?: unknown
 ): Promise<TResponse> {
+	const auth = authHeader(config);
+
 	const res = await fetch(`${config.orderbookApiUrl}${path}`, {
 		method,
 		headers: {
 			'Content-Type': 'application/json',
-			Authorization: authHeader(config)
+			...(auth ? { Authorization: auth } : {})
 		},
 		body: body ? JSON.stringify(body) : undefined
 	});
