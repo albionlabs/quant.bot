@@ -80,23 +80,92 @@ If this route returns upstream runtime-unavailable errors, switch to `/api/order
 POST /api/order/custom
 Content-Type: application/json
 
-Body:
+`deploymentKey` must match a key present in BOTH `gui.deployments` and top-level `deployments`.
+
+Minimal dotrain skeleton (working shape):
+```yaml
+version: 4
+networks:
+  base:
+    rpcs:
+      - https://mainnet.base.org
+    chain-id: 8453
+    network-id: 8453
+    currency: ETH
+subgraphs:
+  base: https://example.com/subgraph
+orderbooks:
+  base:
+    address: 0xd2938e7c9fe3597f78832ce780feb61945c377d7
+    network: base
+    subgraph: base
+    deployment-block: 0
+deployers:
+  base:
+    address: 0xC1A14cE2fd58A3A2f99deCb8eDd866204eE07f8D
+    network: base
+tokens:
+  usdc:
+    network: base
+    address: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    decimals: 6
+    label: USD Coin
+    symbol: USDC
+  weth:
+    network: base
+    address: 0x4200000000000000000000000000000000000006
+    decimals: 18
+    label: Wrapped Ether
+    symbol: WETH
+orders:
+  my-order:
+    deployer: base
+    orderbook: base
+    inputs:
+      - token: usdc
+        vault-id: 1
+    outputs:
+      - token: weth
+        vault-id: 1
+scenarios:
+  my-scenario:
+    deployer: base
+    bindings: {}
+deployments:
+  my-deployment:
+    order: my-order
+    scenario: my-scenario
+gui:
+  name: Minimal custom order
+  description: Minimal deployable dotrain for /api/order/custom
+  deployments:
+    my-deployment:
+      name: Minimal deployment
+      description: Minimal deployment
+      deposits:
+        - token: usdc
+          presets:
+            - "0"
+      fields: []
+---
+#calculate-io
+_ _: 0 0;
+#handle-io
+:;
+#handle-add-order
+:;
+```
+
+Request shape:
 ```json
 {
-  "dotrain": "version: 1\n...\n---\n#calculate-io\n_: 0;\n#handle-io\n_: 0;",
-  "deploymentKey": "some-deployment",
+  "dotrain": "<the YAML above as a single string>",
+  "deploymentKey": "my-deployment",
   "owner": "0x1234567890abcdef1234567890abcdef12345678",
   "additionalSettings": [],
-  "selectTokens": {
-    "input-token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    "output-token": "0x4200000000000000000000000000000000000006"
-  },
-  "fieldValues": {
-    "fixed-io": "1850",
-    "amount-per-trade": "250"
-  },
+  "fieldValues": {},
   "deposits": {
-    "usdc": "5000"
+    "usdc": "1"
   }
 }
 ```
