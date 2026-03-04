@@ -20,6 +20,7 @@ export const chat = writable<ChatState>(initial);
 
 let ws: WebSocket | null = null;
 let messageCounter = 0;
+let streamingAssistantMessageId: string | null = null;
 
 export function connect(gatewayUrl: string, token: string) {
 	if (ws) ws.close();
@@ -35,19 +36,76 @@ export function connect(gatewayUrl: string, token: string) {
 		try {
 			const msg = JSON.parse(event.data) as ServerMessage;
 
-			if (msg.type === 'message' && msg.content) {
-				const displayMsg: DisplayMessage = {
-					id: `msg-${++messageCounter}`,
-					role: msg.role ?? 'assistant',
-					content: msg.content,
-					timestamp: Date.now()
-				};
+			if (msg.type === 'stream' && msg.delta) {
+				chat.update((s) => {
+					const messages = [...s.messages];
+					const now = Date.now();
+
+					if (!streamingAssistantMessageId) {
+						streamingAssistantMessageId = `msg-${++messageCounter}`;
+						messages.push({
+							id: streamingAssistantMessageId,
+							role: 'assistant',
+							content: msg.delta ?? '',
+							timestamp: now
+						});
+					} else {
+						const idx = messages.findIndex((m) => m.id === streamingAssistantMessageId);
+						if (idx >= 0) {
+							messages[idx] = {
+								...messages[idx],
+								content: `${messages[idx].content}${msg.delta ?? ''}`,
+								timestamp: now
+							};
+						} else {
+							streamingAssistantMessageId = `msg-${++messageCounter}`;
+							messages.push({
+								id: streamingAssistantMessageId,
+								role: 'assistant',
+								content: msg.delta ?? '',
+								timestamp: now
+							});
+						}
+					}
+
+					return {
+						...s,
+						messages,
+						sessionId: msg.sessionId ?? s.sessionId,
+						loading: true
+					};
+				});
+			} else if (msg.type === 'message' && msg.content) {
 				chat.update((s) => ({
 					...s,
-					messages: [...s.messages, displayMsg],
+					messages: (() => {
+						if (!streamingAssistantMessageId) {
+							return [
+								...s.messages,
+								{
+									id: `msg-${++messageCounter}`,
+									role: msg.role ?? 'assistant',
+									content: msg.content ?? '',
+									timestamp: Date.now()
+								}
+							];
+						}
+
+						return s.messages.map((message) =>
+							message.id === streamingAssistantMessageId
+								? {
+										...message,
+										role: msg.role ?? 'assistant',
+										content: msg.content ?? message.content,
+										timestamp: Date.now()
+									}
+								: message
+						);
+					})(),
 					sessionId: msg.sessionId ?? s.sessionId,
 					loading: false
 				}));
+				streamingAssistantMessageId = null;
 			} else if (msg.type === 'error') {
 				const errorMsg: DisplayMessage = {
 					id: `msg-${++messageCounter}`,
@@ -60,6 +118,7 @@ export function connect(gatewayUrl: string, token: string) {
 					messages: [...s.messages, errorMsg],
 					loading: false
 				}));
+				streamingAssistantMessageId = null;
 			}
 		} catch {
 			// ignore parse errors
@@ -69,6 +128,7 @@ export function connect(gatewayUrl: string, token: string) {
 	ws.onclose = () => {
 		chat.update((s) => ({ ...s, connected: false }));
 		ws = null;
+		streamingAssistantMessageId = null;
 	};
 
 	ws.onerror = () => {
@@ -78,6 +138,7 @@ export function connect(gatewayUrl: string, token: string) {
 
 export function sendMessage(content: string) {
 	if (!ws || ws.readyState !== WebSocket.OPEN) return;
+	streamingAssistantMessageId = null;
 
 	const state = get(chat);
 	const msg: ClientMessage = {
@@ -107,5 +168,6 @@ export function disconnect() {
 		ws.close();
 		ws = null;
 	}
+	streamingAssistantMessageId = null;
 	chat.set(initial);
 }

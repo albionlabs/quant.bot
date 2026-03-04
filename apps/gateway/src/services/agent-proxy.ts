@@ -134,6 +134,7 @@ export interface SendOptions {
 	message: string;
 	userId: string;
 	onDelta?: (delta: string) => void;
+	onProgress?: (progress: string) => void;
 	timeoutMs?: number;
 }
 
@@ -151,25 +152,59 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 
 	return new Promise<string>((resolve, reject) => {
 		const reqId = randomUUID();
-		const timeout = setTimeout(() => {
-			runHandlers.delete(reqId);
-			responseHandlers.delete(reqId);
-			reject(new Error('Agent response timeout'));
-		}, opts.timeoutMs ?? 120_000);
+		let timeout: ReturnType<typeof setTimeout> | null = null;
+		const idleTimeoutMs = opts.timeoutMs ?? 120_000;
+		const resetIdleTimeout = () => {
+			if (timeout) clearTimeout(timeout);
+			timeout = setTimeout(() => {
+				runHandlers.delete(reqId);
+				responseHandlers.delete(reqId);
+				if (runId) runHandlers.delete(runId);
+				reject(new Error('Agent response timeout'));
+			}, idleTimeoutMs);
+		};
+		resetIdleTimeout();
 
 		let runId: string | null = null;
 		let finalText = '';
+		let lastProgress: string | null = null;
 
 		// Register event handler for agent events on this run
 		const onAgentEvent = (event: AgentEvent) => {
+			resetIdleTimeout();
+
 			if (event.stream === 'assistant' && event.data) {
 				const delta = event.data.delta as string | undefined;
 				if (delta && opts.onDelta) opts.onDelta(delta);
 				if (event.data.text) finalText = event.data.text as string;
 			}
 
+			if (event.stream !== 'assistant' && opts.onProgress) {
+				const lifecyclePhase =
+					event.stream === 'lifecycle' && typeof event.data?.phase === 'string'
+						? event.data.phase
+						: null;
+				const toolName =
+					typeof event.data?.toolName === 'string'
+						? event.data.toolName
+						: typeof event.data?.name === 'string'
+							? event.data.name
+							: null;
+
+				const progress = lifecyclePhase
+					? `[${lifecyclePhase}]`
+					: toolName
+						? `[tool] ${toolName}`
+						: `[${event.stream}]`;
+
+				if (progress !== lastProgress) {
+					lastProgress = progress;
+					opts.onProgress(progress);
+				}
+			}
+
 			if (event.stream === 'lifecycle' && event.data?.phase === 'end') {
-				clearTimeout(timeout);
+				if (timeout) clearTimeout(timeout);
 				if (runId) runHandlers.delete(runId);
 				resolve(finalText);
 			}
@@ -178,10 +213,11 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 		// Register response handler for the chat.send RPC
 		responseHandlers.set(reqId, (res) => {
 			if (!res.ok) {
-				clearTimeout(timeout);
+				if (timeout) clearTimeout(timeout);
 				reject(new Error(res.error?.message ?? 'chat.send failed'));
 				return;
 			}
+			resetIdleTimeout();
 			runId = (res.payload?.runId as string) ?? null;
 			if (runId) {
 				runHandlers.set(runId, onAgentEvent);

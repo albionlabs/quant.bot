@@ -60,6 +60,14 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 								delta
 							};
 							socket.send(JSON.stringify(streamMsg));
+						},
+						onProgress: (progress) => {
+							const streamMsg: ServerMessage = {
+								type: 'stream',
+								sessionId,
+								delta: `\n${progress}\n`
+							};
+							socket.send(JSON.stringify(streamMsg));
 						}
 					});
 					const response: ServerMessage = {
