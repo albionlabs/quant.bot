@@ -233,6 +233,21 @@ function DynamicBridge({
 		})
 	}
 
+	const waitForWalletDelegationState = async (
+		expectedDelegated: boolean,
+		timeoutMs = 20_000,
+		intervalMs = 1_000
+	): Promise<boolean> => {
+		const deadline = Date.now() + timeoutMs
+		while (Date.now() <= deadline) {
+			if (isWalletDelegated() === expectedDelegated) {
+				return true
+			}
+			await new Promise((resolve) => setTimeout(resolve, intervalMs))
+		}
+		return false
+	}
+
 	useEffect(() => {
 		if (!sdkHasLoaded) return
 		emitDelegationStatus()
@@ -353,20 +368,22 @@ function DynamicBridge({
 						'Revocation'
 					)
 
-					if (!isWalletDelegated()) {
+					const revokedAfterFirstAttempt = await waitForWalletDelegationState(false, 20_000, 1_000)
+					if (revokedAfterFirstAttempt) {
 						emitDelegationStatus()
 						onEventRef.current({ type: 'delegation_revoked' })
 						return
 					}
 
-					// Retry once because Dynamic SDK swallows connector errors in this hook.
+					// Retry once because Dynamic SDK can time out while the revoke ceremony is still settling.
 					await withTimeout(
 						revokeDelegation(delegationTarget.target),
 						DELEGATION_OPERATION_TIMEOUT_MS,
 						'Revocation retry'
 					)
 
-					if (!isWalletDelegated()) {
+					const revokedAfterRetry = await waitForWalletDelegationState(false, 20_000, 1_000)
+					if (revokedAfterRetry) {
 						emitDelegationStatus()
 						onEventRef.current({ type: 'delegation_revoked' })
 						return
@@ -374,7 +391,8 @@ function DynamicBridge({
 
 					throw new Error('Delegation is still active after revoke attempt')
 				} catch (error) {
-					if (!isWalletDelegated()) {
+					const revokedAfterError = await waitForWalletDelegationState(false, 15_000, 1_000)
+					if (revokedAfterError) {
 						emitDelegationStatus()
 						onEventRef.current({ type: 'delegation_revoked' })
 						return

@@ -148,25 +148,26 @@
 		revocationRecoveryInFlight = true
 
 		try {
-			let syncedViaWebhook = false
-			try {
-				syncedViaWebhook = await waitForDelegationState(false, 20_000, 2_000)
-			} catch {
-				syncedViaWebhook = false
+			const walletShowsRevoked = await waitForDynamicDelegationState(false, 30_000, 500)
+			if (!walletShowsRevoked) {
+				throw new Error('Delegation is still active in wallet. Please retry.')
 			}
 
-			if (!syncedViaWebhook) {
-				const walletShowsRevoked = await waitForDynamicDelegationState(false, 20_000, 500)
-				if (!walletShowsRevoked) {
-					throw new Error('Delegation is still active in wallet. Please retry.')
-				}
+			let backendShowsRevoked = false
+			try {
+				backendShowsRevoked = await waitForDelegationState(false, 20_000, 2_000)
+			} catch {
+				backendShowsRevoked = false
+			}
 
+			if (!backendShowsRevoked) {
 				// Dynamic can complete revoke before webhook propagation. Reconcile backend state.
 				await revokeDelegation(gatewayUrl, $auth.token)
-				const syncedAfterReconcile = await waitForDelegationState(false, 20_000, 2_000)
-				if (!syncedAfterReconcile) {
-					throw new Error('Revocation completed in wallet, but backend status did not reconcile yet.')
-				}
+				backendShowsRevoked = await waitForDelegationState(false, 20_000, 2_000)
+			}
+
+			if (!backendShowsRevoked) {
+				throw new Error('Revocation completed in wallet, but backend status did not reconcile yet.')
 			}
 
 			error = null
@@ -199,22 +200,10 @@
 		}
 	})
 
-	// When revoke completes in Dynamic, clear local delegation record then refresh status
+	// When Dynamic reports revoke completion, still reconcile explicitly before confirming success.
 	$effect(() => {
 		if ($dynamicRevocationComplete && $auth.token) {
-			revoking = false
-			clearDelegationWatchdog()
-			void (async () => {
-				try {
-					await revokeDelegation(gatewayUrl, $auth.token)
-					const synced = await waitForDelegationState(false)
-					if (!synced) {
-						error = 'Revocation completed in wallet, but status sync timed out. Please refresh.'
-					}
-				} catch (e) {
-					error = e instanceof Error ? e.message : 'Failed to revoke delegation'
-				}
-			})()
+			void recoverRevocationAfterSdkError('Revocation completion received')
 		}
 	})
 
@@ -288,7 +277,7 @@
 			if (delegationStatus.active) {
 				delegating = false
 				clearDelegationWatchdog()
-			} else if (revoking) {
+			} else if (revoking && $dynamicDelegatedStatus !== true) {
 				revoking = false
 				clearDelegationWatchdog()
 			}
