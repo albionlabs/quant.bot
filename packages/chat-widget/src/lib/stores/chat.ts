@@ -22,13 +22,56 @@ let ws: WebSocket | null = null;
 let messageCounter = 0;
 let streamingAssistantMessageId: string | null = null;
 
-export function connect(gatewayUrl: string, token: string) {
-	if (ws) ws.close();
+let reconnectAttempts = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let lastGatewayUrl: string | null = null;
+let lastToken: string | null = null;
+let intentionalClose = false;
+
+const MAX_RECONNECT_ATTEMPTS = 10;
+const BASE_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+
+function getReconnectDelay(): number {
+	const delay = Math.min(
+		BASE_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts),
+		MAX_RECONNECT_DELAY_MS
+	);
+	// Add jitter (±25%) to avoid thundering herd
+	return delay * (0.75 + Math.random() * 0.5);
+}
+
+function scheduleReconnect() {
+	if (intentionalClose || !lastGatewayUrl || !lastToken) return;
+	if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
+
+	reconnectTimer = setTimeout(() => {
+		reconnectTimer = null;
+		if (intentionalClose || !lastGatewayUrl || !lastToken) return;
+		reconnectAttempts++;
+		connectInternal(lastGatewayUrl, lastToken);
+	}, getReconnectDelay());
+}
+
+function clearReconnectTimer() {
+	if (reconnectTimer !== null) {
+		clearTimeout(reconnectTimer);
+		reconnectTimer = null;
+	}
+}
+
+function connectInternal(gatewayUrl: string, token: string) {
+	if (ws) {
+		ws.onclose = null;
+		ws.onerror = null;
+		ws.close();
+	}
 
 	const url = `${gatewayUrl}/api/chat?token=${encodeURIComponent(token)}`;
 	ws = new WebSocket(url);
 
 	ws.onopen = () => {
+		reconnectAttempts = 0;
 		chat.update((s) => ({ ...s, connected: true }));
 	};
 
@@ -40,32 +83,25 @@ export function connect(gatewayUrl: string, token: string) {
 				chat.update((s) => {
 					const messages = [...s.messages];
 					const now = Date.now();
+					const delta = msg.delta ?? '';
+					const idx = streamingAssistantMessageId
+						? messages.findIndex((m) => m.id === streamingAssistantMessageId)
+						: -1;
 
-					if (!streamingAssistantMessageId) {
+					if (idx >= 0) {
+						messages[idx] = {
+							...messages[idx],
+							content: `${messages[idx].content}${delta}`,
+							timestamp: now
+						};
+					} else {
 						streamingAssistantMessageId = `msg-${++messageCounter}`;
 						messages.push({
 							id: streamingAssistantMessageId,
 							role: 'assistant',
-							content: msg.delta ?? '',
+							content: delta,
 							timestamp: now
 						});
-					} else {
-						const idx = messages.findIndex((m) => m.id === streamingAssistantMessageId);
-						if (idx >= 0) {
-							messages[idx] = {
-								...messages[idx],
-								content: `${messages[idx].content}${msg.delta ?? ''}`,
-								timestamp: now
-							};
-						} else {
-							streamingAssistantMessageId = `msg-${++messageCounter}`;
-							messages.push({
-								id: streamingAssistantMessageId,
-								role: 'assistant',
-								content: msg.delta ?? '',
-								timestamp: now
-							});
-						}
 					}
 
 					return {
@@ -76,35 +112,31 @@ export function connect(gatewayUrl: string, token: string) {
 					};
 				});
 			} else if (msg.type === 'message' && msg.content) {
-				chat.update((s) => ({
-					...s,
-					messages: (() => {
-						if (!streamingAssistantMessageId) {
-							return [
-								...s.messages,
-								{
-									id: `msg-${++messageCounter}`,
-									role: msg.role ?? 'assistant',
-									content: msg.content ?? '',
-									timestamp: Date.now()
-								}
-							];
-						}
+				chat.update((s) => {
+					const role = msg.role ?? 'assistant';
+					const now = Date.now();
+					let messages: DisplayMessage[];
 
-						return s.messages.map((message) =>
-							message.id === streamingAssistantMessageId
-								? {
-										...message,
-										role: msg.role ?? 'assistant',
-										content: msg.content ?? message.content,
-										timestamp: Date.now()
-									}
-								: message
+					if (!streamingAssistantMessageId) {
+						messages = [
+							...s.messages,
+							{
+								id: `msg-${++messageCounter}`,
+								role,
+								content: msg.content ?? '',
+								timestamp: now
+							}
+						];
+					} else {
+						messages = s.messages.map((m) =>
+							m.id === streamingAssistantMessageId
+								? { ...m, role, content: msg.content ?? m.content, timestamp: now }
+								: m
 						);
-					})(),
-					sessionId: msg.sessionId ?? s.sessionId,
-					loading: false
-				}));
+					}
+
+					return { ...s, messages, sessionId: msg.sessionId ?? s.sessionId, loading: false };
+				});
 				streamingAssistantMessageId = null;
 			} else if (msg.type === 'error') {
 				const errorMsg: DisplayMessage = {
@@ -126,14 +158,47 @@ export function connect(gatewayUrl: string, token: string) {
 	};
 
 	ws.onclose = () => {
-		chat.update((s) => ({ ...s, connected: false }));
+		chat.update((s) => ({ ...s, connected: false, loading: false }));
 		ws = null;
 		streamingAssistantMessageId = null;
+		scheduleReconnect();
 	};
 
 	ws.onerror = () => {
 		chat.update((s) => ({ ...s, connected: false }));
 	};
+}
+
+export function connect(gatewayUrl: string, token: string) {
+	intentionalClose = false;
+	reconnectAttempts = 0;
+	lastGatewayUrl = gatewayUrl;
+	lastToken = token;
+	clearReconnectTimer();
+	connectInternal(gatewayUrl, token);
+
+	// Reconnect when the browser regains network or tab visibility
+	if (typeof window !== 'undefined') {
+		window.addEventListener('online', reconnectIfDisconnected);
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+	}
+}
+
+function reconnectIfDisconnected() {
+	if (intentionalClose) return;
+	if (!ws || ws.readyState !== WebSocket.OPEN) {
+		reconnectAttempts = 0;
+		clearReconnectTimer();
+		if (lastGatewayUrl && lastToken) {
+			connectInternal(lastGatewayUrl, lastToken);
+		}
+	}
+}
+
+function handleVisibilityChange() {
+	if (document.visibilityState === 'visible') {
+		reconnectIfDisconnected();
+	}
 }
 
 export function sendMessage(content: string) {
@@ -164,10 +229,19 @@ export function sendMessage(content: string) {
 }
 
 export function disconnect() {
+	intentionalClose = true;
+	clearReconnectTimer();
+	if (typeof window !== 'undefined') {
+		window.removeEventListener('online', reconnectIfDisconnected);
+		document.removeEventListener('visibilitychange', handleVisibilityChange);
+	}
 	if (ws) {
 		ws.close();
 		ws = null;
 	}
 	streamingAssistantMessageId = null;
+	lastGatewayUrl = null;
+	lastToken = null;
+	reconnectAttempts = 0;
 	chat.set(initial);
 }

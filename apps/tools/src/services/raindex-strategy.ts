@@ -83,8 +83,9 @@ export async function listStrategies(
 	config: ToolsConfig,
 	params: { registryUrl?: string; forceRefresh?: boolean }
 ): Promise<unknown> {
+	const registryUrl = params.registryUrl || config.raindexRegistryUrl;
 	return callRaindexMcpTool(config, 'raindex_list_strategies', {
-		...(params.registryUrl ? { registry_url: params.registryUrl } : {}),
+		...(registryUrl ? { registry_url: registryUrl } : {}),
 		...(params.forceRefresh !== undefined ? { force_refresh: params.forceRefresh } : {})
 	});
 }
@@ -93,9 +94,10 @@ export async function getStrategyDetails(
 	config: ToolsConfig,
 	params: { strategyKey: string; registryUrl?: string; forceRefresh?: boolean }
 ): Promise<unknown> {
+	const registryUrl = params.registryUrl || config.raindexRegistryUrl;
 	return callRaindexMcpTool(config, 'raindex_get_strategy_details', {
 		strategy_key: params.strategyKey,
-		...(params.registryUrl ? { registry_url: params.registryUrl } : {}),
+		...(registryUrl ? { registry_url: registryUrl } : {}),
 		...(params.forceRefresh !== undefined ? { force_refresh: params.forceRefresh } : {})
 	});
 }
@@ -116,6 +118,7 @@ export async function deployStrategyCalldata(
 	config: ToolsConfig,
 	params: DeployStrategyRequest
 ): Promise<DeployStrategyResponse> {
+	const registryUrl = params.registryUrl || config.raindexRegistryUrl;
 	const payload = await callRaindexMcpTool(config, 'raindex_deploy_strategy', {
 		strategy_key: params.strategyKey,
 		deployment_key: params.deploymentKey,
@@ -123,7 +126,7 @@ export async function deployStrategyCalldata(
 		fields: params.fields,
 		...(params.deposits ? { deposits: params.deposits } : {}),
 		...(params.selectTokens ? { select_tokens: params.selectTokens } : {}),
-		...(params.registryUrl ? { registry_url: params.registryUrl } : {}),
+		...(registryUrl ? { registry_url: registryUrl } : {}),
 		...(params.forceRefresh !== undefined ? { force_refresh: params.forceRefresh } : {})
 	});
 	const data = asRecord(payload, 'deploy strategy');
