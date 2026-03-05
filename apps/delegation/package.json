@@ -13,10 +13,12 @@
 	},
 	"dependencies": {
 		"@quant-bot/shared-types": "workspace:*",
+		"better-sqlite3": "^11.9.1",
 		"fastify": "^5.3.0"
 	},
 	"devDependencies": {
 		"@quant-bot/config": "workspace:*",
+		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "^25.3.0",
 		"tsx": "^4.21.0",
 		"typescript": "^5.9.3",

@@ -321,9 +321,6 @@
 		return Boolean(delegationStatus?.active || $dynamicDelegatedStatus === true)
 	}
 
-	function isDelegationOutOfSync(): boolean {
-		return $dynamicDelegatedStatus === true && !delegationStatus?.active
-	}
 </script>
 
 <div class="page">
@@ -332,18 +329,7 @@
 			<span class="addr">{$auth.address?.slice(0, 6)}...{$auth.address?.slice(-4)}</span>
 				<div class="status-bar-actions">
 					{#if isDelegationActiveUi()}
-						<span class="delegation-badge active">
-							{#if isDelegationOutOfSync()}
-								Delegation Active (Re-sync Needed)
-							{:else}
-								Delegation Active
-							{/if}
-						</span>
-						{#if isDelegationOutOfSync()}
-							<button class="btn btn-sm btn-secondary" onclick={handleDelegate} disabled={delegating || revoking}>
-								{delegating ? 'Re-syncing...' : 'Re-sync'}
-							</button>
-						{/if}
+						<span class="delegation-badge active">Delegation Active</span>
 						<button class="btn btn-sm btn-secondary" onclick={handleRevokeDelegation} disabled={revoking || delegating}>
 							{revoking ? 'Revoking...' : 'Revoke'}
 						</button>
