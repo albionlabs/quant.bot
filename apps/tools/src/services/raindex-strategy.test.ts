@@ -54,6 +54,16 @@ describe('raindex strategy service', () => {
 		});
 	});
 
+	it('falls back to config registry URL when none provided', async () => {
+		callRaindexMcpTool.mockResolvedValueOnce([{ key: 'fixed-limit' }]);
+
+		await listStrategies(config, {});
+
+		expect(callRaindexMcpTool).toHaveBeenCalledWith(config, 'raindex_list_strategies', {
+			registry_url: 'https://example.com/registry'
+		});
+	});
+
 	it('passes strategy detail params to MCP', async () => {
 		callRaindexMcpTool.mockResolvedValueOnce({ name: 'Fixed Limit' });
 
@@ -63,7 +73,8 @@ describe('raindex strategy service', () => {
 
 		expect(result).toEqual({ name: 'Fixed Limit' });
 		expect(callRaindexMcpTool).toHaveBeenCalledWith(config, 'raindex_get_strategy_details', {
-			strategy_key: 'fixed-limit'
+			strategy_key: 'fixed-limit',
+			registry_url: 'https://example.com/registry'
 		});
 	});
 
@@ -94,7 +105,8 @@ describe('raindex strategy service', () => {
 			strategy_key: 'fixed-limit',
 			deployment_key: 'base',
 			owner: '0xOwner',
-			fields: { 'fixed-io': '0.0005' }
+			fields: { 'fixed-io': '0.0005' },
+			registry_url: 'https://example.com/registry'
 		});
 	});
 

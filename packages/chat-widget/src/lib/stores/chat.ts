@@ -83,32 +83,25 @@ function connectInternal(gatewayUrl: string, token: string) {
 				chat.update((s) => {
 					const messages = [...s.messages];
 					const now = Date.now();
+					const delta = msg.delta ?? '';
+					const idx = streamingAssistantMessageId
+						? messages.findIndex((m) => m.id === streamingAssistantMessageId)
+						: -1;
 
-					if (!streamingAssistantMessageId) {
+					if (idx >= 0) {
+						messages[idx] = {
+							...messages[idx],
+							content: `${messages[idx].content}${delta}`,
+							timestamp: now
+						};
+					} else {
 						streamingAssistantMessageId = `msg-${++messageCounter}`;
 						messages.push({
 							id: streamingAssistantMessageId,
 							role: 'assistant',
-							content: msg.delta ?? '',
+							content: delta,
 							timestamp: now
 						});
-					} else {
-						const idx = messages.findIndex((m) => m.id === streamingAssistantMessageId);
-						if (idx >= 0) {
-							messages[idx] = {
-								...messages[idx],
-								content: `${messages[idx].content}${msg.delta ?? ''}`,
-								timestamp: now
-							};
-						} else {
-							streamingAssistantMessageId = `msg-${++messageCounter}`;
-							messages.push({
-								id: streamingAssistantMessageId,
-								role: 'assistant',
-								content: msg.delta ?? '',
-								timestamp: now
-							});
-						}
 					}
 
 					return {
@@ -119,35 +112,31 @@ function connectInternal(gatewayUrl: string, token: string) {
 					};
 				});
 			} else if (msg.type === 'message' && msg.content) {
-				chat.update((s) => ({
-					...s,
-					messages: (() => {
-						if (!streamingAssistantMessageId) {
-							return [
-								...s.messages,
-								{
-									id: `msg-${++messageCounter}`,
-									role: msg.role ?? 'assistant',
-									content: msg.content ?? '',
-									timestamp: Date.now()
-								}
-							];
-						}
+				chat.update((s) => {
+					const role = msg.role ?? 'assistant';
+					const now = Date.now();
+					let messages: DisplayMessage[];
 
-						return s.messages.map((message) =>
-							message.id === streamingAssistantMessageId
-								? {
-										...message,
-										role: msg.role ?? 'assistant',
-										content: msg.content ?? message.content,
-										timestamp: Date.now()
-									}
-								: message
+					if (!streamingAssistantMessageId) {
+						messages = [
+							...s.messages,
+							{
+								id: `msg-${++messageCounter}`,
+								role,
+								content: msg.content ?? '',
+								timestamp: now
+							}
+						];
+					} else {
+						messages = s.messages.map((m) =>
+							m.id === streamingAssistantMessageId
+								? { ...m, role, content: msg.content ?? m.content, timestamp: now }
+								: m
 						);
-					})(),
-					sessionId: msg.sessionId ?? s.sessionId,
-					loading: false
-				}));
+					}
+
+					return { ...s, messages, sessionId: msg.sessionId ?? s.sessionId, loading: false };
+				});
 				streamingAssistantMessageId = null;
 			} else if (msg.type === 'error') {
 				const errorMsg: DisplayMessage = {
@@ -190,12 +179,12 @@ export function connect(gatewayUrl: string, token: string) {
 
 	// Reconnect when the browser regains network or tab visibility
 	if (typeof window !== 'undefined') {
-		window.addEventListener('online', handleOnline);
+		window.addEventListener('online', reconnectIfDisconnected);
 		document.addEventListener('visibilitychange', handleVisibilityChange);
 	}
 }
 
-function handleOnline() {
+function reconnectIfDisconnected() {
 	if (intentionalClose) return;
 	if (!ws || ws.readyState !== WebSocket.OPEN) {
 		reconnectAttempts = 0;
@@ -207,13 +196,8 @@ function handleOnline() {
 }
 
 function handleVisibilityChange() {
-	if (intentionalClose) return;
-	if (document.visibilityState === 'visible' && (!ws || ws.readyState !== WebSocket.OPEN)) {
-		reconnectAttempts = 0;
-		clearReconnectTimer();
-		if (lastGatewayUrl && lastToken) {
-			connectInternal(lastGatewayUrl, lastToken);
-		}
+	if (document.visibilityState === 'visible') {
+		reconnectIfDisconnected();
 	}
 }
 
@@ -248,7 +232,7 @@ export function disconnect() {
 	intentionalClose = true;
 	clearReconnectTimer();
 	if (typeof window !== 'undefined') {
-		window.removeEventListener('online', handleOnline);
+		window.removeEventListener('online', reconnectIfDisconnected);
 		document.removeEventListener('visibilitychange', handleVisibilityChange);
 	}
 	if (ws) {

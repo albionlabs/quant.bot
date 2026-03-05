@@ -43,6 +43,10 @@ function badRequest(reply: FastifyReply, message: string) {
 	});
 }
 
+function isNonEmptyString(value: unknown): value is string {
+	return typeof value === 'string' && value.trim() !== '';
+}
+
 export async function raindexStrategyRoutes(app: FastifyInstance, config: ToolsConfig) {
 	app.get<{
 		Querystring: { registryUrl?: string; forceRefresh?: string };
@@ -73,10 +77,10 @@ export async function raindexStrategyRoutes(app: FastifyInstance, config: ToolsC
 	});
 
 	app.post<{ Body: ComposeRainlangRequest }>('/api/order/strategy/compose', async (request, reply) => {
-		if (typeof request.body.dotrainSource !== 'string' || request.body.dotrainSource.trim() === '') {
+		if (!isNonEmptyString(request.body.dotrainSource)) {
 			return badRequest(reply, '`dotrainSource` is required');
 		}
-		if (typeof request.body.deploymentKey !== 'string' || request.body.deploymentKey.trim() === '') {
+		if (!isNonEmptyString(request.body.deploymentKey)) {
 			return badRequest(reply, '`deploymentKey` is required');
 		}
 
@@ -91,13 +95,13 @@ export async function raindexStrategyRoutes(app: FastifyInstance, config: ToolsC
 	});
 
 	app.post<{ Body: DeployStrategyRequest }>('/api/order/strategy/deploy', async (request, reply) => {
-		if (typeof request.body.strategyKey !== 'string' || request.body.strategyKey.trim() === '') {
+		if (!isNonEmptyString(request.body.strategyKey)) {
 			return badRequest(reply, '`strategyKey` is required');
 		}
-		if (typeof request.body.deploymentKey !== 'string' || request.body.deploymentKey.trim() === '') {
+		if (!isNonEmptyString(request.body.deploymentKey)) {
 			return badRequest(reply, '`deploymentKey` is required');
 		}
-		if (typeof request.body.owner !== 'string' || request.body.owner.trim() === '') {
+		if (!isNonEmptyString(request.body.owner)) {
 			return badRequest(reply, '`owner` is required');
 		}
 		if (!isRecordOfStrings(request.body.fields)) {
