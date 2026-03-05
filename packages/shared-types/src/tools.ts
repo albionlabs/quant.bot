@@ -38,14 +38,3 @@ export interface TxExecuteResponse {
 	blockNumber: number;
 	status: 'success' | 'reverted';
 }
-
-export interface SubgraphQueryRequest {
-	subgraph: string;
-	query: string;
-	variables?: Record<string, unknown>;
-}
-
-export interface SubgraphQueryResponse {
-	data: unknown;
-	errors?: Array<{ message: string }>;
-}

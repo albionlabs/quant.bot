@@ -6,7 +6,11 @@ primary_region = 'lhr'
 
 [env]
   TOOLS_HOST = '::'
-  ORDERBOOK_API_URL = 'http://albion.internal:8000'
+  RAINDEX_MCP_COMMAND = 'node'
+  RAINDEX_MCP_ARGS = '["/app/raindex-mcp/dist/index.js"]'
+  RAINDEX_MCP_CWD = '/app/raindex-mcp'
+  RAINDEX_SETTINGS_URL = 'https://raw.githubusercontent.com/rainlanguage/rain.strategies/2c8192e9137736507041ebff820b0e7b5b29f0d2/settings.yaml'
+  RAINDEX_REGISTRY_URL = 'https://raw.githubusercontent.com/rainlanguage/rain.strategies/2c8192e9137736507041ebff820b0e7b5b29f0d2/registry'
 
 [[vm]]
   size = 'shared-cpu-1x'

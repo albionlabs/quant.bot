@@ -12,6 +12,7 @@ services:
       - AGENT_RESPONSE_TIMEOUT_MS=${AGENT_RESPONSE_TIMEOUT_MS:-120000}
       - EXECUTION_TOKEN_TTL_SECONDS=${EXECUTION_TOKEN_TTL_SECONDS:-300}
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+      - DYNAMIC_WEBHOOK_SECRET=${DYNAMIC_WEBHOOK_SECRET}
       - DELEGATION_SERVICE_URL=http://delegation:5000
       - INTERNAL_SECRET=${INTERNAL_SECRET}
     depends_on:
@@ -42,12 +43,19 @@ services:
       - BASE_RPC_URL=${BASE_RPC_URL}
       - CHAIN_NAME=${CHAIN_NAME:-base}
       - EXECUTOR_PRIVATE_KEY=${EXECUTOR_PRIVATE_KEY}
-      - ALLOWED_SUBGRAPHS=${ALLOWED_SUBGRAPHS}
+      - DYNAMIC_ENVIRONMENT_ID=${DYNAMIC_ENVIRONMENT_ID}
+      - DYNAMIC_SIGNING_KEY=${DYNAMIC_SIGNING_KEY}
       - DELEGATION_SERVICE_URL=http://delegation:5000
       - INTERNAL_SECRET=${INTERNAL_SECRET}
-      - ORDERBOOK_API_URL=http://rest-api:8000
-      - ORDERBOOK_API_KEY=${REST_API_KEY}
-      - ORDERBOOK_API_SECRET=${REST_API_SECRET}
+      - RAINDEX_MCP_COMMAND=${RAINDEX_MCP_COMMAND}
+      - RAINDEX_MCP_ARGS=${RAINDEX_MCP_ARGS}
+      - RAINDEX_MCP_CWD=${RAINDEX_MCP_CWD}
+      - RAINDEX_SETTINGS_URL=${RAINDEX_SETTINGS_URL}
+      - RAINDEX_SETTINGS_PATH=${RAINDEX_SETTINGS_PATH}
+      - RAINDEX_SETTINGS_YAML=${RAINDEX_SETTINGS_YAML}
+      - RAINDEX_REGISTRY_URL=${RAINDEX_REGISTRY_URL}
+    volumes:
+      - ${RAINDEX_MCP_HOST_PATH:-./services/raindex-mcp}:/app/raindex-mcp:ro
     restart: unless-stopped
 
   delegation:
@@ -65,15 +73,4 @@ services:
       - DYNAMIC_ADMIN_KEY=${DYNAMIC_ADMIN_KEY}
       - INTERNAL_SECRET=${INTERNAL_SECRET}
       - DELEGATION_TTL_MS=${DELEGATION_TTL_MS:-86400000}
-    restart: unless-stopped
-
-  rest-api:
-    build:
-      context: services/rest-api-stub
-      dockerfile: Dockerfile
-    ports:
-      - '8000:8000'
-    environment:
-      - ROCKET_ADDRESS=0.0.0.0
-      - ROCKET_PORT=8000
     restart: unless-stopped
