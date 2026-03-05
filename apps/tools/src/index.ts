@@ -14,7 +14,12 @@ await app.register((instance) => evmSimulateRoutes(instance, config));
 await app.register((instance) => txExecuteRoutes(instance, config));
 await app.register((instance) => raindexStrategyRoutes(instance, config));
 
-app.get('/api/health', async () => ({ status: 'ok', service: 'tools', uptime: process.uptime() }));
+app.get('/api/health', async () => ({
+	status: 'ok',
+	service: 'tools',
+	version: process.env.COMMIT_SHA ?? 'dev',
+	uptime: process.uptime()
+}));
 
 try {
 	await app.listen({ port: config.port, host: config.host });
