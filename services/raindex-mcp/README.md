@@ -19,6 +19,8 @@ If you use a different location or command, update the corresponding `RAINDEX_MC
 
 CI/CD note:
 
-- `.github/workflows/deploy.yml` clones `hardyjosh/raindex-mcp` at a pinned commit
+- `.github/workflows/deploy.yml` clones `raindex-mcp` at a pinned commit
   before deploying `quant-bot-tools`, and `apps/tools/Dockerfile` builds/copies the
   MCP artifact into the runtime image at `/app/raindex-mcp/dist/index.js`.
+- Currently pinned to `alastairong1/raindex-mcp` fork with Map serialization fix.
+  Upstream PR: https://github.com/hardyjosh/raindex-mcp/pull/8
