@@ -1,3 +1,5 @@
+import { requireNonEmpty } from '@quant-bot/shared-types';
+
 export interface GatewayConfig {
 	port: number;
 	host: string;
@@ -17,20 +19,10 @@ export interface GatewayConfig {
 }
 
 export function loadConfig(): GatewayConfig {
-	const jwtSecret = process.env.JWT_SECRET;
-	if (!jwtSecret) throw new Error('JWT_SECRET environment variable is required');
-	const openclawGatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN;
-	if (!openclawGatewayToken) {
-		throw new Error('OPENCLAW_GATEWAY_TOKEN environment variable is required');
-	}
-	const internalSecret = process.env.INTERNAL_SECRET;
-	if (!internalSecret) {
-		throw new Error('INTERNAL_SECRET environment variable is required');
-	}
-	const dynamicWebhookSecret = process.env.DYNAMIC_WEBHOOK_SECRET;
-	if (!dynamicWebhookSecret) {
-		throw new Error('DYNAMIC_WEBHOOK_SECRET environment variable is required');
-	}
+	const jwtSecret = requireNonEmpty('JWT_SECRET', process.env.JWT_SECRET ?? '');
+	const openclawGatewayToken = requireNonEmpty('OPENCLAW_GATEWAY_TOKEN', process.env.OPENCLAW_GATEWAY_TOKEN ?? '');
+	const internalSecret = requireNonEmpty('INTERNAL_SECRET', process.env.INTERNAL_SECRET ?? '');
+	const dynamicWebhookSecret = requireNonEmpty('DYNAMIC_WEBHOOK_SECRET', process.env.DYNAMIC_WEBHOOK_SECRET ?? '');
 
 	const corsOrigin = process.env.CORS_ORIGIN
 		? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())

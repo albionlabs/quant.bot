@@ -23,7 +23,19 @@ interface ToolResultLike {
 	toolResult?: unknown;
 }
 
-function tryParseJson(text: string): unknown | null {
+const MCP_CALL_TIMEOUT_MS = 30_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new RaindexMcpError(504, message)), ms);
+		promise.then(
+			(value) => { clearTimeout(timer); resolve(value); },
+			(error: unknown) => { clearTimeout(timer); reject(error); }
+		);
+	});
+}
+
+function tryParseJson(text: string): unknown {
 	try {
 		return JSON.parse(text) as unknown;
 	} catch {
@@ -97,7 +109,7 @@ function extractToolError(result: ToolResultLike, toolName: string): string {
 }
 
 function ensureLocalDbRemotes(yaml: string): string {
-	if (yaml.includes('local-db-remotes')) return yaml;
+	if (/^local-db-remotes\s*:/m.test(yaml)) return yaml;
 	return yaml.endsWith('\n') ? `${yaml}local-db-remotes: {}` : `${yaml}\nlocal-db-remotes: {}`;
 }
 
@@ -180,6 +192,7 @@ async function createClient(config: ToolsConfig): Promise<Client> {
 
 	client.onerror = (error) => {
 		console.error('[raindex-mcp] client error', error);
+		clientPromise = null;
 	};
 
 	await client.connect(transport);
@@ -204,10 +217,11 @@ export async function callRaindexMcpTool(
 ): Promise<unknown> {
 	const client = await getClient(config);
 	try {
-		const result = await client.callTool({
-			name: toolName,
-			arguments: toolArgs
-		});
+		const result = await withTimeout(
+			client.callTool({ name: toolName, arguments: toolArgs }),
+			MCP_CALL_TIMEOUT_MS,
+			`MCP tool "${toolName}" timed out after ${MCP_CALL_TIMEOUT_MS}ms`
+		);
 		const normalized = normalizeToolResult(result);
 
 		if (normalized.isError) {

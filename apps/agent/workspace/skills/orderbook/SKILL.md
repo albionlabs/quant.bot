@@ -54,7 +54,7 @@ Body:
 Optional fields:
 - `registryUrl`: Override registry URL for this call
 - `forceRefresh`: Force registry refresh
-- `dotrainSource`: If provided, composed Rainlang is returned for review
+- `dotrainSource`: If provided, a second MCP call composes the Rainlang for review
 
 Response:
 ```json

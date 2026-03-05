@@ -1,3 +1,5 @@
+import { requireNonEmpty } from '@quant-bot/shared-types';
+
 export interface DelegationConfig {
 	port: number;
 	host: string;
@@ -8,13 +10,6 @@ export interface DelegationConfig {
 	dynamicAdminKey: string;
 	internalSecret: string;
 	delegationTtlMs: number;
-}
-
-function requireNonEmpty(name: string, value: string): string {
-	if (!value.trim()) {
-		throw new Error(`${name} environment variable is required`);
-	}
-	return value;
 }
 
 export function loadConfig(): DelegationConfig {
@@ -31,6 +26,10 @@ export function loadConfig(): DelegationConfig {
 		process.env.DYNAMIC_WEBHOOK_SECRET ?? ''
 	);
 	const internalSecret = requireNonEmpty('INTERNAL_SECRET', process.env.INTERNAL_SECRET ?? '');
+	const dynamicEnvironmentId = requireNonEmpty(
+		'DYNAMIC_ENVIRONMENT_ID',
+		process.env.DYNAMIC_ENVIRONMENT_ID ?? ''
+	);
 
 	return {
 		port: parseInt(process.env.DELEGATION_PORT ?? '5000', 10),
@@ -38,7 +37,8 @@ export function loadConfig(): DelegationConfig {
 		delegationEncryptionKey,
 		dynamicDelegationPrivateKey,
 		dynamicWebhookSecret,
-		dynamicEnvironmentId: process.env.DYNAMIC_ENVIRONMENT_ID ?? '',
+		dynamicEnvironmentId,
+		// Optional: only needed for Dynamic admin API calls, not core delegation flow
 		dynamicAdminKey: process.env.DYNAMIC_ADMIN_KEY ?? '',
 		internalSecret,
 		delegationTtlMs: parseInt(process.env.DELEGATION_TTL_MS ?? '86400000', 10)

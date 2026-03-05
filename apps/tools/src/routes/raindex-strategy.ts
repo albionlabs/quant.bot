@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { ToolsConfig } from '../config.js';
+import type { DeployStrategyRequest, ComposeRainlangRequest } from '../services/raindex-strategy.js';
 import {
 	composeStrategyRainlang,
 	deployStrategyCalldata,
@@ -31,32 +32,15 @@ function handleMcpError(reply: FastifyReply, err: unknown) {
 	const message = err instanceof Error ? err.message : 'Raindex MCP request failed';
 	return reply.status(500).send({
 		error: message,
-		source: 'raindex-mcp'
+		source: 'internal'
 	});
 }
 
 function badRequest(reply: FastifyReply, message: string) {
 	return reply.status(400).send({
 		error: message,
-		source: 'raindex-mcp'
+		source: 'validation'
 	});
-}
-
-interface DeployStrategyBody {
-	strategyKey: string;
-	deploymentKey: string;
-	owner: string;
-	fields: Record<string, string>;
-	deposits?: Record<string, string>;
-	selectTokens?: Record<string, string>;
-	registryUrl?: string;
-	forceRefresh?: boolean;
-	dotrainSource?: string;
-}
-
-interface ComposeRainlangBody {
-	dotrainSource: string;
-	deploymentKey: string;
 }
 
 export async function raindexStrategyRoutes(app: FastifyInstance, config: ToolsConfig) {
@@ -88,7 +72,7 @@ export async function raindexStrategyRoutes(app: FastifyInstance, config: ToolsC
 		}
 	});
 
-	app.post<{ Body: ComposeRainlangBody }>('/api/order/strategy/compose', async (request, reply) => {
+	app.post<{ Body: ComposeRainlangRequest }>('/api/order/strategy/compose', async (request, reply) => {
 		if (typeof request.body.dotrainSource !== 'string' || request.body.dotrainSource.trim() === '') {
 			return badRequest(reply, '`dotrainSource` is required');
 		}
@@ -106,7 +90,7 @@ export async function raindexStrategyRoutes(app: FastifyInstance, config: ToolsC
 		}
 	});
 
-	app.post<{ Body: DeployStrategyBody }>('/api/order/strategy/deploy', async (request, reply) => {
+	app.post<{ Body: DeployStrategyRequest }>('/api/order/strategy/deploy', async (request, reply) => {
 		if (typeof request.body.strategyKey !== 'string' || request.body.strategyKey.trim() === '') {
 			return badRequest(reply, '`strategyKey` is required');
 		}

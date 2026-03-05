@@ -64,16 +64,16 @@ function normalizeApprovals(raw: unknown): NormalizedApproval[] {
 		if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
 		const record = item as Record<string, unknown>;
 		const token = typeof record.token === 'string' ? record.token : null;
-		const approvalData =
-			typeof record.calldata === 'string'
-				? record.calldata
-				: typeof record.approvalData === 'string'
-					? record.approvalData
-					: null;
+		let approvalData: string | null = null;
+		if (typeof record.calldata === 'string') {
+			approvalData = record.calldata;
+		} else if (typeof record.approvalData === 'string') {
+			approvalData = record.approvalData;
+		}
 
 		if (!token || !approvalData) continue;
 		const symbol = typeof record.symbol === 'string' ? record.symbol : undefined;
-		approvals.push({ token, approvalData, ...(symbol ? { symbol } : {}) });
+		approvals.push({ token, approvalData, symbol });
 	}
 
 	return approvals;
@@ -136,6 +136,8 @@ export async function deployStrategyCalldata(
 		approvals: normalizeApprovals(data.approvals)
 	};
 
+	// When dotrainSource is provided, a second MCP call (raindex_compose_rainlang) is made
+	// to return the composed Rainlang for user review before execution.
 	if (params.dotrainSource) {
 		const composed = await composeStrategyRainlang(config, {
 			dotrainSource: params.dotrainSource,

@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { requireNonEmpty } from '@quant-bot/shared-types';
 
 export interface ToolsConfig {
 	port: number;
@@ -22,13 +23,6 @@ export interface ToolsConfig {
 const DEFAULT_RAIN_STRATEGIES_COMMIT = '2c8192e9137736507041ebff820b0e7b5b29f0d2';
 const DEFAULT_RAINDEX_SETTINGS_URL = `https://raw.githubusercontent.com/rainlanguage/rain.strategies/${DEFAULT_RAIN_STRATEGIES_COMMIT}/settings.yaml`;
 const DEFAULT_RAINDEX_REGISTRY_URL = `https://raw.githubusercontent.com/rainlanguage/rain.strategies/${DEFAULT_RAIN_STRATEGIES_COMMIT}/registry`;
-
-function requireNonEmpty(name: string, value: string): string {
-	if (!value.trim()) {
-		throw new Error(`${name} environment variable is required`);
-	}
-	return value;
-}
 
 function commandBasename(command: string): string {
 	const parts = command.trim().split(/[\\/]/);
@@ -89,11 +83,19 @@ export function loadConfig(): ToolsConfig {
 		);
 	}
 
-	const raindexSettingsYaml = configuredSettingsYaml;
-	const raindexSettingsUrl = configuredSettingsYaml
-		? ''
-		: configuredSettingsUrl || (!configuredSettingsPath ? DEFAULT_RAINDEX_SETTINGS_URL : '');
-	const raindexSettingsPath = configuredSettingsYaml || configuredSettingsUrl ? '' : configuredSettingsPath;
+	// Precedence: RAINDEX_SETTINGS_YAML > RAINDEX_SETTINGS_URL > RAINDEX_SETTINGS_PATH
+	let raindexSettingsYaml = '';
+	let raindexSettingsUrl = '';
+	let raindexSettingsPath = '';
+	if (configuredSettingsYaml) {
+		raindexSettingsYaml = configuredSettingsYaml;
+	} else if (configuredSettingsUrl) {
+		raindexSettingsUrl = configuredSettingsUrl;
+	} else if (configuredSettingsPath) {
+		raindexSettingsPath = configuredSettingsPath;
+	} else {
+		raindexSettingsUrl = DEFAULT_RAINDEX_SETTINGS_URL;
+	}
 
 	const config: ToolsConfig = {
 		port: parseInt(process.env.TOOLS_PORT ?? '4000', 10),

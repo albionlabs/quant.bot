@@ -8,6 +8,7 @@ import { raindexStrategyRoutes } from './routes/raindex-strategy.js';
 const config = loadConfig();
 const app = Fastify({ logger: true });
 
+// npvRoutes is config-free; other routes receive config via closure
 await app.register(npvRoutes);
 await app.register((instance) => evmSimulateRoutes(instance, config));
 await app.register((instance) => txExecuteRoutes(instance, config));

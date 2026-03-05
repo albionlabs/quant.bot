@@ -1,5 +1,6 @@
-import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { verifyWebhookSignature } from '@quant-bot/shared-types';
 import { decryptDelegatedWebhookData, type EncryptedDelegatedPayload } from './services/delegation-decrypt.js';
 import {
 	storeDelegation,
@@ -11,15 +12,6 @@ import {
 	revokeDelegation
 } from './services/delegation-store.js';
 import type { DelegationConfig } from './config.js';
-
-function verifyWebhookSignature(secret: string, signature: string, payload: object): boolean {
-	const hmac = createHmac('sha256', secret);
-	hmac.update(JSON.stringify(payload));
-	const digest = 'sha256=' + hmac.digest('hex');
-
-	if (digest.length !== signature.length) return false;
-	return timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
-}
 
 interface SignatureVerificationResult {
 	ok: boolean;

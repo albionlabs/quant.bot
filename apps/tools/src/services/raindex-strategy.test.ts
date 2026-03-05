@@ -11,22 +11,9 @@ const { callRaindexMcpTool } = vi.hoisted(() => ({
 	callRaindexMcpTool: vi.fn()
 }));
 
-vi.mock('./raindex-mcp-client.js', () => {
-	class MockRaindexMcpError extends Error {
-		status: number;
-		source: 'raindex-mcp';
-
-		constructor(status: number, message: string) {
-			super(message);
-			this.status = status;
-			this.source = 'raindex-mcp';
-		}
-	}
-
-	return {
-		RaindexMcpError: MockRaindexMcpError,
-		callRaindexMcpTool
-	};
+vi.mock('./raindex-mcp-client.js', async (importOriginal) => {
+	const mod = await importOriginal<typeof import('./raindex-mcp-client.js')>();
+	return { ...mod, callRaindexMcpTool };
 });
 
 const config = {

@@ -241,6 +241,9 @@ importers:
       '@quant-bot/config':
         specifier: workspace:*
         version: link:../config
+      '@types/node':
+        specifier: ^25.3.0
+        version: 25.3.1
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
