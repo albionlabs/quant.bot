@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import {
 	storeDelegation,
 	getActiveDelegation,
@@ -8,7 +11,9 @@ import {
 	revokeByWalletId,
 	isDelegationActive,
 	getDelegation,
-	clearAll
+	clearAll,
+	closeDb,
+	_resetDb
 } from './delegation-store.js';
 
 const ENC_KEY = 'test-encryption-key-for-store';
@@ -17,6 +22,10 @@ const DELEGATION_ID = 'del-001';
 
 beforeEach(() => {
 	clearAll();
+});
+
+afterAll(() => {
+	closeDb();
 });
 
 describe('delegation-store', () => {
@@ -113,5 +122,35 @@ describe('delegation-store', () => {
 		revokeDelegation(DELEGATION_ID);
 
 		expect(activateDelegation(USER_ID, DELEGATION_ID)).toBe(false);
+	});
+
+	it('persists data across DB close/reopen with file-backed DB', () => {
+		const tmpDir = mkdtempSync(join(tmpdir(), 'delegation-test-'));
+		const dbPath = join(tmpDir, 'test.db');
+
+		try {
+			// Open a file-backed DB and write data
+			_resetDb(dbPath);
+			storeDelegation(
+				'persist-1', USER_ID, 'wallet-1', '0xwallet',
+				'api-key', 'key-share', ENC_KEY, 8453, 60_000
+			);
+			expect(getDelegation('persist-1')).toBeDefined();
+
+			// Close and reopen — data should survive
+			_resetDb(dbPath);
+			const delegation = getDelegation('persist-1');
+			expect(delegation).toBeDefined();
+			expect(delegation!.userId).toBe(USER_ID);
+			expect(delegation!.walletId).toBe('wallet-1');
+			expect(delegation!.status).toBe('active');
+
+			// Reset back to in-memory for remaining tests
+			_resetDb();
+		} finally {
+			if (existsSync(tmpDir)) {
+				rmSync(tmpDir, { recursive: true });
+			}
+		}
 	});
 });

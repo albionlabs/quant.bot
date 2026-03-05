@@ -11,6 +11,12 @@ primary_region = 'lhr'
 [env]
   DELEGATION_HOST = '::'
   DELEGATION_SERVICE_URL = 'http://quant-bot.internal:5000'
+  DELEGATION_DB_PATH = '/data/delegations.db'
+
+[[mounts]]
+  source = 'delegation_data'
+  destination = '/data'
+  processes = ['delegation']
 
 [http_service]
   internal_port = 3000
