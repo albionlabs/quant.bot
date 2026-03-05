@@ -54,10 +54,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Fetch raindex-mcp source
         run: |
-          # Pin to hardyjosh/raindex-mcp commit (update when upgrading MCP server)
-          RAINDEX_MCP_REF=4913a70318052d7f0f7ec35f3dc3737385804047
+          # Pin to alastairong1/raindex-mcp fork with Map serialization fix
+          # Upstream PR: https://github.com/hardyjosh/raindex-mcp/pull/8
+          # Switch back to hardyjosh/raindex-mcp once PR is merged
+          RAINDEX_MCP_REPO=https://github.com/alastairong1/raindex-mcp.git
+          RAINDEX_MCP_REF=bee767de64550a08f3847cae87de7d445f15ba0b
           rm -rf services/raindex-mcp
-          git clone --depth 1 https://github.com/hardyjosh/raindex-mcp.git services/raindex-mcp
+          git clone --depth 1 "${RAINDEX_MCP_REPO}" services/raindex-mcp
           cd services/raindex-mcp
           git fetch --depth 1 origin "${RAINDEX_MCP_REF}"
           git checkout "${RAINDEX_MCP_REF}"
