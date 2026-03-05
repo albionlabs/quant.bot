@@ -1,6 +1,6 @@
 FROM node:22-slim
 
-RUN apt-get update && apt-get install -y git socat && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git socat curl && rm -rf /var/lib/apt/lists/*
 RUN npm install -g openclaw
 
 WORKDIR /app

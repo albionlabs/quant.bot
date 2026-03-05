@@ -6,6 +6,7 @@ version: "2.0.0"
 
 Backend-managed credentials are used automatically by the tools service.
 Users should never be asked for API keys.
+All requests use `curl` via the exec tool against the internal tools service.
 Base URL: http://quant-bot-tools.internal:4000
 
 ## Source Of Truth
@@ -16,39 +17,38 @@ Base URL: http://quant-bot-tools.internal:4000
 
 ## List Available Strategies
 
-GET /api/strategy/list?registryUrl=<optional>&forceRefresh=<optional>
+```bash
+curl -s 'http://quant-bot-tools.internal:4000/api/strategy/list'
+```
 
 Returns registry-backed strategy entries from Raindex MCP.
+Optional query params: `?registryUrl=<url>&forceRefresh=true`
 
 ## Get Strategy Details
 
-GET /api/strategy/details/{strategyKey}?registryUrl=<optional>&forceRefresh=<optional>
+```bash
+curl -s 'http://quant-bot-tools.internal:4000/api/strategy/details/{strategyKey}'
+```
 
 Use this to discover required field names, token selectors, and expected deployment options before constructing deploy input.
+Optional query params: `?registryUrl=<url>&forceRefresh=true`
 
 ## Deploy Strategy Calldata
 
-POST /api/order/strategy/deploy
-Content-Type: application/json
-
-Body:
-```json
-{
-  "strategyKey": "fixed-limit",
-  "deploymentKey": "base",
-  "owner": "0x1234567890abcdef1234567890abcdef12345678",
-  "fields": {
-    "fixed-io": "0.0005",
-    "max-amount": "1000"
-  },
-  "deposits": {
-    "usdc": "1000"
-  },
-  "selectTokens": {
-    "input-token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    "output-token": "0x4200000000000000000000000000000000000006"
-  }
-}
+```bash
+curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "strategyKey": "fixed-limit",
+    "deploymentKey": "base",
+    "owner": "0x...",
+    "fields": { "fixed-io": "0.0005", "max-amount": "1000" },
+    "deposits": { "usdc": "1000" },
+    "selectTokens": {
+      "input-token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "output-token": "0x4200000000000000000000000000000000000006"
+    }
+  }'
 ```
 
 Optional fields:
@@ -76,15 +76,10 @@ Response:
 
 ## Compose Rainlang (Optional)
 
-POST /api/order/strategy/compose
-Content-Type: application/json
-
-Body:
-```json
-{
-  "dotrainSource": "version: 4\n...",
-  "deploymentKey": "base"
-}
+```bash
+curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/compose \
+  -H 'Content-Type: application/json' \
+  -d '{"dotrainSource": "version: 4\n...", "deploymentKey": "base"}'
 ```
 
 Response:

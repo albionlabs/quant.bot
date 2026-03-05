@@ -4,19 +4,12 @@ description: "Execute transactions on Base using delegated wallet signing"
 version: "2.0.0"
 ---
 
-To execute a transaction on Base, make an HTTP POST request:
+To execute a transaction on Base, use `curl` via the exec tool:
 
-URL: http://quant-bot-tools.internal:4000/api/evm/execute
-Content-Type: application/json
-
-Body:
-```json
-{
-  "to": "0x1234567890abcdef1234567890abcdef12345678",
-  "data": "0xabcdef...",
-  "value": "0",
-  "executionToken": "<trusted-execution-token>"
-}
+```bash
+curl -s -X POST http://quant-bot-tools.internal:4000/api/evm/execute \
+  -H 'Content-Type: application/json' \
+  -d '{"to": "0x...", "data": "0x...", "value": "0", "executionToken": "<trusted-execution-token>"}'
 ```
 
 Parameters:

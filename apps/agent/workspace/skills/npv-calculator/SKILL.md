@@ -4,17 +4,12 @@ description: "Calculate Net Present Value and IRR for cash flow analysis"
 version: "1.0.0"
 ---
 
-To calculate NPV, make an HTTP POST request:
+To calculate NPV, use `curl` via the exec tool:
 
-URL: http://quant-bot-tools.internal:4000/api/npv
-Content-Type: application/json
-
-Body:
-```json
-{
-  "cashFlows": [-1000, 300, 400, 500],
-  "discountRate": 0.1
-}
+```bash
+curl -s -X POST http://quant-bot-tools.internal:4000/api/npv \
+  -H 'Content-Type: application/json' \
+  -d '{"cashFlows": [-1000, 300, 400, 500], "discountRate": 0.1}'
 ```
 
 Parameters:
