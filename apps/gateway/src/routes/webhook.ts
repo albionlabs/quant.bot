@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
+import { verifyWebhookSignature } from '@quant-bot/shared-types';
 import { storeDelegationViaWebhook, revokeDelegationViaWebhook } from '../services/delegation-client.js';
 import type { GatewayConfig } from '../config.js';
 
@@ -33,6 +34,12 @@ export async function webhookRoutes(app: FastifyInstance, config: GatewayConfig)
 	app.post('/api/webhooks/dynamic', async (request, reply) => {
 		const signature = request.headers['x-dynamic-signature-256'] as string | undefined;
 		const payload = request.body as WebhookPayload;
+		if (!signature) {
+			return reply.status(401).send({ error: 'Missing webhook signature' });
+		}
+		if (!verifyWebhookSignature(config.dynamicWebhookSecret, signature, payload)) {
+			return reply.status(401).send({ error: 'Invalid webhook signature' });
+		}
 
 		app.log.info({ eventName: payload.eventName }, 'Webhook received');
 

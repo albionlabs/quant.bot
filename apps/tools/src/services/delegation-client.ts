@@ -1,9 +1,6 @@
-export interface DelegationCredentials {
-	walletId: string;
-	walletApiKey: string;
-	keyShare: string;
-	chainId: number;
-}
+import type { DelegationCredentials } from '@quant-bot/shared-types';
+
+export type { DelegationCredentials };
 
 export async function fetchDelegationCredentials(
 	userId: string,

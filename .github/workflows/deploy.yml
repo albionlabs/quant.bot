@@ -11,7 +11,6 @@ jobs:
       agent: ${{ steps.filter.outputs.agent }}
       tools: ${{ steps.filter.outputs.tools }}
       gateway: ${{ steps.filter.outputs.gateway }}
-      rest-api: ${{ steps.filter.outputs.rest-api }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -25,6 +24,7 @@ jobs:
               - 'pnpm-lock.yaml'
             tools:
               - 'apps/tools/**'
+              - 'services/raindex-mcp/**'
               - 'packages/**'
               - 'fly.tools.toml'
               - 'pnpm-lock.yaml'
@@ -34,10 +34,6 @@ jobs:
               - 'packages/**'
               - 'fly.gateway.toml'
               - 'pnpm-lock.yaml'
-            rest-api:
-              - 'services/rest-api/**'
-              - 'fly.rest-api.toml'
-              - '.github/workflows/deploy.yml'
 
   deploy-agent:
     needs: changes
@@ -45,8 +41,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --config fly.agent.toml --remote-only
         env:
@@ -58,8 +52,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      - name: Fetch raindex-mcp source
+        run: |
+          # Pin to hardyjosh/raindex-mcp commit (update when upgrading MCP server)
+          RAINDEX_MCP_REF=4913a70318052d7f0f7ec35f3dc3737385804047
+          rm -rf services/raindex-mcp
+          git clone --depth 1 https://github.com/hardyjosh/raindex-mcp.git services/raindex-mcp
+          cd services/raindex-mcp
+          git fetch --depth 1 origin "${RAINDEX_MCP_REF}"
+          git checkout "${RAINDEX_MCP_REF}"
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --config fly.tools.toml --remote-only
         env:
@@ -71,24 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --config fly.gateway.toml --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-  deploy-rest-api:
-    needs: changes
-    if: needs.changes.outputs.rest-api == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: |
-          cp fly.rest-api.toml services/rest-api/fly.toml
-          flyctl deploy services/rest-api --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

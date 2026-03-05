@@ -1,4 +1,4 @@
-import type { DelegationStatusResponse } from '@quant-bot/shared-types';
+import type { DelegationStatusResponse, DelegationCredentials } from '@quant-bot/shared-types';
 
 interface DelegationClientConfig {
 	delegationServiceUrl: string;
@@ -13,13 +13,6 @@ export class DelegationServiceError extends Error {
 		this.name = 'DelegationServiceError';
 		this.status = status;
 	}
-}
-
-interface DelegationCredentials {
-	walletId: string;
-	walletApiKey: string;
-	keyShare: string;
-	chainId: number;
 }
 
 interface DelegationInfo {

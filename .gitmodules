@@ -1,3 +1,0 @@
-[submodule "services/rest-api"]
-	path = services/rest-api
-	url = https://github.com/albionlabs/albion.rest.api.git
