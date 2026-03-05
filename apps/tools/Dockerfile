@@ -27,7 +27,10 @@ RUN npm ci
 COPY services/raindex-mcp/ ./
 RUN npm run build
 
+ARG COMMIT_SHA=dev
+
 FROM base AS runner
+ENV COMMIT_SHA=$COMMIT_SHA
 COPY --from=build /app/packages/shared-types/dist ./packages/shared-types/dist
 COPY --from=build /app/packages/shared-types/package.json ./packages/shared-types/
 COPY --from=build /app/packages/evm-utils/dist ./packages/evm-utils/dist

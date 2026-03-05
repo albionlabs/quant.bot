@@ -7,13 +7,15 @@ export interface ChatState {
 	connected: boolean;
 	sessionId: string | null;
 	loading: boolean;
+	backendVersion: string | null;
 }
 
 const initial: ChatState = {
 	messages: [],
 	connected: false,
 	sessionId: null,
-	loading: false
+	loading: false,
+	backendVersion: null
 };
 
 export const chat = writable<ChatState>(initial);
@@ -78,6 +80,11 @@ function connectInternal(gatewayUrl: string, token: string) {
 	ws.onmessage = (event) => {
 		try {
 			const msg = JSON.parse(event.data) as ServerMessage;
+
+			if (msg.type === 'connected') {
+				chat.update((s) => ({ ...s, backendVersion: msg.version ?? null }));
+				return;
+			}
 
 			if (msg.type === 'stream' && msg.delta) {
 				chat.update((s) => {

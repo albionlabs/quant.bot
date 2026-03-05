@@ -1,8 +1,12 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte'
+	import { env } from '$env/dynamic/public'
 	import DynamicSvelteWrapper from '$lib/dynamic/DynamicSvelteWrapper.svelte'
 
 	let { children }: { children: Snippet } = $props()
+
+	const commitSha = env.PUBLIC_VERCEL_GIT_COMMIT_SHA
+	const version = commitSha ? commitSha.slice(0, 7) : 'dev'
 </script>
 
 <DynamicSvelteWrapper />
@@ -11,6 +15,7 @@
 	<header>
 		<h1>quant.bot</h1>
 		<span class="badge">test site</span>
+		<span class="version-label">v {version}</span>
 	</header>
 	<main>
 		{@render children()}
@@ -55,6 +60,12 @@
 		color: #1d4ed8;
 		padding: 0.15rem 0.5rem;
 		border-radius: 9999px;
+	}
+
+	.version-label {
+		font-size: 0.7rem;
+		font-family: monospace;
+		color: #9ca3af;
 	}
 
 	main {

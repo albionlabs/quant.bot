@@ -50,9 +50,13 @@ function tryParseJson(text: string): unknown {
 }
 
 function normalizeToolResult(result: unknown): ToolResultLike {
-	if (!result || typeof result !== 'object') return {};
+	if (!result || typeof result !== 'object') {
+		console.warn('[raindex-mcp] normalizeToolResult: result is not an object', typeof result, result);
+		return {};
+	}
 	const record = result as ToolResultLike;
 	if (record.toolResult && typeof record.toolResult === 'object') {
+		console.log('[raindex-mcp] normalizeToolResult: unwrapping nested toolResult');
 		return record.toolResult as ToolResultLike;
 	}
 	return record;
@@ -78,16 +82,29 @@ function getTextContent(result: ToolResultLike): string[] {
 
 function parseToolPayload(result: ToolResultLike): unknown {
 	if (result.structuredContent !== undefined) {
+		console.log('[raindex-mcp] parseToolPayload: using structuredContent');
 		return result.structuredContent;
 	}
 
 	const textChunks = getTextContent(result);
+	console.log('[raindex-mcp] parseToolPayload: textChunks count=%d', textChunks.length);
+	if (textChunks.length > 0) {
+		for (let i = 0; i < textChunks.length; i++) {
+			const preview = textChunks[i].length > 500 ? textChunks[i].slice(0, 500) + '...' : textChunks[i];
+			console.log('[raindex-mcp] parseToolPayload: chunk[%d] (%d chars): %s', i, textChunks[i].length, preview);
+		}
+	}
+
 	if (textChunks.length === 0) {
+		console.warn('[raindex-mcp] parseToolPayload: no text content, returning {}');
 		return {};
 	}
 
 	if (textChunks.length === 1) {
 		const parsed = tryParseJson(textChunks[0]);
+		if (!parsed) {
+			console.warn('[raindex-mcp] parseToolPayload: single chunk is not valid JSON, returning as message');
+		}
 		return parsed ?? { message: textChunks[0] };
 	}
 
@@ -96,6 +113,7 @@ function parseToolPayload(result: ToolResultLike): unknown {
 		if (parsed !== null) return parsed;
 	}
 
+	console.warn('[raindex-mcp] parseToolPayload: no JSON found in any chunk, returning messages array');
 	return { messages: textChunks };
 }
 
@@ -167,6 +185,9 @@ async function createClient(config: ToolsConfig): Promise<Client> {
 		);
 	}
 
+	console.log('[raindex-mcp] creating client: command=%s args=%s cwd=%s',
+		config.raindexMcpCommand, JSON.stringify(config.raindexMcpArgs), config.raindexMcpCwd || '(none)');
+
 	const env: Record<string, string> = {};
 	for (const [key, value] of Object.entries(process.env)) {
 		if (typeof value === 'string') {
@@ -175,6 +196,11 @@ async function createClient(config: ToolsConfig): Promise<Client> {
 	}
 
 	const resolvedSettingsYaml = await resolveSettingsYaml(config);
+	console.log('[raindex-mcp] settings: path=%s yamlLen=%d url=%s registryUrl=%s',
+		config.raindexSettingsPath || '(none)',
+		resolvedSettingsYaml?.length ?? 0,
+		config.raindexSettingsUrl || '(none)',
+		config.raindexRegistryUrl || '(none)');
 
 	delete env.RAINDEX_SETTINGS_PATH;
 	delete env.RAINDEX_SETTINGS_YAML;
@@ -202,6 +228,7 @@ async function createClient(config: ToolsConfig): Promise<Client> {
 	};
 
 	await client.connect(transport);
+	console.log('[raindex-mcp] client connected successfully');
 	return client;
 }
 
@@ -221,6 +248,7 @@ export async function callRaindexMcpTool(
 	toolName: string,
 	toolArgs: Record<string, unknown>
 ): Promise<unknown> {
+	console.log('[raindex-mcp] callTool: %s args=%s', toolName, JSON.stringify(toolArgs).slice(0, 1000));
 	const client = await getClient(config);
 	try {
 		const result = await withTimeout(
@@ -228,18 +256,36 @@ export async function callRaindexMcpTool(
 			MCP_CALL_TIMEOUT_MS,
 			`MCP tool "${toolName}" timed out after ${MCP_CALL_TIMEOUT_MS}ms`
 		);
+
+		console.log('[raindex-mcp] callTool raw result keys: %s', result ? Object.keys(result as Record<string, unknown>).join(', ') : 'null');
+		try {
+			const raw = JSON.stringify(result);
+			const preview = raw.length > 2000 ? raw.slice(0, 2000) + `... (${raw.length} chars total)` : raw;
+			console.log('[raindex-mcp] callTool raw result: %s', preview);
+		} catch { /* circular ref guard */ }
+
 		const normalized = normalizeToolResult(result);
 
+		console.log('[raindex-mcp] normalized: isError=%s, hasContent=%s, hasStructured=%s',
+			normalized.isError, Array.isArray(normalized.content), normalized.structuredContent !== undefined);
+
 		if (normalized.isError) {
-			throw new RaindexMcpError(502, extractToolError(normalized, toolName));
+			const errorText = extractToolError(normalized, toolName);
+			console.error('[raindex-mcp] MCP tool returned error: %s', errorText);
+			throw new RaindexMcpError(502, errorText);
 		}
 
-		return parseToolPayload(normalized);
+		const payload = parseToolPayload(normalized);
+		console.log('[raindex-mcp] parsed payload type=%s keys=%s',
+			typeof payload, payload && typeof payload === 'object' ? Object.keys(payload as Record<string, unknown>).join(', ') : 'N/A');
+		return payload;
 	} catch (error) {
 		if (error instanceof RaindexMcpError) {
+			console.error('[raindex-mcp] RaindexMcpError: status=%d message=%s', error.status, error.message);
 			throw error;
 		}
 
+		console.error('[raindex-mcp] unexpected error in callTool(%s): %s', toolName, error instanceof Error ? error.stack ?? error.message : String(error));
 		clientPromise = null;
 		const message = error instanceof Error ? error.message : 'Failed to call Raindex MCP tool';
 		throw new RaindexMcpError(502, message);

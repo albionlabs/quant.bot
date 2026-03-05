@@ -19,7 +19,10 @@ COPY --from=deps /app/apps/delegation/node_modules ./apps/delegation/node_module
 COPY . .
 RUN pnpm turbo build --filter=@quant-bot/gateway --filter=@quant-bot/delegation
 
+ARG COMMIT_SHA=dev
+
 FROM base AS runner
+ENV COMMIT_SHA=$COMMIT_SHA
 COPY --from=build /app/packages/shared-types/dist ./packages/shared-types/dist
 COPY --from=build /app/packages/shared-types/package.json ./packages/shared-types/
 COPY --from=build /app/apps/gateway/dist ./apps/gateway/dist

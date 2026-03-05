@@ -36,6 +36,12 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 			return;
 		}
 
+		socket.send(JSON.stringify({
+			type: 'connected',
+			sessionId: '',
+			version: process.env.COMMIT_SHA ?? 'dev'
+		}));
+
 		socket.on('message', async (raw: Buffer) => {
 			try {
 				const msg = JSON.parse(raw.toString()) as ClientMessage;

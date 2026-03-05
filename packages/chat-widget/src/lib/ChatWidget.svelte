@@ -22,6 +22,9 @@
 	<div class="chat-header">
 		<span class="chat-title">quant.bot</span>
 		<span class="status-dot" class:connected={$chat.connected}></span>
+		{#if $chat.connected && $chat.backendVersion}
+			<span class="version-label">v {$chat.backendVersion}</span>
+		{/if}
 	</div>
 	<MessageList />
 	<MessageInput />
@@ -64,5 +67,12 @@
 
 	.status-dot.connected {
 		background: #22c55e;
+	}
+
+	.version-label {
+		margin-left: auto;
+		font-size: 0.65rem;
+		font-family: monospace;
+		color: #9ca3af;
 	}
 </style>

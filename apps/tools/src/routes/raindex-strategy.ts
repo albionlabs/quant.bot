@@ -23,6 +23,8 @@ function isRecordOfStrings(value: unknown): value is Record<string, string> {
 
 function handleMcpError(reply: FastifyReply, err: unknown) {
 	if (err instanceof RaindexMcpError) {
+		console.error('[route] RaindexMcpError: status=%d message=%s', err.status, err.message);
+		console.error('[route] RaindexMcpError stack: %s', err.stack);
 		return reply.status(err.status).send({
 			error: err.message,
 			source: err.source
@@ -30,6 +32,7 @@ function handleMcpError(reply: FastifyReply, err: unknown) {
 	}
 
 	const message = err instanceof Error ? err.message : 'Raindex MCP request failed';
+	console.error('[route] unexpected error: %s', err instanceof Error ? err.stack ?? err.message : String(err));
 	return reply.status(500).send({
 		error: message,
 		source: 'internal'
@@ -95,6 +98,8 @@ export async function raindexStrategyRoutes(app: FastifyInstance, config: ToolsC
 	});
 
 	app.post<{ Body: DeployStrategyRequest }>('/api/order/strategy/deploy', async (request, reply) => {
+		console.log('[route] POST /api/order/strategy/deploy body=%s', JSON.stringify(request.body).slice(0, 2000));
+
 		if (!isNonEmptyString(request.body.strategyKey)) {
 			return badRequest(reply, '`strategyKey` is required');
 		}
@@ -105,17 +110,22 @@ export async function raindexStrategyRoutes(app: FastifyInstance, config: ToolsC
 			return badRequest(reply, '`owner` is required');
 		}
 		if (!isRecordOfStrings(request.body.fields)) {
+			console.error('[route] fields validation failed: %s', JSON.stringify(request.body.fields));
 			return badRequest(reply, '`fields` must be an object of string values');
 		}
 		if (request.body.deposits !== undefined && !isRecordOfStrings(request.body.deposits)) {
+			console.error('[route] deposits validation failed: %s', JSON.stringify(request.body.deposits));
 			return badRequest(reply, '`deposits` must be an object of string values');
 		}
 		if (request.body.selectTokens !== undefined && !isRecordOfStrings(request.body.selectTokens)) {
+			console.error('[route] selectTokens validation failed: %s', JSON.stringify(request.body.selectTokens));
 			return badRequest(reply, '`selectTokens` must be an object of string values');
 		}
 
 		try {
-			return await deployStrategyCalldata(config, request.body);
+			const result = await deployStrategyCalldata(config, request.body);
+			console.log('[route] deploy succeeded: to=%s chainId=%d', result.to, result.chainId);
+			return result;
 		} catch (err) {
 			return handleMcpError(reply, err);
 		}

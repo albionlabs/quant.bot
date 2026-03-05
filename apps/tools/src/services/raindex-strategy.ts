@@ -118,6 +118,10 @@ export async function deployStrategyCalldata(
 	config: ToolsConfig,
 	params: DeployStrategyRequest
 ): Promise<DeployStrategyResponse> {
+	console.log('[deploy] deployStrategyCalldata called: strategyKey=%s deploymentKey=%s owner=%s fields=%s selectTokens=%s deposits=%s',
+		params.strategyKey, params.deploymentKey, params.owner,
+		JSON.stringify(params.fields), JSON.stringify(params.selectTokens), JSON.stringify(params.deposits));
+
 	const registryUrl = params.registryUrl || config.raindexRegistryUrl;
 	const payload = await callRaindexMcpTool(config, 'raindex_deploy_strategy', {
 		strategy_key: params.strategyKey,
@@ -129,7 +133,20 @@ export async function deployStrategyCalldata(
 		...(registryUrl ? { registry_url: registryUrl } : {}),
 		...(params.forceRefresh !== undefined ? { force_refresh: params.forceRefresh } : {})
 	});
+
+	console.log('[deploy] raw payload from MCP: type=%s', typeof payload);
+	try {
+		const payloadStr = JSON.stringify(payload);
+		const preview = payloadStr.length > 2000 ? payloadStr.slice(0, 2000) + '...' : payloadStr;
+		console.log('[deploy] raw payload: %s', preview);
+	} catch { /* circular ref guard */ }
+
 	const data = asRecord(payload, 'deploy strategy');
+	console.log('[deploy] asRecord keys: %s', Object.keys(data).join(', '));
+	console.log('[deploy] field types: orderbookAddress=%s deploymentCalldata=%s chainId=%s approvals=%s',
+		typeof data.orderbookAddress, typeof data.deploymentCalldata, typeof data.chainId, typeof data.approvals);
+	if (typeof data.orderbookAddress === 'string') console.log('[deploy] orderbookAddress=%s', data.orderbookAddress.slice(0, 66));
+	if (typeof data.deploymentCalldata === 'string') console.log('[deploy] deploymentCalldata length=%d prefix=%s', data.deploymentCalldata.length, data.deploymentCalldata.slice(0, 20));
 
 	const response: DeployStrategyResponse = {
 		to: asString(data.orderbookAddress, 'orderbookAddress'),
@@ -138,6 +155,9 @@ export async function deployStrategyCalldata(
 		chainId: asNumber(data.chainId, 'chainId'),
 		approvals: normalizeApprovals(data.approvals)
 	};
+
+	console.log('[deploy] normalized response: to=%s chainId=%d approvalsCount=%d calldataLen=%d',
+		response.to, response.chainId, response.approvals.length, response.data.length);
 
 	// When dotrainSource is provided, a second MCP call (raindex_compose_rainlang) is made
 	// to return the composed Rainlang for user review before execution.

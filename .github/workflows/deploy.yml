@@ -62,7 +62,7 @@ jobs:
           git fetch --depth 1 origin "${RAINDEX_MCP_REF}"
           git checkout "${RAINDEX_MCP_REF}"
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --config fly.tools.toml --remote-only
+      - run: flyctl deploy --config fly.tools.toml --remote-only --build-arg COMMIT_SHA=${GITHUB_SHA::7}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -73,7 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --config fly.gateway.toml --remote-only
+      - run: flyctl deploy --config fly.gateway.toml --remote-only --build-arg COMMIT_SHA=${GITHUB_SHA::7}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
