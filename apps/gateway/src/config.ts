@@ -13,11 +13,24 @@ export interface GatewayConfig {
 	corsOrigin: string[];
 	delegationServiceUrl: string;
 	internalSecret: string;
+	dynamicWebhookSecret: string;
 }
 
 export function loadConfig(): GatewayConfig {
 	const jwtSecret = process.env.JWT_SECRET;
 	if (!jwtSecret) throw new Error('JWT_SECRET environment variable is required');
+	const openclawGatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+	if (!openclawGatewayToken) {
+		throw new Error('OPENCLAW_GATEWAY_TOKEN environment variable is required');
+	}
+	const internalSecret = process.env.INTERNAL_SECRET;
+	if (!internalSecret) {
+		throw new Error('INTERNAL_SECRET environment variable is required');
+	}
+	const dynamicWebhookSecret = process.env.DYNAMIC_WEBHOOK_SECRET;
+	if (!dynamicWebhookSecret) {
+		throw new Error('DYNAMIC_WEBHOOK_SECRET environment variable is required');
+	}
 
 	const corsOrigin = process.env.CORS_ORIGIN
 		? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
@@ -31,12 +44,13 @@ export function loadConfig(): GatewayConfig {
 		agentWsUrl: process.env.AGENT_WS_URL ?? 'ws://agent:18789',
 		agentResponseTimeoutMs: parseInt(process.env.AGENT_RESPONSE_TIMEOUT_MS ?? '120000', 10),
 		executionTokenTtlSeconds: parseInt(process.env.EXECUTION_TOKEN_TTL_SECONDS ?? '300', 10),
-		openclawGatewayToken: process.env.OPENCLAW_GATEWAY_TOKEN ?? '',
+		openclawGatewayToken,
 		rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX ?? '30', 10),
 		rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW ?? '60000', 10),
 		authRateLimitMax: parseInt(process.env.AUTH_RATE_LIMIT_MAX ?? '5', 10),
 		corsOrigin,
 		delegationServiceUrl: process.env.DELEGATION_SERVICE_URL ?? 'http://quant-bot.internal:5000',
-		internalSecret: process.env.INTERNAL_SECRET ?? ''
+		internalSecret,
+		dynamicWebhookSecret
 	};
 }

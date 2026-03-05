@@ -21,10 +21,40 @@ function verifyWebhookSignature(secret: string, signature: string, payload: obje
 	return timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
 }
 
-function verifyIfSigned(config: DelegationConfig, signature: string | undefined, payload: object): boolean {
-	if (!signature) return true;
-	if (!config.dynamicWebhookSecret) return true;
-	return verifyWebhookSignature(config.dynamicWebhookSecret, signature, payload);
+interface SignatureVerificationResult {
+	ok: boolean;
+	status: number;
+	error?: string;
+}
+
+function verifyIfSigned(
+	config: DelegationConfig,
+	signature: string | undefined,
+	payload: object
+): SignatureVerificationResult {
+	if (!config.dynamicWebhookSecret) {
+		return {
+			ok: false,
+			status: 503,
+			error: 'DYNAMIC_WEBHOOK_SECRET is not configured'
+		};
+	}
+	if (!signature) {
+		return {
+			ok: false,
+			status: 401,
+			error: 'Missing webhook signature'
+		};
+	}
+	if (!verifyWebhookSignature(config.dynamicWebhookSecret, signature, payload)) {
+		return {
+			ok: false,
+			status: 401,
+			error: 'Invalid webhook signature'
+		};
+	}
+
+	return { ok: true, status: 200 };
 }
 
 interface WebhookCreatedBody {
@@ -69,8 +99,9 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 		const payload = request.body as WebhookPayload;
 		const signature = request.headers['x-dynamic-signature-256'] as string | undefined;
 
-		if (!verifyIfSigned(config, signature, payload)) {
-			return reply.status(401).send({ error: 'Invalid webhook signature' });
+		const signatureCheck = verifyIfSigned(config, signature, payload);
+		if (!signatureCheck.ok) {
+			return reply.status(signatureCheck.status).send({ error: signatureCheck.error });
 		}
 
 		if (payload.eventName !== 'wallet.delegation.created') {
@@ -114,8 +145,9 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 		const payload = request.body as WebhookPayload;
 		const signature = request.headers['x-dynamic-signature-256'] as string | undefined;
 
-		if (!verifyIfSigned(config, signature, payload)) {
-			return reply.status(401).send({ error: 'Invalid webhook signature' });
+		const signatureCheck = verifyIfSigned(config, signature, payload);
+		if (!signatureCheck.ok) {
+			return reply.status(signatureCheck.status).send({ error: signatureCheck.error });
 		}
 
 		if (payload.eventName !== 'wallet.delegation.revoked') {

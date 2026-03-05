@@ -1,7 +1,7 @@
 # TODO: Agentic Order-Deploy Flow Hardening
 
 Date: 2026-03-04
-Scope: Agent -> tools -> REST API -> delegated signing/execution
+Scope: Agent -> tools -> delegated signing/execution
 
 ## Critical
 
@@ -13,18 +13,6 @@ Scope: Agent -> tools -> REST API -> delegated signing/execution
     - `apps/tools/src/routes/tx-execute.ts`
     - `apps/tools/src/services/tx-executor.ts`
     - `apps/tools/src/services/delegation-client.ts`
-
-- [ ] Fix/disable unimplemented REST order routes still using `todo!()`.
-  - `order/dca`
-  - `order/solver`
-  - `order/{hash}`
-  - `order/cancel`
-  - `orders/*`
-  - `trades/*`
-  - Files:
-    - `services/rest-api/src/routes/order.rs`
-    - `services/rest-api/src/routes/orders.rs`
-    - `services/rest-api/src/routes/trades.rs`
 
 ## High
 
@@ -63,31 +51,15 @@ Scope: Agent -> tools -> REST API -> delegated signing/execution
 
 ## Low
 
-- [ ] Normalize orderbook proxy error mapping.
-  - Parse REST shape `{ error: { code, message } }`.
-  - Return structured message/code to agent.
-  - Files:
-    - `apps/tools/src/services/orderbook-client.ts`
-
 - [ ] Add explicit timeouts/retries for upstream calls.
   - Orderbook fetch calls
   - Delegation credential fetch calls
   - Transaction receipt waiting
   - Files:
-    - `apps/tools/src/services/orderbook-client.ts`
     - `apps/tools/src/services/delegation-client.ts`
     - `apps/tools/src/services/tx-executor.ts`
 
 ## Environment/Operations
-
-- [ ] Confirm tools app has working orderbook auth strategy.
-  - If REST API requires Basic Auth, set:
-    - `ORDERBOOK_API_KEY`
-    - `ORDERBOOK_API_SECRET`
-  - Keep `ORDERBOOK_API_URL` aligned with deployed REST API.
-  - Files:
-    - `fly.tools.toml`
-    - Fly app secrets for `quant-bot-tools`
 
 - [ ] Confirm required delegation signing env is present in tools.
   - `DYNAMIC_ENVIRONMENT_ID`
