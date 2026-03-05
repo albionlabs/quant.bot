@@ -23,7 +23,7 @@
 	<textarea
 		bind:value={input}
 		onkeydown={handleKeydown}
-		placeholder={$chat.connected ? 'Type a message...' : 'Connecting...'}
+		placeholder={$chat.connected ? 'Type a message...' : 'Reconnecting...'}
 		disabled={!$chat.connected}
 		rows={1}
 	></textarea>

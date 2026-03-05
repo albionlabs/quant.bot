@@ -22,13 +22,56 @@ let ws: WebSocket | null = null;
 let messageCounter = 0;
 let streamingAssistantMessageId: string | null = null;
 
-export function connect(gatewayUrl: string, token: string) {
-	if (ws) ws.close();
+let reconnectAttempts = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let lastGatewayUrl: string | null = null;
+let lastToken: string | null = null;
+let intentionalClose = false;
+
+const MAX_RECONNECT_ATTEMPTS = 10;
+const BASE_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+
+function getReconnectDelay(): number {
+	const delay = Math.min(
+		BASE_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts),
+		MAX_RECONNECT_DELAY_MS
+	);
+	// Add jitter (±25%) to avoid thundering herd
+	return delay * (0.75 + Math.random() * 0.5);
+}
+
+function scheduleReconnect() {
+	if (intentionalClose || !lastGatewayUrl || !lastToken) return;
+	if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
+
+	reconnectTimer = setTimeout(() => {
+		reconnectTimer = null;
+		if (intentionalClose || !lastGatewayUrl || !lastToken) return;
+		reconnectAttempts++;
+		connectInternal(lastGatewayUrl, lastToken);
+	}, getReconnectDelay());
+}
+
+function clearReconnectTimer() {
+	if (reconnectTimer !== null) {
+		clearTimeout(reconnectTimer);
+		reconnectTimer = null;
+	}
+}
+
+function connectInternal(gatewayUrl: string, token: string) {
+	if (ws) {
+		ws.onclose = null;
+		ws.onerror = null;
+		ws.close();
+	}
 
 	const url = `${gatewayUrl}/api/chat?token=${encodeURIComponent(token)}`;
 	ws = new WebSocket(url);
 
 	ws.onopen = () => {
+		reconnectAttempts = 0;
 		chat.update((s) => ({ ...s, connected: true }));
 	};
 
@@ -126,14 +169,52 @@ export function connect(gatewayUrl: string, token: string) {
 	};
 
 	ws.onclose = () => {
-		chat.update((s) => ({ ...s, connected: false }));
+		chat.update((s) => ({ ...s, connected: false, loading: false }));
 		ws = null;
 		streamingAssistantMessageId = null;
+		scheduleReconnect();
 	};
 
 	ws.onerror = () => {
 		chat.update((s) => ({ ...s, connected: false }));
 	};
+}
+
+export function connect(gatewayUrl: string, token: string) {
+	intentionalClose = false;
+	reconnectAttempts = 0;
+	lastGatewayUrl = gatewayUrl;
+	lastToken = token;
+	clearReconnectTimer();
+	connectInternal(gatewayUrl, token);
+
+	// Reconnect when the browser regains network or tab visibility
+	if (typeof window !== 'undefined') {
+		window.addEventListener('online', handleOnline);
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+	}
+}
+
+function handleOnline() {
+	if (intentionalClose) return;
+	if (!ws || ws.readyState !== WebSocket.OPEN) {
+		reconnectAttempts = 0;
+		clearReconnectTimer();
+		if (lastGatewayUrl && lastToken) {
+			connectInternal(lastGatewayUrl, lastToken);
+		}
+	}
+}
+
+function handleVisibilityChange() {
+	if (intentionalClose) return;
+	if (document.visibilityState === 'visible' && (!ws || ws.readyState !== WebSocket.OPEN)) {
+		reconnectAttempts = 0;
+		clearReconnectTimer();
+		if (lastGatewayUrl && lastToken) {
+			connectInternal(lastGatewayUrl, lastToken);
+		}
+	}
 }
 
 export function sendMessage(content: string) {
@@ -164,10 +245,19 @@ export function sendMessage(content: string) {
 }
 
 export function disconnect() {
+	intentionalClose = true;
+	clearReconnectTimer();
+	if (typeof window !== 'undefined') {
+		window.removeEventListener('online', handleOnline);
+		document.removeEventListener('visibilitychange', handleVisibilityChange);
+	}
 	if (ws) {
 		ws.close();
 		ws = null;
 	}
 	streamingAssistantMessageId = null;
+	lastGatewayUrl = null;
+	lastToken = null;
+	reconnectAttempts = 0;
 	chat.set(initial);
 }
