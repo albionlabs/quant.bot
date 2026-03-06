@@ -9,8 +9,6 @@ import {
 import { fetchDelegationCredentials } from './delegation-client.js';
 import type { ToolsConfig } from '../config.js';
 
-// ── Helpers ──────────────────────────────────────────────────────────
-
 function fp(value: unknown): string {
 	if (value === undefined || value === null) return 'null';
 	const str = typeof value === 'string' ? value : JSON.stringify(value);
@@ -31,43 +29,26 @@ function describeKeyShare(ks: unknown): Record<string, unknown> {
 	}
 	const obj = ks as Record<string, unknown>;
 	const topKeys = Object.keys(obj).sort();
-	const expectedTopKeys = ['pubkey', 'secretShare'];
-	const topKeysMatch = JSON.stringify(topKeys) === JSON.stringify(expectedTopKeys);
-
 	const pubkey = obj.pubkey as Record<string, unknown> | undefined;
-	const pubkeyKeys = pubkey ? Object.keys(pubkey).sort() : null;
-	const expectedPubkeyKeys = ['pubkey'];
-	const pubkeyKeysMatch = pubkeyKeys
-		? JSON.stringify(pubkeyKeys) === JSON.stringify(expectedPubkeyKeys)
-		: false;
-
 	const inner = pubkey?.pubkey;
+	const secretShare = obj.secretShare;
 
 	return {
 		topKeys,
-		topKeysExactMatch: topKeysMatch,
-		extraTopKeys: topKeys.filter(k => !expectedTopKeys.includes(k)),
-		missingTopKeys: expectedTopKeys.filter(k => !topKeys.includes(k)),
-		pubkeyType: typeof pubkey,
-		pubkeyKeys,
-		pubkeyKeysExactMatch: pubkeyKeysMatch,
-		innerType: typeof inner,
+		topKeysOk: topKeys.length === 2 && topKeys[0] === 'pubkey' && topKeys[1] === 'secretShare',
 		innerCtorName: (inner as any)?.constructor?.name ?? null,
 		innerIsUint8Array: inner instanceof Uint8Array,
-		innerIsPlainObject: inner !== null
-			&& typeof inner === 'object'
-			&& !Array.isArray(inner)
-			&& !(inner instanceof Uint8Array),
 		innerLength: inner instanceof Uint8Array
 			? inner.length
 			: (inner && typeof inner === 'object' ? Object.keys(inner).length : null),
-		secretShareType: typeof obj.secretShare,
-		secretShareLen: typeof obj.secretShare === 'string'
-			? (obj.secretShare as string).length : null,
-		secretShareHasWhitespace: typeof obj.secretShare === 'string'
-			&& (obj.secretShare as string) !== (obj.secretShare as string).trim(),
+		secretShareType: typeof secretShare,
+		secretShareLen: typeof secretShare === 'string' ? secretShare.length : null,
+		secretShareHasWhitespace: typeof secretShare === 'string'
+			&& secretShare !== secretShare.trim()
 	};
 }
+
+const STANDARD_ERROR_KEYS = new Set(['name', 'message', 'stack', 'code', 'type', 'statusCode', 'status', 'cause']);
 
 function summarizeError(err: unknown): Record<string, unknown> {
 	if (!err || typeof err !== 'object') {
@@ -75,21 +56,21 @@ function summarizeError(err: unknown): Record<string, unknown> {
 	}
 	const e = err as Record<string, unknown>;
 	const result: Record<string, unknown> = {
-		name: (e as any).name,
-		message: (e as any).message,
+		name: e.name,
+		message: e.message,
 		code: e.code,
 		type: e.type,
 		statusCode: e.statusCode,
 		status: e.status,
 		enumerableKeys: Object.keys(e).sort(),
-		stackFirst300: typeof (e as any).stack === 'string'
-			? (e as any).stack.substring(0, 300) : null,
+		stackFirst300: typeof e.stack === 'string'
+			? (e.stack as string).substring(0, 300) : null
 	};
 
 	if (e.cause && typeof e.cause === 'object') {
 		const cause = e.cause as Record<string, unknown>;
-		result.causeName = (cause as any).name;
-		result.causeMessage = (cause as any).message;
+		result.causeName = cause.name;
+		result.causeMessage = cause.message;
 		result.causeCode = cause.code;
 		result.causeEnumerableKeys = Object.keys(cause).sort();
 	} else if (e.cause !== undefined) {
@@ -97,14 +78,45 @@ function summarizeError(err: unknown): Record<string, unknown> {
 	}
 
 	for (const key of Object.keys(e)) {
-		if (!['name', 'message', 'stack', 'code', 'type', 'statusCode',
-			'status', 'cause'].includes(key)) {
+		if (!STANDARD_ERROR_KEYS.has(key)) {
 			result[`extra_${key}`] = typeof e[key] === 'object'
 				? JSON.stringify(e[key]).substring(0, 200) : String(e[key]);
 		}
 	}
 
 	return result;
+}
+
+function classifyCeremonyFailure(elapsedMs: number, err: unknown): string {
+	const summary = summarizeError(err);
+	const message = String(summary.message ?? '').toLowerCase();
+	const causeMessage = String(summary.causeMessage ?? '').toLowerCase();
+	const combined = `${message} ${causeMessage}`;
+
+	if (elapsedMs < 7_500) {
+		return 'did_not_start_or_immediate_credential_rejection';
+	}
+
+	if (
+		elapsedMs >= 55_000
+		&& elapsedMs <= 75_000
+		&& (
+			combined.includes('websocket')
+			|| combined.includes('socket')
+			|| combined.includes('relay')
+			|| combined.includes('timeout')
+			|| combined.includes('closed')
+			|| combined.includes('econnreset')
+		)
+	) {
+		return 'possible_relay_or_websocket_cut_near_60s';
+	}
+
+	if (elapsedMs >= 60_000) {
+		return 'started_then_stalled_mid_flight';
+	}
+
+	return 'unknown_ceremony_failure_window';
 }
 
 /**
@@ -132,8 +144,6 @@ function restoreKeySharePubkey(keyShare: Record<string, unknown>): Record<string
 	return keyShare;
 }
 
-// ── Test sign message (instrumented) ─────────────────────────────────
-
 export async function testSignMessage(
 	userId: string,
 	config: ToolsConfig
@@ -143,7 +153,6 @@ export async function testSignMessage(
 
 	console.log(`[sign:${attemptId}] WALL_START for userId:`, userId);
 
-	// Stage 3: Credential fetch with attempt correlation
 	const credentials = await fetchDelegationCredentials(
 		userId,
 		config.delegationServiceUrl,
@@ -152,7 +161,6 @@ export async function testSignMessage(
 	);
 	const fetchDone = performance.now();
 
-	// Stage 4: Parse + restore + describe
 	const rawKeyShare = JSON.parse(credentials.keyShare);
 	const keyShare = restoreKeySharePubkey(rawKeyShare);
 	const prepareDone = performance.now();
@@ -166,7 +174,7 @@ export async function testSignMessage(
 		walletId: credentials.walletId,
 		walletAddress: credentials.walletAddress,
 		environmentId: config.dynamicEnvironmentId,
-		signingKeyPrefix: config.dynamicSigningKey?.substring(0, 8),
+		signingKeyPrefix: config.dynamicSigningKey?.substring(0, 8)
 	});
 
 	const client = createDelegatedEvmWalletClient({
@@ -175,24 +183,21 @@ export async function testSignMessage(
 		debug: true
 	});
 
-	// Stage 5: Call start
 	const message = 'test';
 	const t0 = performance.now();
 	console.log(`[sign:${attemptId}] CALL_START:`, {
 		fn: 'delegatedSignMessage',
 		walletId: credentials.walletId,
 		message,
-		t0Iso: new Date().toISOString(),
+		t0Iso: new Date().toISOString()
 	});
 
-	// Stage 6: onError callback
 	const onError = (error: Error) => {
 		const elapsed = Math.round(performance.now() - t0);
 		console.error(`[sign:${attemptId}] ON_ERROR at +${elapsed}ms:`,
 			summarizeError(error));
 	};
 
-	// Stage 7 + 8: call with catch + finally
 	let signature: string;
 	try {
 		signature = await delegatedSignMessage(client, {
@@ -200,7 +205,7 @@ export async function testSignMessage(
 			walletApiKey: credentials.walletApiKey,
 			keyShare: keyShare as any,
 			message,
-			onError,
+			onError
 		});
 
 		const t1 = performance.now();
@@ -208,16 +213,15 @@ export async function testSignMessage(
 			outcome: 'success',
 			elapsedMs: Math.round(t1 - t0),
 			endIso: new Date().toISOString(),
-			resultPrefix: signature.substring(0, 10) + '...',
+			resultPrefix: signature.substring(0, 10) + '...'
 		});
 
-		// Stage 9: Wall time
 		console.log(`[sign:${attemptId}] TIMING:`, {
 			credentialFetchMs: Math.round(fetchDone - wallStart),
 			prepareMs: Math.round(prepareDone - fetchDone),
 			sdkCallMs: Math.round(t1 - t0),
 			totalMs: Math.round(t1 - wallStart),
-			outcome: 'success',
+			outcome: 'success'
 		});
 
 		return { signature, attemptId, elapsedMs: Math.round(t1 - wallStart) };
@@ -229,7 +233,7 @@ export async function testSignMessage(
 		console.log(`[sign:${attemptId}] CALL_END:`, {
 			outcome: 'failure',
 			elapsedMs: Math.round(t1 - t0),
-			endIso: new Date().toISOString(),
+			endIso: new Date().toISOString()
 		});
 
 		console.log(`[sign:${attemptId}] TIMING:`, {
@@ -237,14 +241,12 @@ export async function testSignMessage(
 			prepareMs: Math.round(prepareDone - fetchDone),
 			sdkCallMs: Math.round(t1 - t0),
 			totalMs: Math.round(t1 - wallStart),
-			outcome: 'failure',
+			outcome: 'failure'
 		});
 
 		throw err;
 	}
 }
-
-// ── Execute transaction (production path) ────────────────────────────
 
 export async function executeTransaction(
 	request: { to: string; data: string; value?: string },
@@ -252,6 +254,7 @@ export async function executeTransaction(
 	config: ToolsConfig
 ): Promise<TxExecuteResponse> {
 	const attemptId = crypto.randomUUID().slice(0, 8);
+	const wallStart = performance.now();
 	console.log(`[sign:${attemptId}] starting executeTransaction for userId:`, userId);
 
 	const credentials = await fetchDelegationCredentials(
@@ -260,6 +263,7 @@ export async function executeTransaction(
 		config.internalSecret,
 		attemptId
 	);
+	const fetchDone = performance.now();
 
 	const publicClient = createBasePublicClient(config.rpcUrl, config.chainName);
 	const chain = getChain(config.chainName);
@@ -283,6 +287,7 @@ export async function executeTransaction(
 		maxFeePerGas: prepared.maxFeePerGas,
 		maxPriorityFeePerGas: prepared.maxPriorityFeePerGas
 	};
+	const prepareDone = performance.now();
 
 	const client = createDelegatedEvmWalletClient({
 		environmentId: config.dynamicEnvironmentId,
@@ -297,15 +302,26 @@ export async function executeTransaction(
 		...describeKeyShare(keyShare),
 		fp_wholeKeyShare: fp(credentials.keyShare),
 		fp_walletApiKey: fp(credentials.walletApiKey),
-		walletId: credentials.walletId,
+		walletId: credentials.walletId
 	});
 
 	const t0 = performance.now();
 	console.log(`[sign:${attemptId}] CALL_START:`, {
 		fn: 'delegatedSignTransaction',
 		walletId: credentials.walletId,
-		t0Iso: new Date().toISOString(),
+		t0Iso: new Date().toISOString()
 	});
+
+	const progressInterval = setInterval(() => {
+		const elapsed = Math.round(performance.now() - t0);
+		const phase = elapsed >= 55_000 && elapsed <= 75_000
+			? 'relay_cutoff_window'
+			: 'in_progress';
+		console.log(`[sign:${attemptId}] CALL_IN_FLIGHT:`, {
+			elapsedMs: elapsed,
+			phase
+		});
+	}, 10_000);
 
 	let signedTx: unknown;
 	try {
@@ -317,24 +333,39 @@ export async function executeTransaction(
 		});
 		console.log(`[sign:${attemptId}] CALL_END:`, {
 			outcome: 'success',
-			elapsedMs: Math.round(performance.now() - t0),
+			elapsedMs: Math.round(performance.now() - t0)
 		});
 	} catch (err) {
 		const elapsed = Math.round(performance.now() - t0);
+		const failureClass = classifyCeremonyFailure(elapsed, err);
 		console.error(`[sign:${attemptId}] CATCH at +${elapsed}ms:`,
 			summarizeError(err));
 		console.log(`[sign:${attemptId}] CALL_END:`, {
 			outcome: 'failure',
 			elapsedMs: elapsed,
+			failureClass
 		});
 		throw err;
+	} finally {
+		clearInterval(progressInterval);
 	}
 
+	const broadcastStart = performance.now();
 	const hash = await publicClient.sendRawTransaction({
 		serializedTransaction: signedTx as Hex
 	});
 
 	const receipt = await publicClient.waitForTransactionReceipt({ hash });
+	const done = performance.now();
+
+	console.log(`[sign:${attemptId}] TIMING:`, {
+		credentialFetchMs: Math.round(fetchDone - wallStart),
+		prepareTxMs: Math.round(prepareDone - fetchDone),
+		ceremonyMs: Math.round(broadcastStart - t0),
+		broadcastAndReceiptMs: Math.round(done - broadcastStart),
+		totalMs: Math.round(done - wallStart),
+		outcome: 'success'
+	});
 
 	return {
 		txHash: receipt.transactionHash,

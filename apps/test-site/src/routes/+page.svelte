@@ -120,13 +120,22 @@
 		}, DELEGATION_UI_TIMEOUT_MS)
 	}
 
+	function isBackendDelegationReady(status: DelegationStatusResponse | null): boolean {
+		if (!status?.active) return false
+		if (status.syncRequired === true) return false
+		return status.hasCredentials !== false
+	}
+
 	async function waitForDelegationState(expectedActive: boolean, timeoutMs = 45_000, intervalMs = 2_000): Promise<boolean> {
 		const token = $auth.token
 		if (!token) return false
 		return waitUntil(async () => {
 			const status = await getDelegationStatus(gatewayUrl, token)
 			delegationStatus = status
-			return status.active === expectedActive
+			if (expectedActive) {
+				return isBackendDelegationReady(status)
+			}
+			return !status.active
 		}, { timeoutMs, intervalMs })
 	}
 
@@ -318,11 +327,26 @@
 		if (serverRevocationConfirmed && delegationStatus?.active === false) {
 			return false
 		}
-		return Boolean(delegationStatus?.active || $dynamicDelegatedStatus === true)
+
+		if ($dynamicDelegatedStatus === true) {
+			return true
+		}
+
+		if ($dynamicDelegatedStatus === false) {
+			return false
+		}
+
+		return hasBackendUsableCredentials()
 	}
 
-	function isDelegationOutOfSync(): boolean {
-		return $dynamicDelegatedStatus === true && !delegationStatus?.active
+	function hasBackendUsableCredentials(): boolean {
+		return isBackendDelegationReady(delegationStatus)
+	}
+
+	function isDelegationSyncRequired(): boolean {
+		// Required sequence:
+		// 1) wallet delegated? 2) backend has keys? if not => require sync.
+		return $dynamicDelegatedStatus === true && !hasBackendUsableCredentials()
 	}
 </script>
 
@@ -333,13 +357,13 @@
 				<div class="status-bar-actions">
 					{#if isDelegationActiveUi()}
 						<span class="delegation-badge active">
-							{#if isDelegationOutOfSync()}
-								Delegation Active (Re-sync Needed)
+							{#if isDelegationSyncRequired()}
+								Delegated (Sync Needed)
 							{:else}
 								Delegation Active
 							{/if}
 						</span>
-						{#if isDelegationOutOfSync()}
+						{#if isDelegationSyncRequired()}
 							<button class="btn btn-sm btn-secondary" onclick={handleDelegate} disabled={delegating || revoking}>
 								{delegating ? 'Re-syncing...' : 'Re-sync'}
 							</button>

@@ -1,16 +1,22 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { TxExecuteRequest } from '@quant-bot/shared-types';
 import { executeTransaction, testSignMessage } from '../services/tx-executor.js';
 import { resolveUserIdFromExecutionToken } from '../services/execution-token.js';
 import type { ToolsConfig } from '../config.js';
 
-export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig) {
-	app.post<{ Body: { userId: string } }>('/api/evm/test-sign', { preHandler: async (request, reply) => {
+function requireInternalSecret(config: ToolsConfig) {
+	return async (request: FastifyRequest, reply: FastifyReply) => {
 		const secret = request.headers['x-internal-secret'] as string | undefined;
 		if (!secret || secret !== config.internalSecret) {
 			return reply.status(401).send({ error: 'Invalid internal secret' });
 		}
-	} }, async (request, reply) => {
+	};
+}
+
+export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig) {
+	const checkSecret = requireInternalSecret(config);
+
+	app.post<{ Body: { userId: string } }>('/api/evm/test-sign', { preHandler: checkSecret }, async (request, reply) => {
 		const { userId } = request.body;
 		if (!userId) {
 			return reply.status(400).send({ error: 'userId is required' });
@@ -25,7 +31,19 @@ export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig)
 	});
 
 	app.post<{ Body: TxExecuteRequest }>('/api/evm/execute', async (request, reply) => {
+		const requestStarted = Date.now();
+		const reqId = String(request.id);
+		let clientAborted = false;
+		request.raw.once('aborted', () => {
+			clientAborted = true;
+			app.log.warn(
+				{ reqId, elapsedMs: Date.now() - requestStarted },
+				'Client aborted /api/evm/execute before completion'
+			);
+		});
+
 		const { to, data, executionToken } = request.body;
+		app.log.info({ reqId }, 'Received /api/evm/execute request');
 
 		if (!to || !/^0x[a-fA-F0-9]{40}$/.test(to)) {
 			return reply.status(400).send({ error: 'Invalid "to" address' });
@@ -46,7 +64,7 @@ export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig)
 		}
 
 		try {
-			return await executeTransaction(
+			const result = await executeTransaction(
 				{
 					to,
 					data,
@@ -55,8 +73,17 @@ export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig)
 				userId,
 				config
 			);
+			app.log.info(
+				{ reqId, elapsedMs: Date.now() - requestStarted, clientAborted },
+				'/api/evm/execute completed successfully'
+			);
+			return result;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'Execution failed';
+			app.log.error(
+				{ reqId, elapsedMs: Date.now() - requestStarted, clientAborted, error: message },
+				'/api/evm/execute failed'
+			);
 			return reply.status(500).send({ error: message });
 		}
 	});

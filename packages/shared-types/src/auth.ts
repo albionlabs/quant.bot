@@ -38,6 +38,9 @@ export interface DelegationStatusResponse {
 	delegationId?: string;
 	walletAddress?: string;
 	expiresAt?: number;
+	hasCredentials?: boolean;
+	syncRequired?: boolean;
+	syncReason?: string;
 }
 
 export interface AuthToken {

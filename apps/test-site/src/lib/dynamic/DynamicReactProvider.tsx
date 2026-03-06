@@ -44,6 +44,15 @@ interface DynamicBridgeProps {
 	triggerRevoke?: boolean
 }
 
+interface DelegationTarget {
+	chainName: 'ETH' | 'EVM'
+	walletAddress: string
+	target: Array<{
+		chainName: 'ETH' | 'EVM'
+		accountAddress: string
+	}>
+}
+
 const DELEGATION_OPERATION_TIMEOUT_MS = 90 * 1000
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
@@ -62,6 +71,10 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
 				reject(error)
 			})
 	})
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+	return error instanceof Error && error.message ? error.message : fallback
 }
 
 function DynamicBridge({
@@ -181,7 +194,7 @@ function DynamicBridge({
 		}
 	}, [triggerLogout, sdkHasLoaded, user, handleLogOut])
 
-	const getDelegationTarget = () => {
+	const getDelegationTarget = (): DelegationTarget | null => {
 		if (!embeddedWallet) return null
 		const chainName = (embeddedWallet.chain?.toUpperCase() === 'ETH' ? 'ETH' : 'EVM') as const
 		return {
@@ -194,21 +207,45 @@ function DynamicBridge({
 		}
 	}
 
-	const isWalletDelegated = () => {
+	const getWalletDelegationState = (): boolean | null => {
 		const delegationTarget = getDelegationTarget()
 		if (!delegationTarget) return false
-		return getWalletsDelegatedStatus().some(
-			(w) =>
-				w.address.toLowerCase() === delegationTarget.walletAddress.toLowerCase() &&
-				w.chain === delegationTarget.chainName &&
-				w.status === 'delegated'
-		)
+		try {
+			return getWalletsDelegatedStatus().some(
+				(w) =>
+					w.address.toLowerCase() === delegationTarget.walletAddress.toLowerCase() &&
+					w.chain === delegationTarget.chainName &&
+					w.status === 'delegated'
+			)
+		} catch {
+			return null
+		}
 	}
 
+	const isWalletDelegated = () => getWalletDelegationState() === true
+
 	const emitDelegationStatus = () => {
+		const delegated = getWalletDelegationState()
 		onEventRef.current({
 			type: 'delegation_status',
-			payload: { isDelegated: isWalletDelegated() }
+			payload: { isDelegated: delegated ?? undefined }
+		})
+	}
+
+	const emitDelegationComplete = () => {
+		emitDelegationStatus()
+		onEventRef.current({ type: 'delegation_complete' })
+	}
+
+	const emitDelegationRevoked = () => {
+		emitDelegationStatus()
+		onEventRef.current({ type: 'delegation_revoked' })
+	}
+
+	const emitDelegationError = (message: string) => {
+		onEventRef.current({
+			type: 'error',
+			payload: { error: message }
 		})
 	}
 
@@ -218,6 +255,28 @@ function DynamicBridge({
 		intervalMs = 1_000
 	): Promise<boolean> =>
 		waitUntil(() => isWalletDelegated() === expectedDelegated, { timeoutMs, intervalMs })
+
+	const attemptDelegate = async (delegationTarget: DelegationTarget, label: string): Promise<boolean> => {
+		await withTimeout(
+			delegateKeyShares(delegationTarget.target),
+			DELEGATION_OPERATION_TIMEOUT_MS,
+			label
+		)
+
+		const delegated = await waitForWalletDelegationState(true, 20_000, 1_000)
+		return delegated || isWalletDelegated()
+	}
+
+	const attemptRevoke = async (delegationTarget: DelegationTarget, label: string): Promise<boolean> => {
+		await withTimeout(
+			revokeDelegation(delegationTarget.target),
+			DELEGATION_OPERATION_TIMEOUT_MS,
+			label
+		)
+
+		const revoked = await waitForWalletDelegationState(false, 20_000, 1_000)
+		return revoked || !isWalletDelegated()
+	}
 
 	useEffect(() => {
 		if (!sdkHasLoaded) return
@@ -242,67 +301,40 @@ function DynamicBridge({
 			}
 
 			const runDelegation = async () => {
+				let delegated = false
+				let lastError: unknown
+
 				try {
-					await withTimeout(
-						delegateKeyShares(delegationTarget.target),
-						DELEGATION_OPERATION_TIMEOUT_MS,
-						'Delegation'
-					)
-					if (!isWalletDelegated()) {
-						throw new Error('Delegation did not complete. Please retry.')
-					}
-					emitDelegationStatus()
-					onEventRef.current({ type: 'delegation_complete' })
-					return
+					delegated = await attemptDelegate(delegationTarget, 'Delegation')
 				} catch (error) {
-					const message = (error as Error).message || 'Delegation failed'
-					const shouldRecover = message.toLowerCase().includes('no eligible wallets to delegate')
-
-					if (shouldRecover) {
-						try {
-							await withTimeout(
-								revokeDelegation(delegationTarget.target),
-								DELEGATION_OPERATION_TIMEOUT_MS,
-								'Delegation recovery revoke'
-							)
-							await withTimeout(
-								delegateKeyShares(delegationTarget.target),
-								DELEGATION_OPERATION_TIMEOUT_MS,
-								'Delegation recovery delegate'
-							)
-							if (!isWalletDelegated()) {
-								throw new Error('Delegation recovery did not complete. Please retry.')
-							}
-							emitDelegationStatus()
-							onEventRef.current({ type: 'delegation_complete' })
-							return
-						} catch (recoveryError) {
-							if (isWalletDelegated()) {
-								emitDelegationStatus()
-								onEventRef.current({ type: 'delegation_complete' })
-								return
-							}
-							onEventRef.current({
-								type: 'error',
-								payload: {
-									error: (recoveryError as Error).message || 'Delegation recovery failed'
-								}
-							})
-							return
-						}
-					}
-
-					if (isWalletDelegated()) {
-						emitDelegationStatus()
-						onEventRef.current({ type: 'delegation_complete' })
-						return
-					}
-
-					onEventRef.current({
-						type: 'error',
-						payload: { error: message }
-					})
+					lastError = error
 				}
+
+				if (!delegated) {
+					try {
+						// If Dynamic state is stale, force one revoke+delegate recovery cycle.
+						await withTimeout(
+							revokeDelegation(delegationTarget.target),
+							DELEGATION_OPERATION_TIMEOUT_MS,
+							'Delegation recovery revoke'
+						)
+					} catch {
+						// Best effort: continue to recovery delegation attempt.
+					}
+
+					try {
+						delegated = await attemptDelegate(delegationTarget, 'Delegation recovery delegate')
+					} catch (error) {
+						lastError = error
+					}
+				}
+
+				if (delegated || isWalletDelegated()) {
+					emitDelegationComplete()
+					return
+				}
+
+				emitDelegationError(errorMessage(lastError, 'Delegation failed'))
 			}
 
 			void runDelegation().finally(() => {
@@ -328,52 +360,33 @@ function DynamicBridge({
 					dismissDelegationPrompt()
 
 					if (!isWalletDelegated()) {
-						emitDelegationStatus()
-						onEventRef.current({ type: 'delegation_revoked' })
+						emitDelegationRevoked()
 						return
 					}
 
-					await withTimeout(
-						revokeDelegation(delegationTarget.target),
-						DELEGATION_OPERATION_TIMEOUT_MS,
-						'Revocation'
-					)
-
-					const revokedAfterFirstAttempt = await waitForWalletDelegationState(false, 20_000, 1_000)
-					if (revokedAfterFirstAttempt) {
-						emitDelegationStatus()
-						onEventRef.current({ type: 'delegation_revoked' })
-						return
+					let revoked = false
+					try {
+						revoked = await attemptRevoke(delegationTarget, 'Revocation')
+					} catch {
+						revoked = false
 					}
 
-					// Retry once because Dynamic SDK can time out while the revoke ceremony is still settling.
-					await withTimeout(
-						revokeDelegation(delegationTarget.target),
-						DELEGATION_OPERATION_TIMEOUT_MS,
-						'Revocation retry'
-					)
-
-					const revokedAfterRetry = await waitForWalletDelegationState(false, 20_000, 1_000)
-					if (revokedAfterRetry) {
-						emitDelegationStatus()
-						onEventRef.current({ type: 'delegation_revoked' })
-						return
+					if (!revoked) {
+						revoked = await attemptRevoke(delegationTarget, 'Revocation retry')
 					}
 
-					throw new Error('Delegation is still active after revoke attempt')
+					if (!revoked) {
+						throw new Error('Delegation is still active after revoke attempt')
+					}
+
+					emitDelegationRevoked()
 				} catch (error) {
 					const revokedAfterError = await waitForWalletDelegationState(false, 15_000, 1_000)
 					if (revokedAfterError) {
-						emitDelegationStatus()
-						onEventRef.current({ type: 'delegation_revoked' })
+						emitDelegationRevoked()
 						return
 					}
-					onEventRef.current({
-						type: 'error',
-						payload: {
-							error: (error as Error).message || 'Failed to revoke delegation'
-						}
-					})
+					emitDelegationError(errorMessage(error, 'Failed to revoke delegation'))
 				}
 			}
 

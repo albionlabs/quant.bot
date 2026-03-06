@@ -72,6 +72,12 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 							if (status.delegationId) {
 								delegationContext += `Active delegationId: ${status.delegationId}\n`;
 							}
+							if (status.hasCredentials === false || status.syncRequired === true) {
+								delegationContext += 'Delegation sync required: true\n';
+								if (status.syncReason) {
+									delegationContext += `Delegation sync reason: ${status.syncReason}\n`;
+								}
+							}
 						} else {
 							delegationContext += `Delegation active: false\n`;
 						}

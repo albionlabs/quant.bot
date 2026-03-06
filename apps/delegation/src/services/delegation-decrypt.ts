@@ -54,29 +54,40 @@ export function decryptDelegatedWebhookData({ privateKeyPem, encryptedDelegatedK
 	const shareJson = decryptPayload(privateKeyPem, encryptedDelegatedKeyShare);
 	const apiKey = decryptPayload(privateKeyPem, encryptedWalletApiKey);
 
-	const parsed = JSON.parse(shareJson);
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(shareJson);
+	} catch {
+		throw new Error('Delegated key share payload is not valid JSON');
+	}
 
-	// === Phase 2: Raw share from Dynamic ===
+	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+		throw new Error('Delegated key share payload has invalid shape');
+	}
+
+	const parsedShare = parsed as Record<string, unknown>;
+	const pubkey = (parsedShare.pubkey ?? null) as Record<string, unknown> | null;
+	const inner = pubkey?.pubkey;
 	console.log('[delegation-decrypt] RAW SHARE FROM DYNAMIC:', {
-		topLevelKeys: Object.keys(parsed),
-		pubkeyType: typeof parsed?.pubkey,
-		pubkeyKeys: parsed?.pubkey ? Object.keys(parsed.pubkey) : 'N/A',
-		pubkeyPubkeyConstructor: parsed?.pubkey?.pubkey?.constructor?.name,
-		pubkeyPubkeyIsUint8Array: parsed?.pubkey?.pubkey instanceof Uint8Array,
-		pubkeyPubkeyType: typeof parsed?.pubkey?.pubkey,
-		pubkeyPubkeyKeysSample: (() => {
-			const inner = parsed?.pubkey?.pubkey;
-			if (inner && typeof inner === 'object') {
-				return Object.keys(inner).slice(0, 5);
-			}
-			return 'not-object';
-		})(),
-		secretShareType: typeof parsed?.secretShare,
-		secretShareLen: parsed?.secretShare?.length,
+		topLevelKeys: Object.keys(parsedShare),
+		pubkeyType: typeof pubkey,
+		pubkeyKeys: pubkey ? Object.keys(pubkey) : 'N/A',
+		pubkeyPubkeyConstructor: inner?.constructor?.name,
+		pubkeyPubkeyIsUint8Array: inner instanceof Uint8Array,
+		pubkeyPubkeyType: typeof inner,
+		pubkeyPubkeyKeysSample: inner && typeof inner === 'object'
+			? Object.keys(inner).slice(0, 5)
+			: 'not-object',
+		secretShareType: typeof parsedShare.secretShare,
+		secretShareLen: typeof parsedShare.secretShare === 'string' ? parsedShare.secretShare.length : null
 	});
 
+	if (typeof apiKey !== 'string' || apiKey.length === 0) {
+		throw new Error('Delegated wallet API key payload is empty');
+	}
+
 	return {
-		decryptedDelegatedShare: parsed,
+		decryptedDelegatedShare: parsedShare,
 		decryptedWalletApiKey: apiKey
 	};
 }

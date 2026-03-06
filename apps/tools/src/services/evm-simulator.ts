@@ -8,10 +8,8 @@ function errorMessage(error: unknown): string {
 
 function isRpcParameterLimitError(message: string): boolean {
 	return (
-		/(rpc|json-rpc).*(parameter|param).*(limit|too many)/i.test(message) ||
-		/(parameter|param).*(limit|too many)/i.test(message) ||
-		/payload too large/i.test(message) ||
-		/request entity too large/i.test(message)
+		/param.*(limit|too many)/i.test(message) ||
+		/(payload|request entity) too large/i.test(message)
 	);
 }
 

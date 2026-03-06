@@ -1,4 +1,4 @@
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyWebhookSignature } from '@quant-bot/shared-types';
 import { decryptDelegatedWebhookData, type EncryptedDelegatedPayload } from './services/delegation-decrypt.js';
@@ -8,8 +8,10 @@ import {
 	getActiveDelegation,
 	getDelegation,
 	getDecryptedCredentials,
+	getCredentialHealth,
 	revokeByWalletId,
-	revokeDelegation
+	revokeDelegation,
+	fp
 } from './services/delegation-store.js';
 import type { DelegationConfig } from './config.js';
 
@@ -123,17 +125,23 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 			return reply.status(400).send({ error: 'publicKey is not a valid Ethereum address' });
 		}
 
-		const { decryptedDelegatedShare, decryptedWalletApiKey } = decryptDelegatedWebhookData({
-			privateKeyPem: config.dynamicDelegationPrivateKey,
-			encryptedDelegatedKeyShare: encryptedDelegatedShare,
-			encryptedWalletApiKey
-		});
-
-		const fp = (v: unknown): string => {
-			if (v === undefined || v === null) return 'null';
-			const s = typeof v === 'string' ? v : JSON.stringify(v);
-			return createHash('sha256').update(s).digest('hex').substring(0, 12);
-		};
+		let decryptedDelegatedShare: unknown = null;
+		let decryptedWalletApiKey = '';
+		try {
+			const decrypted = decryptDelegatedWebhookData({
+				privateKeyPem: config.dynamicDelegationPrivateKey,
+				encryptedDelegatedKeyShare: encryptedDelegatedShare,
+				encryptedWalletApiKey
+			});
+			decryptedDelegatedShare = decrypted.decryptedDelegatedShare;
+			decryptedWalletApiKey = decrypted.decryptedWalletApiKey;
+		} catch (error) {
+			app.log.error(
+				{ err: error, walletId, publicKey },
+				'Failed to decrypt delegation payload from Dynamic webhook'
+			);
+			return reply.status(400).send({ error: 'Invalid delegation payload from Dynamic' });
+		}
 
 		const shareStringified = JSON.stringify(decryptedDelegatedShare);
 
@@ -143,7 +151,7 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 			fp_walletApiKey: fp(decryptedWalletApiKey),
 			walletId,
 			publicKey: publicKey.toLowerCase(),
-			chain,
+			chain
 		});
 
 		const walletAddress = publicKey.toLowerCase();
@@ -209,14 +217,23 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 		const delegation = getActiveDelegation(userId);
 
 		if (!delegation) {
-			return { active: false };
+			return {
+				active: false,
+				hasCredentials: false,
+				syncRequired: false
+			};
 		}
+
+		const credentialHealth = getCredentialHealth(delegation.id, config.delegationEncryptionKey);
 
 		return {
 			active: true,
 			delegationId: delegation.id,
 			walletAddress: delegation.walletAddress,
-			expiresAt: delegation.expiresAt
+			expiresAt: delegation.expiresAt,
+			hasCredentials: credentialHealth.hasCredentials,
+			syncRequired: !credentialHealth.hasCredentials,
+			syncReason: credentialHealth.reason
 		};
 	});
 
@@ -283,7 +300,14 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 
 		const credentials = getDecryptedCredentials(delegation.id, config.delegationEncryptionKey, attemptId);
 		if (!credentials) {
-			return reply.status(404).send({ error: 'Failed to decrypt delegation credentials' });
+			const credentialHealth = getCredentialHealth(delegation.id, config.delegationEncryptionKey);
+			app.log.warn(
+				{ userId, delegationId: delegation.id, credentialHealth },
+				'Active delegation exists but credentials are not usable'
+			);
+			return reply.status(409).send({
+				error: 'Delegation credentials are invalid or missing. Please re-sync delegation.'
+			});
 		}
 
 		return credentials;
