@@ -7,6 +7,31 @@ import {
 import { fetchDelegationCredentials } from './delegation-client.js';
 import type { ToolsConfig } from '../config.js';
 
+/**
+ * Reconstructs pubkey.pubkey from a plain object with numeric keys back to
+ * Uint8Array. JSON round-trips destroy typed arrays — JSON.parse produces
+ * {"0":44,"1":229,...} instead of Uint8Array(64). The Dynamic SDK expects
+ * Uint8Array for the MPC ceremony.
+ */
+function restoreKeySharePubkey(keyShare: Record<string, unknown>): Record<string, unknown> {
+	const inner = (keyShare.pubkey as Record<string, unknown>)?.pubkey;
+	if (!inner || inner instanceof Uint8Array) return keyShare;
+
+	if (typeof inner === 'object' && !Array.isArray(inner)) {
+		const entries = Object.entries(inner as Record<string, number>);
+		const bytes = new Uint8Array(entries.length);
+		for (const [k, v] of entries) {
+			bytes[Number(k)] = v;
+		}
+		return {
+			...keyShare,
+			pubkey: { ...(keyShare.pubkey as Record<string, unknown>), pubkey: bytes }
+		};
+	}
+
+	return keyShare;
+}
+
 export async function executeTransaction(
 	request: { to: string; data: string; value?: string },
 	userId: string,
@@ -75,68 +100,14 @@ export async function executeTransaction(
 		debug: true
 	});
 
-	const keyShare = JSON.parse(credentials.keyShare);
+	const rawKeyShare = JSON.parse(credentials.keyShare);
+	const keyShare = restoreKeySharePubkey(rawKeyShare);
 
-	// === Phase 1: Key share shape audit ===
-	console.log('[tx-executor] KEY SHARE SHAPE AUDIT:', {
-		topLevelKeys: Object.keys(keyShare),
-		topLevelTypes: Object.fromEntries(
-			Object.entries(keyShare).map(([k, v]) => [k, typeof v])
-		),
-		pubkeyType: typeof keyShare?.pubkey,
-		pubkeyKeys: keyShare?.pubkey ? Object.keys(keyShare.pubkey) : 'N/A',
-		pubkeyPubkeyExists: 'pubkey' in (keyShare?.pubkey ?? {}),
-		pubkeyPubkeyConstructor: keyShare?.pubkey?.pubkey?.constructor?.name,
-		pubkeyPubkeyIsUint8Array: keyShare?.pubkey?.pubkey instanceof Uint8Array,
-		pubkeyPubkeyIsBuffer: Buffer.isBuffer(keyShare?.pubkey?.pubkey),
-		pubkeyPubkeyIsArray: Array.isArray(keyShare?.pubkey?.pubkey),
-		pubkeyPubkeyType: typeof keyShare?.pubkey?.pubkey,
-		pubkeyPubkeyLength: keyShare?.pubkey?.pubkey?.length
-			?? (keyShare?.pubkey?.pubkey ? Object.keys(keyShare.pubkey.pubkey).length : 'N/A'),
-		pubkeyPubkeyFirst3Keys: (() => {
-			const inner = keyShare?.pubkey?.pubkey;
-			if (inner && typeof inner === 'object' && !(inner instanceof Uint8Array)) {
-				return Object.keys(inner).slice(0, 3);
-			}
-			return 'not-a-plain-object';
-		})(),
-		secretShareType: typeof keyShare?.secretShare,
-		secretShareLength: keyShare?.secretShare?.length,
-		secretSharePrefix: typeof keyShare?.secretShare === 'string'
-			? keyShare.secretShare.substring(0, 6) + '...' : 'NOT_STRING',
-		secretShareHasLeadingWhitespace: typeof keyShare?.secretShare === 'string'
-			&& keyShare.secretShare !== keyShare.secretShare.trimStart(),
-		secretShareHasTrailingWhitespace: typeof keyShare?.secretShare === 'string'
-			&& keyShare.secretShare !== keyShare.secretShare.trimEnd(),
-		secretShareHasNewlines: typeof keyShare?.secretShare === 'string'
-			&& /[\r\n]/.test(keyShare.secretShare),
-	});
-
-	console.log('[tx-executor] CREDENTIAL SHAPE CHECK:', {
-		walletIdOk: typeof credentials.walletId === 'string' && credentials.walletId.length > 10,
-		walletApiKeyOk: typeof credentials.walletApiKey === 'string' && credentials.walletApiKey.startsWith('dyn_'),
-		secretShareType: typeof keyShare?.secretShare,
-		secretShareLen: keyShare?.secretShare?.length,
-		pubkeyOuterType: typeof keyShare?.pubkey,
-		pubkeyInnerIsUint8Array: keyShare?.pubkey?.pubkey instanceof Uint8Array,
-		pubkeyInnerCtor: keyShare?.pubkey?.pubkey?.constructor?.name,
-		pubkeyInnerLen: keyShare?.pubkey?.pubkey?.length,
-	});
-
-	// === Phase 4: Credential fingerprint ===
-	const keyShareHash = await crypto.subtle.digest(
-		'SHA-256',
-		new TextEncoder().encode(credentials.keyShare)
-	).then(buf => Buffer.from(buf).toString('hex').substring(0, 16));
-
-	console.log('[tx-executor] CREDENTIAL FINGERPRINT:', {
-		walletId: credentials.walletId,
-		walletAddress: credentials.walletAddress,
-		chainId: credentials.chainId,
-		keyShareHash,
-		walletApiKeyPrefix: credentials.walletApiKey.substring(0, 8) + '...',
-		environmentId: config.dynamicEnvironmentId,
-		retrievedAt: new Date().toISOString(),
+	console.log('[tx-executor] keyShare pubkey restored:', {
+		wasUint8Array: rawKeyShare?.pubkey?.pubkey instanceof Uint8Array,
+		isNowUint8Array: (keyShare.pubkey as any)?.pubkey instanceof Uint8Array,
+		pubkeyLength: (keyShare.pubkey as any)?.pubkey?.length,
+		secretShareLength: (keyShare as any)?.secretShare?.length,
 	});
 
 	console.log('[tx-executor] calling delegatedSignTransaction:', {
