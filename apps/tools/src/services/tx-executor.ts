@@ -71,7 +71,8 @@ export async function executeTransaction(
 
 	const client = createDelegatedEvmWalletClient({
 		environmentId: config.dynamicEnvironmentId,
-		apiKey: config.dynamicSigningKey
+		apiKey: config.dynamicSigningKey,
+		debug: true
 	});
 
 	const keyShare = JSON.parse(credentials.keyShare);
