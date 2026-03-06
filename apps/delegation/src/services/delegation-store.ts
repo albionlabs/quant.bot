@@ -2,6 +2,12 @@ import { createHash } from 'node:crypto';
 import type { DelegationStatus } from '@quant-bot/shared-types';
 import { encrypt, decrypt } from './delegation-crypto.js';
 
+function fp(value: unknown): string {
+	if (value === undefined || value === null) return 'null';
+	const str = typeof value === 'string' ? value : JSON.stringify(value);
+	return createHash('sha256').update(str).digest('hex').substring(0, 12);
+}
+
 interface StoredDelegation {
 	id: string;
 	userId: string;
@@ -40,11 +46,13 @@ export function storeDelegation(
 ): void {
 	const combined = JSON.stringify({ walletApiKey, keyShare });
 
-	// === Phase 5: Pre-encrypt integrity ===
-	console.log('[delegation-store] PRE-ENCRYPT:', {
+	console.log('[delegation-store] PRE_STORE:', {
+		delegationId: id,
 		combinedLength: combined.length,
 		keyShareLength: keyShare.length,
-		combinedHash: createHash('sha256').update(combined).digest('hex').substring(0, 16),
+		fp_combined: fp(combined),
+		fp_keyShare: fp(keyShare),
+		fp_walletApiKey: fp(walletApiKey),
 	});
 
 	const { ciphertext, iv, authTag } = encrypt(combined, encryptionKey);
@@ -85,7 +93,11 @@ export function getActiveDelegation(userId: string): StoredDelegation | undefine
 	return delegation;
 }
 
-export function getDecryptedCredentials(delegationId: string, encryptionKey: string): DecryptedCredentials | undefined {
+export function getDecryptedCredentials(
+	delegationId: string,
+	encryptionKey: string,
+	attemptId?: string
+): DecryptedCredentials | undefined {
 	const delegation = delegations.get(delegationId);
 	if (!delegation) return undefined;
 
@@ -93,18 +105,22 @@ export function getDecryptedCredentials(delegationId: string, encryptionKey: str
 		return undefined;
 	}
 
+	const tag = attemptId ? `[creds:${attemptId}]` : '[creds]';
+
 	const decrypted = decrypt(delegation.encryptedCredentials, delegation.iv, delegation.authTag, encryptionKey);
-
-	// === Phase 5: Post-decrypt integrity ===
-	console.log('[delegation-store] POST-DECRYPT:', {
-		decryptedLength: decrypted.length,
-		decryptedHash: createHash('sha256').update(decrypted).digest('hex').substring(0, 16),
-	});
-
 	const { walletApiKey, keyShare } = JSON.parse(decrypted);
-	console.log('[delegation-store] EXTRACTED keyShare:', {
-		keyShareLength: keyShare.length,
-		keyShareType: typeof keyShare,
+
+	console.log(`${tag} POST_LOAD:`, {
+		decryptedLen: decrypted.length,
+		fp_decrypted: fp(decrypted),
+		keyShareLen: keyShare.length,
+		fp_keyShare: fp(keyShare),
+		fp_walletApiKey: fp(walletApiKey),
+		walletId: delegation.walletId,
+		walletAddress: delegation.walletAddress,
+		chainId: delegation.chainId,
+		delegationId: delegation.id,
+		delegationAge: Date.now() - delegation.createdAt,
 	});
 
 	return {

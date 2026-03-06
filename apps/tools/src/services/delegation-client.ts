@@ -5,13 +5,19 @@ export type { DelegationCredentials };
 export async function fetchDelegationCredentials(
 	userId: string,
 	delegationServiceUrl: string,
-	internalSecret: string
+	internalSecret: string,
+	attemptId?: string
 ): Promise<DelegationCredentials> {
+	const headers: Record<string, string> = {
+		'X-Internal-Secret': internalSecret
+	};
+	if (attemptId) {
+		headers['X-Attempt-Id'] = attemptId;
+	}
+
 	const res = await fetch(`${delegationServiceUrl}/credentials/${encodeURIComponent(userId)}`, {
 		method: 'GET',
-		headers: {
-			'X-Internal-Secret': internalSecret
-		}
+		headers
 	});
 
 	if (!res.ok) {
