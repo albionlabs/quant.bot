@@ -20,6 +20,7 @@ export interface ToolsConfig {
 const DEFAULT_RAIN_STRATEGIES_COMMIT = '2c8192e9137736507041ebff820b0e7b5b29f0d2';
 const DEFAULT_RAINDEX_SETTINGS_URL = `https://raw.githubusercontent.com/rainlanguage/rain.strategies/${DEFAULT_RAIN_STRATEGIES_COMMIT}/settings.yaml`;
 const DEFAULT_RAINDEX_REGISTRY_URL = `https://raw.githubusercontent.com/rainlanguage/rain.strategies/${DEFAULT_RAIN_STRATEGIES_COMMIT}/registry`;
+const DEFAULT_BASE_RPC_URL = 'https://base-mainnet.g.alchemy.com/v2/XPQP0Pta87jBaH6Y1_jKY';
 
 function commandBasename(command: string): string {
 	const parts = command.trim().split(/[\\/]/);
@@ -97,7 +98,7 @@ export function loadConfig(): ToolsConfig {
 	const config: ToolsConfig = {
 		port: parseInt(process.env.TOOLS_PORT ?? '4000', 10),
 		host: process.env.TOOLS_HOST ?? '0.0.0.0',
-		rpcUrl: process.env.BASE_RPC_URL ?? 'https://mainnet.base.org',
+		rpcUrl: process.env.BASE_RPC_URL ?? DEFAULT_BASE_RPC_URL,
 		chainName: process.env.CHAIN_NAME ?? 'base',
 		internalSecret: process.env.INTERNAL_SECRET ?? '',
 		raindexMcpCommand: process.env.RAINDEX_MCP_COMMAND ?? '',

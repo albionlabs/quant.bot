@@ -21,6 +21,7 @@ export interface DynamicEventData {
 
 interface DynamicBridgeProps {
 	environmentId: string
+	rpcUrl?: string
 	onEvent: (event: DynamicEventData) => void
 	onWalletProviderReady?: (
 		provider: {
@@ -48,14 +49,56 @@ function parseOptionalWei(value: unknown): bigint | undefined {
 	return BigInt(value)
 }
 
+function normalizeRpcUrl(value: string | undefined): string | null {
+	if (!value) return null
+	const trimmed = value.trim()
+	if (!trimmed) return null
+	return trimmed
+}
+
+async function rpcRequest(rpcUrl: string, method: string, params: unknown[]): Promise<unknown> {
+	const response = await fetch(rpcUrl, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({
+			jsonrpc: '2.0',
+			id: Date.now(),
+			method,
+			params
+		})
+	})
+
+	if (!response.ok) {
+		throw new Error(`RPC ${method} failed (${response.status})`)
+	}
+
+	const payload = await response.json() as { result?: unknown; error?: { message?: string; code?: number } }
+	if (payload.error) {
+		const message = payload.error.message ?? `RPC error ${payload.error.code ?? 'unknown'}`
+		throw new Error(message)
+	}
+	return payload.result ?? null
+}
+
+function enrichSendTxError(error: unknown): Error {
+	const message = error instanceof Error ? error.message : 'Failed to submit transaction'
+	const lowered = message.toLowerCase()
+	if (lowered.includes('mainnet.base.org') || lowered.includes('403')) {
+		return new Error(`Transaction submission failed due upstream RPC access (403). ${message}`)
+	}
+	return new Error(message)
+}
+
 function DynamicBridge({
 	onEvent,
 	onWalletProviderReady,
 	triggerLogin,
-	triggerLogout
+	triggerLogout,
+	rpcUrl
 }: Omit<DynamicBridgeProps, 'environmentId'>) {
 	const { sdkHasLoaded, user, primaryWallet, handleLogOut, setShowAuthFlow } = useDynamicContext()
 	const userWallets = useUserWallets()
+	const normalizedRpcUrl = normalizeRpcUrl(rpcUrl)
 
 	const embeddedWallet = userWallets.find((wallet) => wallet.connector?.isEmbeddedWallet)
 	const activeWallet = embeddedWallet || primaryWallet
@@ -157,22 +200,57 @@ function DynamicBridge({
 							await activeWallet.switchNetwork(chainId)
 						}
 
-						const walletClient = await activeWallet.getWalletClient(
-							chainId !== undefined ? String(chainId) : undefined
-						)
-						const hash = await walletClient.sendTransaction({
-							account: activeWallet.address as `0x${string}`,
-							to: to as `0x${string}`,
-							data: typeof txInput.data === 'string' ? (txInput.data as `0x${string}`) : undefined,
-							value: parseOptionalWei(txInput.value)
-						})
-						return hash
+						try {
+							const walletClient = await activeWallet.getWalletClient(
+								chainId !== undefined ? String(chainId) : undefined
+							)
+							const hash = await walletClient.sendTransaction({
+								account: activeWallet.address as `0x${string}`,
+								to: to as `0x${string}`,
+								data: typeof txInput.data === 'string' ? (txInput.data as `0x${string}`) : undefined,
+								value: parseOptionalWei(txInput.value)
+							})
+							return hash
+						} catch (error) {
+							// Fallback: if wallet can sign but direct broadcast path fails, relay raw tx via configured RPC.
+							if (normalizedRpcUrl) {
+								try {
+									const walletClient = await activeWallet.getWalletClient(
+										chainId !== undefined ? String(chainId) : undefined
+									)
+									const signedRawTx = await walletClient.request({
+										method: 'eth_signTransaction',
+										params: [{
+											from,
+											to,
+											data: typeof txInput.data === 'string' ? txInput.data : undefined,
+											value: typeof txInput.value === 'string' ? txInput.value : undefined,
+											chainId: chainId !== undefined ? `0x${chainId.toString(16)}` : undefined
+										}]
+									})
+									if (typeof signedRawTx === 'string' && signedRawTx.startsWith('0x')) {
+										const txHash = await rpcRequest(normalizedRpcUrl, 'eth_sendRawTransaction', [signedRawTx])
+										if (typeof txHash === 'string' && txHash.startsWith('0x')) {
+											return txHash
+										}
+									}
+								} catch {
+									// Ignore fallback errors and surface the primary signing/send error below.
+								}
+							}
+
+							throw enrichSendTxError(error)
+						}
 					}
 
 					if (args.method === 'eth_getTransactionReceipt') {
 						const [txHash] = (args.params ?? []) as [string?]
 						if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
 							throw new Error('eth_getTransactionReceipt requires a transaction hash')
+						}
+
+						if (normalizedRpcUrl) {
+							return await rpcRequest(normalizedRpcUrl, 'eth_getTransactionReceipt', [txHash])
 						}
 
 						const walletClient = await activeWallet.getWalletClient()

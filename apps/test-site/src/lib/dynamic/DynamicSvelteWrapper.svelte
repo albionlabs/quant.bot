@@ -14,6 +14,8 @@
 	} from '$lib/stores/dynamicStore'
 
 	let environmentId = $derived(browser ? env.PUBLIC_DYNAMIC_ENVIRONMENT_ID : '')
+	const DEFAULT_BASE_RPC_URL = 'https://base-mainnet.g.alchemy.com/v2/XPQP0Pta87jBaH6Y1_jKY'
+	let baseRpcUrl = $derived(browser ? (env.PUBLIC_BASE_RPC_URL ?? DEFAULT_BASE_RPC_URL) : '')
 
 	$effect(() => {
 		if (browser && !environmentId) {
@@ -73,6 +75,7 @@
 {#if browser && environmentId}
 	<react.DynamicReactProvider
 		{environmentId}
+		rpcUrl={baseRpcUrl || undefined}
 		onEvent={handleDynamicEvent}
 		onWalletProviderReady={handleWalletProviderReady}
 		triggerLogin={$dynamicTriggerLogin}
