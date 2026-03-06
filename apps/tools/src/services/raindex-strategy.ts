@@ -161,7 +161,7 @@ export async function deployStrategyCalldata(
 
 	// When dotrainSource is provided, a second MCP call (raindex_compose_rainlang) is made
 	// to return the composed Rainlang for user review before execution.
-	if (params.dotrainSource) {
+	if (typeof params.dotrainSource === 'string' && params.dotrainSource.trim() !== '') {
 		const composed = await composeStrategyRainlang(config, {
 			dotrainSource: params.dotrainSource,
 			deploymentKey: params.deploymentKey

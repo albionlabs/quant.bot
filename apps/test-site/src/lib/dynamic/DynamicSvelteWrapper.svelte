@@ -76,15 +76,22 @@
 
 			case 'delegation_complete':
 				dynamicDelegationComplete.set(true)
+				dynamicError.set(null)
 				break
 
 			case 'delegation_revoked':
 				dynamicRevocationComplete.set(true)
+				dynamicError.set(null)
 				break
 
-			case 'delegation_status':
-				dynamicDelegatedStatus.set(event.payload?.isDelegated ?? null)
+			case 'delegation_status': {
+				const delegated = event.payload?.isDelegated ?? null
+				dynamicDelegatedStatus.set(delegated)
+				if (delegated === true) {
+					dynamicError.set(null)
+				}
 				break
+			}
 		}
 	}
 </script>

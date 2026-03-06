@@ -99,6 +99,14 @@ export async function raindexStrategyRoutes(app: FastifyInstance, config: ToolsC
 
 	app.post<{ Body: DeployStrategyRequest }>('/api/order/strategy/deploy', async (request, reply) => {
 		console.log('[route] POST /api/order/strategy/deploy body=%s', JSON.stringify(request.body).slice(0, 2000));
+		const rawDotrainSource = (request.body as { dotrainSource?: unknown }).dotrainSource;
+		let dotrainSource: string | undefined;
+		if (rawDotrainSource !== undefined) {
+			if (!isNonEmptyString(rawDotrainSource)) {
+				return badRequest(reply, '`dotrainSource` must be a non-empty string when provided');
+			}
+			dotrainSource = rawDotrainSource;
+		}
 
 		if (!isNonEmptyString(request.body.strategyKey)) {
 			return badRequest(reply, '`strategyKey` is required');
@@ -123,7 +131,10 @@ export async function raindexStrategyRoutes(app: FastifyInstance, config: ToolsC
 		}
 
 		try {
-			const result = await deployStrategyCalldata(config, request.body);
+			const result = await deployStrategyCalldata(config, {
+				...request.body,
+				dotrainSource
+			});
 			console.log('[route] deploy succeeded: to=%s chainId=%d', result.to, result.chainId);
 			return result;
 		} catch (err) {

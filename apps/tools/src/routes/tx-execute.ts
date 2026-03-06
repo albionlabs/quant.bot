@@ -46,12 +46,15 @@ export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig)
 		app.log.info({ reqId }, 'Received /api/evm/execute request');
 
 		if (!to || !/^0x[a-fA-F0-9]{40}$/.test(to)) {
+			app.log.warn({ reqId, reason: 'invalid_to' }, '/api/evm/execute rejected');
 			return reply.status(400).send({ error: 'Invalid "to" address' });
 		}
 		if (!data || !data.startsWith('0x')) {
+			app.log.warn({ reqId, reason: 'invalid_data' }, '/api/evm/execute rejected');
 			return reply.status(400).send({ error: 'Invalid "data" field' });
 		}
 		if (!executionToken || typeof executionToken !== 'string') {
+			app.log.warn({ reqId, reason: 'missing_execution_token' }, '/api/evm/execute rejected');
 			return reply.status(400).send({ error: 'executionToken is required' });
 		}
 
@@ -60,6 +63,7 @@ export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig)
 			userId = await resolveUserIdFromExecutionToken(executionToken, config.internalSecret);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'Invalid execution token';
+			app.log.warn({ reqId, reason: 'invalid_execution_token', message }, '/api/evm/execute rejected');
 			return reply.status(401).send({ error: message });
 		}
 

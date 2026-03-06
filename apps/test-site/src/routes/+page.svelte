@@ -337,6 +337,8 @@
 				serverRevocationConfirmed = false
 				delegating = false
 				clearDelegationWatchdog()
+				error = null
+				dynamicError.set(null)
 			} else if (revoking) {
 				if (revokeInitiatedWithBackendActive || serverRevocationConfirmed) {
 					serverRevocationConfirmed = true
