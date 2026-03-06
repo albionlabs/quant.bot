@@ -200,10 +200,35 @@ function DynamicBridge({
 							await activeWallet.switchNetwork(chainId)
 						}
 
+						const walletClient = await activeWallet.getWalletClient(
+							chainId !== undefined ? String(chainId) : undefined
+						)
+
+						// Prefer signing locally and broadcasting via configured RPC to avoid wallet-internal RPC assumptions.
+						if (normalizedRpcUrl) {
+							try {
+								const signedRawTx = await walletClient.request({
+									method: 'eth_signTransaction',
+									params: [{
+										from,
+										to,
+										data: typeof txInput.data === 'string' ? txInput.data : undefined,
+										value: typeof txInput.value === 'string' ? txInput.value : undefined,
+										chainId: chainId !== undefined ? `0x${chainId.toString(16)}` : undefined
+									}]
+								})
+								if (typeof signedRawTx === 'string' && signedRawTx.startsWith('0x')) {
+									const txHash = await rpcRequest(normalizedRpcUrl, 'eth_sendRawTransaction', [signedRawTx])
+									if (typeof txHash === 'string' && txHash.startsWith('0x')) {
+										return txHash
+									}
+								}
+							} catch {
+								// If sign+raw-broadcast isn't supported, continue to wallet send path below.
+							}
+						}
+
 						try {
-							const walletClient = await activeWallet.getWalletClient(
-								chainId !== undefined ? String(chainId) : undefined
-							)
 							const hash = await walletClient.sendTransaction({
 								account: activeWallet.address as `0x${string}`,
 								to: to as `0x${string}`,
@@ -212,33 +237,6 @@ function DynamicBridge({
 							})
 							return hash
 						} catch (error) {
-							// Fallback: if wallet can sign but direct broadcast path fails, relay raw tx via configured RPC.
-							if (normalizedRpcUrl) {
-								try {
-									const walletClient = await activeWallet.getWalletClient(
-										chainId !== undefined ? String(chainId) : undefined
-									)
-									const signedRawTx = await walletClient.request({
-										method: 'eth_signTransaction',
-										params: [{
-											from,
-											to,
-											data: typeof txInput.data === 'string' ? txInput.data : undefined,
-											value: typeof txInput.value === 'string' ? txInput.value : undefined,
-											chainId: chainId !== undefined ? `0x${chainId.toString(16)}` : undefined
-										}]
-									})
-									if (typeof signedRawTx === 'string' && signedRawTx.startsWith('0x')) {
-										const txHash = await rpcRequest(normalizedRpcUrl, 'eth_sendRawTransaction', [signedRawTx])
-										if (typeof txHash === 'string' && txHash.startsWith('0x')) {
-											return txHash
-										}
-									}
-								} catch {
-									// Ignore fallback errors and surface the primary signing/send error below.
-								}
-							}
-
 							throw enrichSendTxError(error)
 						}
 					}
