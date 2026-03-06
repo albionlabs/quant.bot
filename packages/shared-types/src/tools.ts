@@ -10,6 +10,7 @@ export interface NpvResponse {
 
 export interface EvmSimulateRequest {
 	to: string;
+	from?: string;
 	data?: string;
 	value?: string;
 	abi?: unknown[];

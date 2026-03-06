@@ -9,9 +9,12 @@ export async function simulateTransaction(
 ): Promise<EvmSimulateResponse> {
 	const client = createBasePublicClient(rpcUrl, chainName);
 
+	const from = request.from as Address | undefined;
+
 	try {
 		if (request.abi && request.functionName) {
 			const result = await client.simulateContract({
+				account: from,
 				address: request.to as Address,
 				abi: request.abi,
 				functionName: request.functionName,
@@ -20,6 +23,7 @@ export async function simulateTransaction(
 			});
 
 			const gasEstimate = await client.estimateGas({
+				account: from,
 				to: request.to as Address,
 				data: request.data as Hex | undefined,
 				value: request.value ? BigInt(request.value) : undefined
@@ -34,12 +38,14 @@ export async function simulateTransaction(
 		}
 
 		const callResult = await client.call({
+			account: from,
 			to: request.to as Address,
 			data: request.data as Hex | undefined,
 			value: request.value ? BigInt(request.value) : undefined
 		});
 
 		const gasEstimate = await client.estimateGas({
+			account: from,
 			to: request.to as Address,
 			data: request.data as Hex | undefined,
 			value: request.value ? BigInt(request.value) : undefined
