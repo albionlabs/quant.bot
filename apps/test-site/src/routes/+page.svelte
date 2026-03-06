@@ -30,11 +30,14 @@
 	let delegationStatus = $state<DelegationStatusResponse | null>(null)
 	let loadingDelegation = $state(false)
 	let lastStatusToken = $state<string | null>(null)
+	let lastObservedDynamicDelegated = $state<boolean | null>(null)
 	let delegationWatchdog: ReturnType<typeof setTimeout> | null = null
 	let revocationRecoveryInFlight = $state(false)
 	let serverRevocationConfirmed = $state(false)
 	let revokeInitiatedWithBackendActive = $state(false)
 	const DELEGATION_UI_TIMEOUT_MS = 120_000
+
+	type DelegationUiPhase = 'checking' | 'notDelegated' | 'delegatedReady' | 'delegatedSyncNeeded'
 
 	// When Dynamic authenticates, auto-SIWE to gateway
 	let lastSignedAddress: string | null = null
@@ -81,15 +84,6 @@
 
 			const { token, user } = await res.json()
 			setAuth(token, walletAddress, user.id)
-
-			// Fetch delegation status
-			try {
-				delegationStatus = await getDelegationStatus(gatewayUrl, token)
-			} catch (e) {
-				error = e instanceof Error
-					? `Signed in, but failed to fetch delegation status: ${e.message}`
-					: 'Signed in, but failed to fetch delegation status'
-			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Sign-in failed'
 			lastSignedAddress = null
@@ -125,6 +119,20 @@
 		if (status.syncRequired === true) return false
 		return status.hasCredentials !== false
 	}
+
+	function resolveDelegationUiPhase(
+		walletDelegated: boolean | null,
+		status: DelegationStatusResponse | null
+	): DelegationUiPhase {
+		if (walletDelegated === null) return 'checking'
+		if (walletDelegated === false) return 'notDelegated'
+		if (!status) return 'checking'
+		return isBackendDelegationReady(status) ? 'delegatedReady' : 'delegatedSyncNeeded'
+	}
+
+	const delegationUiPhase = $derived(
+		resolveDelegationUiPhase($dynamicDelegatedStatus, delegationStatus)
+	)
 
 	async function waitForDelegationState(expectedActive: boolean, timeoutMs = 45_000, intervalMs = 2_000): Promise<boolean> {
 		const token = $auth.token
@@ -230,16 +238,34 @@
 		}
 	})
 
-	// Ensure delegation status is fetched whenever auth token becomes available.
+	// Canonical status flow:
+	// 1) Dynamic wallet delegation state
+	// 2) Only if delegated=true, fetch backend credential state
 	$effect(() => {
 		const token = $auth.token
 		if (!token) {
 			lastStatusToken = null
+			lastObservedDynamicDelegated = null
+			delegationStatus = null
 			return
 		}
-		if (token === lastStatusToken) return
-		lastStatusToken = token
-		fetchDelegationStatus()
+		if (token !== lastStatusToken) {
+			lastStatusToken = token
+			lastObservedDynamicDelegated = null
+			delegationStatus = null
+		}
+
+		const walletDelegated = $dynamicDelegatedStatus
+		if (walletDelegated === lastObservedDynamicDelegated) return
+		lastObservedDynamicDelegated = walletDelegated
+
+		if (walletDelegated === true) {
+			void fetchDelegationStatus()
+			return
+		}
+
+		// No wallet delegation means backend key-state is not relevant for UI.
+		delegationStatus = null
 	})
 
 	function handleDelegate() {
@@ -300,6 +326,10 @@
 
 	async function fetchDelegationStatus() {
 		if (!$auth.token) return
+		if ($dynamicDelegatedStatus !== true) {
+			delegationStatus = null
+			return
+		}
 		loadingDelegation = true
 		try {
 			delegationStatus = await getDelegationStatus(gatewayUrl, $auth.token)
@@ -322,32 +352,6 @@
 			loadingDelegation = false
 		}
 	}
-
-	function isDelegationActiveUi(): boolean {
-		if (serverRevocationConfirmed && delegationStatus?.active === false) {
-			return false
-		}
-
-		if ($dynamicDelegatedStatus === true) {
-			return true
-		}
-
-		if ($dynamicDelegatedStatus === false) {
-			return false
-		}
-
-		return hasBackendUsableCredentials()
-	}
-
-	function hasBackendUsableCredentials(): boolean {
-		return isBackendDelegationReady(delegationStatus)
-	}
-
-	function isDelegationSyncRequired(): boolean {
-		// Required sequence:
-		// 1) wallet delegated? 2) backend has keys? if not => require sync.
-		return $dynamicDelegatedStatus === true && !hasBackendUsableCredentials()
-	}
 </script>
 
 <div class="page">
@@ -355,30 +359,43 @@
 		<div class="status-bar">
 			<span class="addr">{$auth.address?.slice(0, 6)}...{$auth.address?.slice(-4)}</span>
 				<div class="status-bar-actions">
-					{#if isDelegationActiveUi()}
+					{#if delegationUiPhase === 'delegatedReady'}
 						<span class="delegation-badge active">
-							{#if isDelegationSyncRequired()}
-								Delegated (Sync Needed)
-							{:else}
-								Delegation Active
-							{/if}
+							Delegation Active
 						</span>
-						{#if isDelegationSyncRequired()}
-							<button class="btn btn-sm btn-secondary" onclick={handleDelegate} disabled={delegating || revoking}>
-								{delegating ? 'Re-syncing...' : 'Re-sync'}
-							</button>
-						{/if}
 						<button class="btn btn-sm btn-secondary" onclick={handleRevokeDelegation} disabled={revoking || delegating}>
 							{revoking ? 'Revoking...' : 'Revoke'}
 						</button>
 						<button class="btn btn-sm btn-secondary" onclick={fetchDelegationStatus} disabled={loadingDelegation || delegating || revoking}>
 							{loadingDelegation ? 'Checking...' : 'Refresh'}
 						</button>
-					{:else}
+					{:else if delegationUiPhase === 'delegatedSyncNeeded'}
+						<span class="delegation-badge active">Delegated (Sync Needed)</span>
+						<button class="btn btn-sm btn-secondary" onclick={handleDelegate} disabled={delegating || revoking}>
+							{delegating ? 'Re-syncing...' : 'Re-sync'}
+						</button>
+						<button class="btn btn-sm btn-secondary" onclick={handleRevokeDelegation} disabled={revoking || delegating}>
+							{revoking ? 'Revoking...' : 'Revoke'}
+						</button>
+						<button class="btn btn-sm btn-secondary" onclick={fetchDelegationStatus} disabled={loadingDelegation || delegating || revoking}>
+							{loadingDelegation ? 'Checking...' : 'Refresh'}
+						</button>
+					{:else if delegationUiPhase === 'notDelegated'}
 						<span class="delegation-badge inactive">No Delegation</span>
 						<button class="btn btn-sm" onclick={handleDelegate} disabled={delegating || revoking}>
 							{delegating ? 'Delegating...' : 'Delegate'}
 						</button>
+						<button class="btn btn-sm btn-secondary" onclick={fetchDelegationStatus} disabled={loadingDelegation || delegating || revoking}>
+							{loadingDelegation ? 'Checking...' : 'Refresh'}
+						</button>
+					{:else}
+						<span class="delegation-badge checking">
+							{#if $dynamicDelegatedStatus === true}
+								Delegated (Checking Keys...)
+							{:else}
+								Checking Delegation...
+							{/if}
+						</span>
 						<button class="btn btn-sm btn-secondary" onclick={fetchDelegationStatus} disabled={loadingDelegation || delegating || revoking}>
 							{loadingDelegation ? 'Checking...' : 'Refresh'}
 						</button>
@@ -458,6 +475,11 @@
 	.delegation-badge.inactive {
 		background: #f3f4f6;
 		color: #6b7280;
+	}
+
+	.delegation-badge.checking {
+		background: #fef3c7;
+		color: #92400e;
 	}
 
 	.chat-container {
