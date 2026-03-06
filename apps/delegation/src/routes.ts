@@ -149,6 +149,11 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 		const walletAddress = publicKey.toLowerCase();
 		const chainId = CHAIN_ID_MAP[chain] ?? 8453;
 		const delegationId = randomUUID();
+
+		// Revoke any existing delegations for this wallet before storing the new one.
+		// This prevents the subsequent revoked webhook from revoking the new delegation.
+		revokeByWalletId(walletId);
+
 		storeDelegation(
 			delegationId,
 			walletAddress,
@@ -186,10 +191,12 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 			return reply.status(400).send({ error: 'walletId is required' });
 		}
 
-		const revoked = revokeByWalletId(walletId);
+		// Use a 60s grace period so a revoked webhook for the *old* delegation
+		// doesn't destroy a *new* delegation created moments before (re-delegation race).
+		const REVOKE_GRACE_MS = 60_000;
+		const revoked = revokeByWalletId(walletId, REVOKE_GRACE_MS);
 		if (!revoked) {
-			// Idempotent case: delegation may already be locally reconciled (e.g. explicit /revoke call).
-			app.log.info({ userId, walletId }, 'Delegation revocation webhook already reconciled');
+			app.log.info({ userId, walletId }, 'Delegation revocation webhook skipped (grace period or already reconciled)');
 			return { status: 'already_revoked' };
 		}
 

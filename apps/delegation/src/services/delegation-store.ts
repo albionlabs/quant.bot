@@ -162,11 +162,13 @@ export function getDelegation(delegationId: string): StoredDelegation | undefine
 	return delegations.get(delegationId);
 }
 
-export function revokeByWalletId(walletId: string): boolean {
+export function revokeByWalletId(walletId: string, graceMs = 0): boolean {
+	const cutoff = Date.now() - graceMs;
 	let revoked = false;
 	for (const delegation of delegations.values()) {
 		if (delegation.walletId !== walletId) continue;
 		if (delegation.status !== 'active') continue;
+		if (graceMs > 0 && delegation.createdAt > cutoff) continue;
 		if (revokeDelegation(delegation.id)) {
 			revoked = true;
 		}
