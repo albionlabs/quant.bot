@@ -100,12 +100,21 @@ function DynamicBridge({
 	const wasAuthenticatedRef = useRef(false)
 	const hasEmittedReadyRef = useRef(false)
 	const lastEmittedWalletRef = useRef<string | null>(null)
+	const delegationSampleRef = useRef<{ last: boolean | null; streak: number }>({
+		last: null,
+		streak: 0
+	})
 
 	const onEventRef = useRef(onEvent)
 	const onWalletProviderReadyRef = useRef(onWalletProviderReady)
 
 	useEffect(() => { onEventRef.current = onEvent }, [onEvent])
 	useEffect(() => { onWalletProviderReadyRef.current = onWalletProviderReady }, [onWalletProviderReady])
+
+	useEffect(() => {
+		// Reset delegation sampling whenever auth/wallet context changes.
+		delegationSampleRef.current = { last: null, streak: 0 }
+	}, [user?.userId, embeddedWallet?.address])
 
 	// Notify ready
 	useEffect(() => {
@@ -224,8 +233,29 @@ function DynamicBridge({
 
 	const isWalletDelegated = () => getWalletDelegationState() === true
 
+	const getStabilizedWalletDelegationState = (): boolean | null => {
+		const raw = getWalletDelegationState()
+		if (raw === null) return null
+
+		const sample = delegationSampleRef.current
+		if (sample.last === raw) {
+			sample.streak += 1
+		} else {
+			sample.last = raw
+			sample.streak = 1
+		}
+
+		// Avoid rendering false-positive "delegated" immediately after auth.
+		// Require two consecutive true samples.
+		if (raw === true && sample.streak < 2) {
+			return null
+		}
+
+		return raw
+	}
+
 	const emitDelegationStatus = () => {
-		const delegated = getWalletDelegationState()
+		const delegated = getStabilizedWalletDelegationState()
 		onEventRef.current({
 			type: 'delegation_status',
 			payload: { isDelegated: delegated ?? undefined }

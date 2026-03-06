@@ -49,6 +49,7 @@
 						walletType: event.payload.walletType
 					}
 					dynamicSession.set(session)
+					dynamicDelegatedStatus.set(null)
 					dynamicError.set(null)
 				}
 				dynamicLoading.set(false)
