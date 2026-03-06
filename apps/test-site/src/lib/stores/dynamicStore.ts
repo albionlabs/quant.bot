@@ -23,13 +23,6 @@ export const dynamicReady = writable<boolean>(false)
 // Action triggers (Svelte → React)
 export const dynamicTriggerLogin = writable<boolean>(false)
 export const dynamicTriggerLogout = writable<boolean>(false)
-export const dynamicTriggerDelegate = writable<boolean>(false)
-export const dynamicTriggerRevoke = writable<boolean>(false)
-
-// Delegation state
-export const dynamicDelegationComplete = writable<boolean>(false)
-export const dynamicRevocationComplete = writable<boolean>(false)
-export const dynamicDelegatedStatus = writable<boolean | null>(null)
 
 // Wallet provider (set by DynamicSvelteWrapper when React exposes it)
 export type WalletProvider = {
@@ -49,14 +42,4 @@ export function loginWithDynamic(): void {
 export function logoutDynamic(): void {
 	dynamicLoading.set(true)
 	pulseTrigger(dynamicTriggerLogout)
-}
-
-export function triggerDelegation(): void {
-	dynamicDelegationComplete.set(false)
-	pulseTrigger(dynamicTriggerDelegate)
-}
-
-export function triggerRevocation(): void {
-	dynamicRevocationComplete.set(false)
-	pulseTrigger(dynamicTriggerRevoke)
 }

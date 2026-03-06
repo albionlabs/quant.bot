@@ -9,12 +9,7 @@
 		dynamicReady,
 		dynamicTriggerLogin,
 		dynamicTriggerLogout,
-		dynamicTriggerDelegate,
-		dynamicTriggerRevoke,
 		dynamicWalletProvider,
-		dynamicDelegationComplete,
-		dynamicRevocationComplete,
-		dynamicDelegatedStatus,
 		type DynamicSession
 	} from '$lib/stores/dynamicStore'
 
@@ -49,7 +44,6 @@
 						walletType: event.payload.walletType
 					}
 					dynamicSession.set(session)
-					dynamicDelegatedStatus.set(null)
 					dynamicError.set(null)
 				}
 				dynamicLoading.set(false)
@@ -57,7 +51,6 @@
 
 			case 'logout':
 				dynamicSession.set(null)
-				dynamicDelegatedStatus.set(null)
 				dynamicLoading.set(false)
 				break
 
@@ -73,18 +66,6 @@
 				dynamicError.set(event.payload?.error || 'Unknown error')
 				dynamicLoading.set(false)
 				break
-
-			case 'delegation_complete':
-				dynamicDelegationComplete.set(true)
-				break
-
-			case 'delegation_revoked':
-				dynamicRevocationComplete.set(true)
-				break
-
-			case 'delegation_status':
-				dynamicDelegatedStatus.set(event.payload?.isDelegated ?? null)
-				break
 		}
 	}
 </script>
@@ -96,7 +77,5 @@
 		onWalletProviderReady={handleWalletProviderReady}
 		triggerLogin={$dynamicTriggerLogin}
 		triggerLogout={$dynamicTriggerLogout}
-		triggerDelegate={$dynamicTriggerDelegate}
-		triggerRevoke={$dynamicTriggerRevoke}
 	></react.DynamicReactProvider>
 {/if}
