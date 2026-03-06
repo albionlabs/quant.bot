@@ -1,0 +1,3 @@
+[submodule "services/raindex-mcp"]
+	path = services/raindex-mcp
+	url = git@github.com:alastairong1/raindex-mcp.git
