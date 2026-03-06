@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { DisplayMessage } from '../types.js';
+	import type { TxSignRequestPayload } from '../types.js';
+	import { signTransactionRequest } from '../stores/wallet.js';
 
 	let { message }: { message: DisplayMessage } = $props();
 
@@ -12,6 +14,48 @@
 	const DEFAULT_REVIEW_TITLE = 'Rainlang Strategy Review';
 	const taggedReviewRegex = /<rainlang-review(?:\s+title="([^"]*)")?>([\s\S]*?)<\/rainlang-review>/i;
 	const fencedReviewRegex = /```rainlang\s*([\s\S]*?)```/i;
+	const txSignRequestRegex = /<tx-sign-request>([\s\S]*?)<\/tx-sign-request>/i;
+
+	type TxSignRequestView = {
+		request: TxSignRequestPayload;
+		contentWithoutRequest: string;
+	};
+
+	function isTxSignRequestPayload(value: unknown): value is TxSignRequestPayload {
+		if (!value || typeof value !== 'object') return false;
+		const candidate = value as Record<string, unknown>;
+		return (
+			candidate.kind === 'evm_send_transaction'
+			&& typeof candidate.chainId === 'number'
+			&& typeof candidate.from === 'string'
+			&& typeof candidate.to === 'string'
+			&& typeof candidate.data === 'string'
+			&& typeof candidate.value === 'string'
+		);
+	}
+
+	function parseTxSignRequest(content: string): TxSignRequestView | null {
+		const match = content.match(txSignRequestRegex);
+		if (!match) return null;
+
+		const [fullMatch, jsonPayload] = match;
+		try {
+			const parsed = JSON.parse((jsonPayload ?? '').trim()) as unknown;
+			if (!isTxSignRequestPayload(parsed)) return null;
+			return {
+				request: parsed,
+				contentWithoutRequest: content.replace(fullMatch, '').trim()
+			};
+		} catch {
+			return null;
+		}
+	}
+
+	function shortenHex(value: string, head = 12, tail = 10): string {
+		if (!value.startsWith('0x')) return value;
+		if (value.length <= head + tail + 3) return value;
+		return `${value.slice(0, head)}...${value.slice(-tail)}`;
+	}
 
 	function parseRainlangReview(content: string): RainlangReviewPayload | null {
 		const taggedMatch = content.match(taggedReviewRegex);
@@ -38,12 +82,32 @@
 	}
 
 	let isReviewModalOpen = $state(false);
+	let isSigningTx = $state(false);
+	let signedTxHash = $state<string | null>(null);
+	let signingError = $state<string | null>(null);
 
 	const isUser = $derived(message.role === 'user');
 	const isSystem = $derived(message.role === 'system');
-	const rainlangReview = $derived(parseRainlangReview(message.content));
-	const displayContent = $derived(rainlangReview?.contentWithoutReview ?? message.content);
+	const txSignRequest = $derived(parseTxSignRequest(message.content));
+	const contentWithoutTxRequest = $derived(txSignRequest?.contentWithoutRequest ?? message.content);
+	const rainlangReview = $derived(parseRainlangReview(contentWithoutTxRequest));
+	const displayContent = $derived(rainlangReview?.contentWithoutReview ?? contentWithoutTxRequest);
 	const timeStr = $derived(new Date(message.timestamp).toLocaleTimeString());
+
+	async function handleSignTxRequest() {
+		if (!txSignRequest || isSigningTx || signedTxHash) return;
+
+		isSigningTx = true;
+		signingError = null;
+		try {
+			const hash = await signTransactionRequest(txSignRequest.request);
+			signedTxHash = hash;
+		} catch (error) {
+			signingError = error instanceof Error ? error.message : 'Failed to sign transaction';
+		} finally {
+			isSigningTx = false;
+		}
+	}
 </script>
 
 <div class="chat-bubble" class:user={isUser} class:assistant={!isUser && !isSystem} class:system={isSystem}>
@@ -53,6 +117,31 @@
 		{/if}
 		{#if rainlangReview}
 			<button class="review-btn" onclick={() => (isReviewModalOpen = true)}>Review Rainlang Strategy</button>
+		{/if}
+		{#if txSignRequest && !isUser && !isSystem}
+			<button class="sign-btn" onclick={handleSignTxRequest} disabled={isSigningTx || !!signedTxHash}>
+				{#if signedTxHash}
+					Transaction Submitted
+				{:else if isSigningTx}
+					Waiting for Signature...
+				{:else}
+					Sign Transaction
+				{/if}
+			</button>
+			{#if signedTxHash}
+				<div class="sign-status success">Tx Hash: <code>{shortenHex(signedTxHash, 14, 12)}</code></div>
+			{/if}
+			{#if signingError}
+				<div class="sign-status error">{signingError}</div>
+			{/if}
+			<details class="tx-details">
+				<summary>Transaction Details</summary>
+				<div class="tx-row"><span>From</span><code>{txSignRequest.request.from}</code></div>
+				<div class="tx-row"><span>To</span><code>{txSignRequest.request.to}</code></div>
+				<div class="tx-row"><span>Value (wei)</span><code>{txSignRequest.request.value}</code></div>
+				<div class="tx-row"><span>Chain</span><code>{txSignRequest.request.chainId}</code></div>
+				<div class="tx-row"><span>Calldata</span><code>{shortenHex(txSignRequest.request.data, 14, 12)}</code></div>
+			</details>
 		{/if}
 	</div>
 	<div class="bubble-time">{timeStr}</div>
@@ -154,6 +243,69 @@
 
 	.review-btn:hover {
 		filter: brightness(0.95);
+	}
+
+	.sign-btn {
+		align-self: flex-start;
+		padding: 0.45rem 0.7rem;
+		border-radius: 0.45rem;
+		border: 1px solid #2563eb;
+		background: #2563eb;
+		color: #ffffff;
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.sign-btn:disabled {
+		cursor: not-allowed;
+		opacity: 0.7;
+	}
+
+	.sign-status {
+		font-size: 0.76rem;
+		padding: 0.35rem 0.5rem;
+		border-radius: 0.4rem;
+	}
+
+	.sign-status.success {
+		background: #ecfdf3;
+		color: #166534;
+	}
+
+	.sign-status.error {
+		background: #fef2f2;
+		color: #991b1b;
+	}
+
+	.tx-details {
+		font-size: 0.75rem;
+		border: 1px solid #d1d5db;
+		border-radius: 0.4rem;
+		padding: 0.35rem 0.5rem;
+		background: #f8fafc;
+	}
+
+	.tx-details summary {
+		cursor: pointer;
+		font-weight: 600;
+		color: #334155;
+	}
+
+	.tx-row {
+		display: flex;
+		gap: 0.4rem;
+		margin-top: 0.3rem;
+		align-items: baseline;
+	}
+
+	.tx-row span {
+		color: #475569;
+		min-width: 4.5rem;
+	}
+
+	.tx-row code {
+		word-break: break-all;
 	}
 
 	.review-modal-backdrop {

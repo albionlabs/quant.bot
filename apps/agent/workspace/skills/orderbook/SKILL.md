@@ -4,8 +4,8 @@ description: "Deploy Raindex orderbook strategies via MCP-backed tooling"
 version: "3.0.0"
 ---
 
-Backend-managed credentials are used automatically by the tools service.
-Users should never be asked for API keys.
+Use backend tools to compose/simulate deployment calldata, then request client signature for execution.
+Users should never be asked for API keys or raw execution tokens.
 All requests use `curl` via the exec tool against the internal tools service.
 Base URL: http://quant-bot-tools.internal:4000
 
@@ -129,4 +129,4 @@ Before proceeding to signing/execution for any strategy transaction:
 ```
 - Then ask for explicit execute confirmation.
 
-Use this skill when the user wants to deploy Raindex strategies and generate calldata for signing. Always simulate returned calldata before execution.
+Use this skill when the user wants to deploy Raindex strategies and generate calldata for signing. Always simulate returned calldata before requesting signature.

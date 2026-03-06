@@ -25,6 +25,27 @@ export interface EvmSimulateResponse {
 	decoded?: unknown;
 }
 
+export interface TxRequestSignatureRequest {
+	to: string;
+	data: string;
+	value?: string;
+	executionToken: string;
+}
+
+export interface TxRequestSignatureResponse {
+	kind: 'evm_send_transaction';
+	chainId: number;
+	from: string;
+	to: string;
+	data: string;
+	value: string;
+	summary: {
+		to: string;
+		valueWei: string;
+		dataBytes: number;
+	};
+}
+
 export interface TxExecuteRequest {
 	to: string;
 	data: string;

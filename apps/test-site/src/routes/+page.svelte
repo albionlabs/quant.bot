@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public'
-	import { ChatWidget, setAuth, clearAuth, auth } from '@quant-bot/chat-widget'
+	import { ChatWidget, setAuth, clearAuth, auth, setWalletProvider } from '@quant-bot/chat-widget'
 	import {
 		dynamicSession,
 		dynamicLoading,
@@ -41,6 +41,10 @@
 
 	// When Dynamic authenticates, auto-SIWE to gateway
 	let lastSignedAddress: string | null = null
+	$effect(() => {
+		setWalletProvider($dynamicWalletProvider)
+	})
+
 	$effect(() => {
 		const session = $dynamicSession
 		if (session?.walletAddress && session.walletAddress !== lastSignedAddress && !signingIn && !$auth.authenticated) {

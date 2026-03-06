@@ -1,13 +1,13 @@
 ---
 name: "Transaction Executor"
-description: "Execute transactions on Base using delegated wallet signing"
-version: "2.0.0"
+description: "Prepare client-side transaction signature requests on Base"
+version: "3.0.0"
 ---
 
-To execute a transaction on Base, use `curl` via the exec tool:
+To request a client signature on Base, use `curl` via the exec tool:
 
 ```bash
-curl -s -X POST http://quant-bot-tools.internal:4000/api/evm/execute \
+curl -s -X POST http://quant-bot-tools.internal:4000/api/evm/request-signature \
   -H 'Content-Type: application/json' \
   -d '{"to": "0x...", "data": "0x...", "value": "0", "executionToken": "<trusted-execution-token>"}'
 ```
@@ -17,17 +17,34 @@ Parameters:
 - `data`: Encoded calldata (hex string starting with 0x)
 - `value`: Optional ETH value in wei as string
 - `executionToken`: Required short-lived token from trusted gateway context. Never ask the user for this.
-- `delegationId`: Optional (ignored by executor path).
-- `userId`: Optional legacy field. Do not ask the user for this.
 
 Response:
 ```json
 {
-  "txHash": "0x...",
-  "blockNumber": 12345678,
-  "status": "success"
+  "kind": "evm_send_transaction",
+  "chainId": 8453,
+  "from": "0x...",
+  "to": "0x...",
+  "data": "0x...",
+  "value": "0",
+  "summary": {
+    "to": "0x...",
+    "valueWei": "0",
+    "dataBytes": 123
+  }
 }
 ```
+
+When returning the final assistant response that asks user to sign, always include this hidden machine-readable block exactly once:
+
+```text
+<tx-sign-request>{"kind":"evm_send_transaction",...}</tx-sign-request>
+```
+
+Rules for the tag:
+- Must be valid JSON copied from the tool response.
+- Do not alter `to`, `data`, `value`, `chainId`, or `from`.
+- Keep human-facing explanation outside the tag.
 
 CRITICAL RULES:
 1. ALWAYS simulate the transaction first using the EVM Simulator skill
@@ -38,6 +55,6 @@ CRITICAL RULES:
 ...composed Rainlang...
 </rainlang-review>
 ```
-4. ALWAYS ask for explicit user confirmation before executing (after any requested review)
+4. ALWAYS ask for explicit user confirmation before requesting signature (after any requested review)
 5. Display the simulation results and explain what the transaction will do
-6. Never execute a transaction if the simulation fails
+6. Never request signature if the simulation fails

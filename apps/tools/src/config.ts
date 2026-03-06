@@ -7,10 +7,7 @@ export interface ToolsConfig {
 	host: string;
 	rpcUrl: string;
 	chainName: string;
-	delegationServiceUrl: string;
 	internalSecret: string;
-	dynamicEnvironmentId: string;
-	dynamicSigningKey: string;
 	raindexMcpCommand: string;
 	raindexMcpArgs: string[];
 	raindexMcpCwd: string;
@@ -102,10 +99,7 @@ export function loadConfig(): ToolsConfig {
 		host: process.env.TOOLS_HOST ?? '0.0.0.0',
 		rpcUrl: process.env.BASE_RPC_URL ?? 'https://mainnet.base.org',
 		chainName: process.env.CHAIN_NAME ?? 'base',
-		delegationServiceUrl: process.env.DELEGATION_SERVICE_URL ?? 'http://quant-bot.internal:5000',
 		internalSecret: process.env.INTERNAL_SECRET ?? '',
-		dynamicEnvironmentId: process.env.DYNAMIC_ENVIRONMENT_ID ?? '',
-		dynamicSigningKey: process.env.DYNAMIC_SIGNING_KEY ?? '',
 		raindexMcpCommand: process.env.RAINDEX_MCP_COMMAND ?? '',
 		raindexMcpArgs,
 		raindexMcpCwd: process.env.RAINDEX_MCP_CWD ?? '',
@@ -116,8 +110,6 @@ export function loadConfig(): ToolsConfig {
 	};
 
 	requireNonEmpty('INTERNAL_SECRET', config.internalSecret);
-	requireNonEmpty('DYNAMIC_ENVIRONMENT_ID', config.dynamicEnvironmentId);
-	requireNonEmpty('DYNAMIC_SIGNING_KEY', config.dynamicSigningKey);
 	requireNonEmpty('RAINDEX_MCP_COMMAND', config.raindexMcpCommand);
 
 	if (!config.raindexSettingsPath && !config.raindexSettingsYaml && !config.raindexSettingsUrl) {

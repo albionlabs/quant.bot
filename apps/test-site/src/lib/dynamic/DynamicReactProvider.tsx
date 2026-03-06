@@ -77,6 +77,23 @@ function errorMessage(error: unknown, fallback: string): string {
 	return error instanceof Error && error.message ? error.message : fallback
 }
 
+function parseChainId(value: unknown): number | undefined {
+	if (typeof value !== 'string' || value.trim() === '') return undefined
+	try {
+		if (value.startsWith('0x')) {
+			return Number.parseInt(value, 16)
+		}
+		return Number.parseInt(value, 10)
+	} catch {
+		return undefined
+	}
+}
+
+function parseOptionalWei(value: unknown): bigint | undefined {
+	if (typeof value !== 'string' || value.trim() === '') return undefined
+	return BigInt(value)
+}
+
 function DynamicBridge({
 	onEvent,
 	onWalletProviderReady,
@@ -180,7 +197,41 @@ function DynamicBridge({
 						const [message] = args.params as [string, string]
 						return await activeWallet.signMessage(message)
 					}
-					return null
+
+					if (args.method === 'eth_sendTransaction') {
+						const [txInput] = (args.params ?? []) as [Record<string, unknown>?]
+						if (!txInput || typeof txInput !== 'object') {
+							throw new Error('eth_sendTransaction requires a transaction object')
+						}
+
+						const to = txInput.to
+						if (typeof to !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(to)) {
+							throw new Error('Invalid transaction "to" address')
+						}
+
+						const from = typeof txInput.from === 'string' ? txInput.from : activeWallet.address
+						if (from.toLowerCase() !== activeWallet.address.toLowerCase()) {
+							throw new Error('Transaction signer mismatch with active wallet')
+						}
+
+						const chainId = parseChainId(txInput.chainId)
+						if (chainId !== undefined) {
+							await activeWallet.switchNetwork(chainId)
+						}
+
+						const walletClient = await activeWallet.getWalletClient(
+							chainId !== undefined ? String(chainId) : undefined
+						)
+						const hash = await walletClient.sendTransaction({
+							account: activeWallet.address as `0x${string}`,
+							to: to as `0x${string}`,
+							data: typeof txInput.data === 'string' ? txInput.data as `0x${string}` : undefined,
+							value: parseOptionalWei(txInput.value)
+						})
+						return hash
+					}
+
+					throw new Error(`Unsupported provider method: ${args.method}`)
 				}
 			}
 			onWalletProviderReadyRef.current(provider)

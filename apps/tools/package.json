@@ -12,7 +12,6 @@
 		"lint": "eslint src/"
 	},
 	"dependencies": {
-		"@dynamic-labs-wallet/node-evm": "^0.0.294",
 		"@fastify/rate-limit": "^10.2.0",
 		"@modelcontextprotocol/sdk": "^1.12.1",
 		"@quant-bot/evm-utils": "workspace:*",

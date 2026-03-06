@@ -3,7 +3,6 @@ import type { WebSocket } from 'ws';
 import { verifyToken } from '../middleware/auth.js';
 import { createSession, getSession, touchSession } from '../services/session.js';
 import { sendToAgent, isAgentConnected } from '../services/agent-proxy.js';
-import { getDelegationStatus } from '../services/delegation-client.js';
 import { createExecutionToken } from '../services/execution-token.js';
 import type { GatewayConfig } from '../config.js';
 import { UI_VERSION } from '../version.js';
@@ -64,32 +63,12 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 						config.executionTokenTtlSeconds
 					);
 
-					let delegationContext = `Authenticated userId: ${user!.sub}\n`;
-					try {
-						const status = await getDelegationStatus(config, user!.sub);
-						if (status.active) {
-							delegationContext += `Delegation active: true\n`;
-							if (status.delegationId) {
-								delegationContext += `Active delegationId: ${status.delegationId}\n`;
-							}
-							if (status.hasCredentials === false || status.syncRequired === true) {
-								delegationContext += 'Delegation sync required: true\n';
-								if (status.syncReason) {
-									delegationContext += `Delegation sync reason: ${status.syncReason}\n`;
-								}
-							}
-						} else {
-							delegationContext += `Delegation active: false\n`;
-						}
-					} catch {
-						delegationContext += 'Delegation status unavailable\n';
-					}
-
 					const messageWithContext = [
 						'[Trusted execution context from authenticated gateway session]',
-						delegationContext.trim(),
-						`Execution token for /api/evm/execute: ${executionToken}`,
-						'Never ask the user for userId or delegationId. Always use the execution token for /api/evm/execute.',
+						`Authenticated userId: ${user!.sub}`,
+						`Execution token for /api/evm/request-signature: ${executionToken}`,
+						'Never ask the user for userId, wallet address, or execution token.',
+						'When requesting transaction signing, call /api/evm/request-signature with this token.',
 						'[/Trusted execution context]',
 						'',
 						msg.content

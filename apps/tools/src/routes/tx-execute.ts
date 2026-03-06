@@ -1,54 +1,54 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { TxExecuteRequest } from '@quant-bot/shared-types';
-import { executeTransaction, testSignMessage } from '../services/tx-executor.js';
+import { getChain } from '@quant-bot/evm-utils';
+import type { FastifyInstance } from 'fastify';
+import type {
+	TxExecuteRequest,
+	TxRequestSignatureRequest,
+	TxRequestSignatureResponse
+} from '@quant-bot/shared-types';
 import { resolveUserIdFromExecutionToken } from '../services/execution-token.js';
 import type { ToolsConfig } from '../config.js';
 
-function requireInternalSecret(config: ToolsConfig) {
-	return async (request: FastifyRequest, reply: FastifyReply) => {
-		const secret = request.headers['x-internal-secret'] as string | undefined;
-		if (!secret || secret !== config.internalSecret) {
-			return reply.status(401).send({ error: 'Invalid internal secret' });
-		}
-	};
+function parseWei(value?: string): bigint {
+	if (value === undefined || value === null || value === '') return 0n;
+	if (typeof value !== 'string') {
+		throw new Error('Invalid "value" field');
+	}
+
+	if (value.startsWith('0x')) {
+		return BigInt(value);
+	}
+
+	if (!/^\d+$/.test(value)) {
+		throw new Error('Invalid "value" field. Expected wei as decimal string or 0x hex string');
+	}
+
+	return BigInt(value);
+}
+
+function normalizeHexData(data: string): string {
+	if (!data.startsWith('0x')) {
+		throw new Error('Invalid "data" field');
+	}
+	if ((data.length - 2) % 2 !== 0) {
+		throw new Error('Invalid "data" field length');
+	}
+	return data.toLowerCase();
+}
+
+function dataLengthBytes(data: string): number {
+	return Math.max(0, (data.length - 2) / 2);
 }
 
 export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig) {
-	const checkSecret = requireInternalSecret(config);
-
-	app.post<{ Body: { userId: string } }>('/api/evm/test-sign', { preHandler: checkSecret }, async (request, reply) => {
-		const { userId } = request.body;
-		if (!userId) {
-			return reply.status(400).send({ error: 'userId is required' });
-		}
-
-		try {
-			return await testSignMessage(userId, config);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : 'Sign failed';
-			return reply.status(500).send({ error: message });
-		}
-	});
-
-	app.post<{ Body: TxExecuteRequest }>('/api/evm/execute', async (request, reply) => {
+	app.post<{ Body: TxRequestSignatureRequest }>('/api/evm/request-signature', async (request, reply) => {
 		const requestStarted = Date.now();
 		const reqId = String(request.id);
-		let clientAborted = false;
-		request.raw.once('aborted', () => {
-			clientAborted = true;
-			app.log.warn(
-				{ reqId, elapsedMs: Date.now() - requestStarted },
-				'Client aborted /api/evm/execute before completion'
-			);
-		});
-
 		const { to, data, executionToken } = request.body;
-		app.log.info({ reqId }, 'Received /api/evm/execute request');
 
 		if (!to || !/^0x[a-fA-F0-9]{40}$/.test(to)) {
 			return reply.status(400).send({ error: 'Invalid "to" address' });
 		}
-		if (!data || !data.startsWith('0x')) {
+		if (!data || typeof data !== 'string') {
 			return reply.status(400).send({ error: 'Invalid "data" field' });
 		}
 		if (!executionToken || typeof executionToken !== 'string') {
@@ -56,35 +56,44 @@ export async function txExecuteRoutes(app: FastifyInstance, config: ToolsConfig)
 		}
 
 		let userId: string;
+		let valueWei: bigint;
+		let normalizedData: string;
 		try {
 			userId = await resolveUserIdFromExecutionToken(executionToken, config.internalSecret);
+			valueWei = parseWei(request.body.value);
+			normalizedData = normalizeHexData(data);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : 'Invalid execution token';
-			return reply.status(401).send({ error: message });
+			const message = error instanceof Error ? error.message : 'Invalid request payload';
+			const statusCode = message.toLowerCase().includes('execution token') ? 401 : 400;
+			return reply.status(statusCode).send({ error: message });
 		}
 
-		try {
-			const result = await executeTransaction(
-				{
-					to,
-					data,
-					value: request.body.value
-				},
-				userId,
-				config
-			);
-			app.log.info(
-				{ reqId, elapsedMs: Date.now() - requestStarted, clientAborted },
-				'/api/evm/execute completed successfully'
-			);
-			return result;
-		} catch (error) {
-			const message = error instanceof Error ? error.message : 'Execution failed';
-			app.log.error(
-				{ reqId, elapsedMs: Date.now() - requestStarted, clientAborted, error: message },
-				'/api/evm/execute failed'
-			);
-			return reply.status(500).send({ error: message });
-		}
+		const chain = getChain(config.chainName);
+		const payload: TxRequestSignatureResponse = {
+			kind: 'evm_send_transaction',
+			chainId: chain.id,
+			from: userId,
+			to,
+			data: normalizedData,
+			value: valueWei.toString(),
+			summary: {
+				to,
+				valueWei: valueWei.toString(),
+				dataBytes: dataLengthBytes(normalizedData)
+			}
+		};
+
+		app.log.info(
+			{ reqId, elapsedMs: Date.now() - requestStarted, from: payload.from, to: payload.to, dataBytes: payload.summary.dataBytes },
+			'/api/evm/request-signature prepared payload'
+		);
+
+		return payload;
+	});
+
+	app.post<{ Body: TxExecuteRequest }>('/api/evm/execute', async (_request, reply) => {
+		return reply.status(410).send({
+			error: 'Delegated server-side execution is disabled. Use /api/evm/request-signature and sign on the client.'
+		});
 	});
 }
