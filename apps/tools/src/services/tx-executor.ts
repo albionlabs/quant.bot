@@ -12,11 +12,23 @@ export async function executeTransaction(
 	userId: string,
 	config: ToolsConfig
 ): Promise<TxExecuteResponse> {
+	console.log('[tx-executor] starting execution for userId:', userId);
+
 	const credentials = await fetchDelegationCredentials(
 		userId,
 		config.delegationServiceUrl,
 		config.internalSecret
 	);
+
+	console.log('[tx-executor] credentials fetched:', {
+		walletId: credentials.walletId,
+		walletAddress: credentials.walletAddress,
+		chainId: credentials.chainId,
+		hasWalletApiKey: !!credentials.walletApiKey,
+		walletApiKeyLength: credentials.walletApiKey?.length,
+		hasKeyShare: !!credentials.keyShare,
+		keyShareLength: credentials.keyShare?.length
+	});
 
 	const publicClient = createBasePublicClient(config.rpcUrl, config.chainName);
 	const chain = getChain(config.chainName);
@@ -41,12 +53,35 @@ export async function executeTransaction(
 		maxPriorityFeePerGas: prepared.maxPriorityFeePerGas
 	};
 
+	console.log('[tx-executor] transaction prepared:', {
+		chainId: transaction.chainId,
+		type: transaction.type,
+		to: transaction.to,
+		nonce: transaction.nonce,
+		gas: transaction.gas?.toString(),
+		maxFeePerGas: transaction.maxFeePerGas?.toString(),
+		maxPriorityFeePerGas: transaction.maxPriorityFeePerGas?.toString()
+	});
+
+	console.log('[tx-executor] creating Dynamic client:', {
+		environmentId: config.dynamicEnvironmentId,
+		hasSigningKey: !!config.dynamicSigningKey,
+		signingKeyPrefix: config.dynamicSigningKey?.substring(0, 8) + '...'
+	});
+
 	const client = createDelegatedEvmWalletClient({
 		environmentId: config.dynamicEnvironmentId,
 		apiKey: config.dynamicSigningKey
 	});
 
 	const keyShare = JSON.parse(credentials.keyShare);
+
+	console.log('[tx-executor] calling delegatedSignTransaction:', {
+		walletId: credentials.walletId,
+		hasWalletApiKey: !!credentials.walletApiKey,
+		keyShareKeys: Object.keys(keyShare),
+		transactionChainId: transaction.chainId
+	});
 
 	const signedTx = await delegatedSignTransaction(client, {
 		walletId: credentials.walletId,
