@@ -17,6 +17,7 @@ interface StoredDelegation {
 
 export interface DecryptedCredentials {
 	walletId: string;
+	walletAddress: string;
 	walletApiKey: string;
 	keyShare: string;
 	chainId: number;
@@ -88,6 +89,7 @@ export function getDecryptedCredentials(delegationId: string, encryptionKey: str
 
 	return {
 		walletId: delegation.walletId,
+		walletAddress: delegation.walletAddress,
 		walletApiKey,
 		keyShare,
 		chainId: delegation.chainId

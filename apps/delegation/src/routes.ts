@@ -84,6 +84,18 @@ function requireInternalSecret(config: DelegationConfig) {
 	};
 }
 
+const CHAIN_ID_MAP: Record<string, number> = {
+	EVM: 8453,
+	'eip155:8453': 8453,
+	'eip155:84532': 84532,
+	base: 8453,
+	'base-sepolia': 84532
+};
+
+function isEthereumAddress(value: string): boolean {
+	return /^0x[0-9a-fA-F]{40}$/.test(value);
+}
+
 export async function delegationRoutes(app: FastifyInstance, config: DelegationConfig): Promise<void> {
 	const checkSecret = requireInternalSecret(config);
 
@@ -100,10 +112,15 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 			return reply.status(400).send({ error: `Expected wallet.delegation.created, got ${payload.eventName}` });
 		}
 
-		const { encryptedDelegatedShare, encryptedWalletApiKey, userId, walletId, publicKey } = payload.data;
+		const { encryptedDelegatedShare, encryptedWalletApiKey, userId, walletId, publicKey, chain } = payload.data;
 
 		if (!encryptedDelegatedShare || !encryptedWalletApiKey || !userId || !walletId || !publicKey) {
 			return reply.status(400).send({ error: 'Missing required fields' });
+		}
+
+		if (!isEthereumAddress(publicKey)) {
+			app.log.error({ publicKey, length: publicKey.length }, 'publicKey is not an Ethereum address — userId mismatch will occur');
+			return reply.status(400).send({ error: 'publicKey is not a valid Ethereum address' });
 		}
 
 		const { decryptedDelegatedShare, decryptedWalletApiKey } = decryptDelegatedWebhookData({
@@ -113,6 +130,7 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 		});
 
 		const walletAddress = publicKey.toLowerCase();
+		const chainId = CHAIN_ID_MAP[chain] ?? 8453;
 		const delegationId = randomUUID();
 		storeDelegation(
 			delegationId,
@@ -122,13 +140,13 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 			decryptedWalletApiKey,
 			JSON.stringify(decryptedDelegatedShare),
 			config.delegationEncryptionKey,
-			8453,
+			chainId,
 			config.delegationTtlMs
 		);
 
 		activateDelegation(walletAddress, delegationId);
 
-		app.log.info({ delegationId, walletAddress, dynamicUserId: userId }, 'Delegation stored from webhook');
+		app.log.info({ delegationId, walletAddress, chain, chainId, dynamicUserId: userId }, 'Delegation stored from webhook');
 
 		return { delegationId };
 	});

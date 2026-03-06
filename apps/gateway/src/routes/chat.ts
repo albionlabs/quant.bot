@@ -6,6 +6,7 @@ import { sendToAgent, isAgentConnected } from '../services/agent-proxy.js';
 import { getDelegationStatus } from '../services/delegation-client.js';
 import { createExecutionToken } from '../services/execution-token.js';
 import type { GatewayConfig } from '../config.js';
+import { UI_VERSION } from '../version.js';
 import type { ClientMessage, ServerMessage } from '@quant-bot/shared-types';
 
 export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
@@ -39,7 +40,7 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 		socket.send(JSON.stringify({
 			type: 'connected',
 			sessionId: '',
-			version: process.env.COMMIT_SHA ?? 'dev'
+			version: UI_VERSION
 		}));
 
 		socket.on('message', async (raw: Buffer) => {

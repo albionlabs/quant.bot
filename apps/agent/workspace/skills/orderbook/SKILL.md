@@ -1,7 +1,7 @@
 ---
 name: "Orderbook"
 description: "Deploy Raindex orderbook strategies via MCP-backed tooling"
-version: "2.0.0"
+version: "3.0.0"
 ---
 
 Backend-managed credentials are used automatically by the tools service.
@@ -9,19 +9,13 @@ Users should never be asked for API keys.
 All requests use `curl` via the exec tool against the internal tools service.
 Base URL: http://quant-bot-tools.internal:4000
 
-## Source Of Truth
-
-- Strategy deployment calldata is generated via Raindex MCP (through tools service routes below).
-  - Requires tools service MCP env (`RAINDEX_MCP_COMMAND`, `RAINDEX_MCP_ARGS`, and Raindex settings env).
-
-
 ## List Available Strategies
 
 ```bash
 curl -s 'http://quant-bot-tools.internal:4000/api/strategy/list'
 ```
 
-Returns registry-backed strategy entries from Raindex MCP.
+Returns registry-backed strategy entries with keys like `fixed-limit`, `auction-dca`, `grid`, etc.
 Optional query params: `?registryUrl=<url>&forceRefresh=true`
 
 ## Get Strategy Details
@@ -30,8 +24,45 @@ Optional query params: `?registryUrl=<url>&forceRefresh=true`
 curl -s 'http://quant-bot-tools.internal:4000/api/strategy/details/{strategyKey}'
 ```
 
-Use this to discover required field names, token selectors, and expected deployment options before constructing deploy input.
+Returns available deployment keys (e.g. `base`, `polygon`, `fixed-limit-arbitrum`) and their descriptions.
+NOTE: This endpoint only returns deployment-level metadata, not field schemas. Use the strategy reference below for field names.
 Optional query params: `?registryUrl=<url>&forceRefresh=true`
+
+## Strategy Field Reference
+
+Each strategy has specific field names, token selectors, and deposit keys. You MUST use the exact keys below.
+
+### fixed-limit
+
+A simple limit order at a fixed price.
+
+| Parameter | Key | Type | Description |
+|-----------|-----|------|-------------|
+| **Field** | `fixed-io` | string | Exchange rate: amount of input token per output token |
+| **Token selector** | `token1` | address | Token to buy |
+| **Token selector** | `token2` | address | Token to sell |
+| **Deposit** | `token2` | string | Amount of the sell token to deposit |
+
+Deployment keys: `base`, `polygon`, `fixed-limit-arbitrum`
+
+Example (buy WETH with USDC at 0.0005 WETH/USDC, depositing 1000 USDC):
+```bash
+curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "strategyKey": "fixed-limit",
+    "deploymentKey": "base",
+    "owner": "0xUSER_ADDRESS",
+    "fields": { "fixed-io": "0.0005" },
+    "deposits": { "token2": "1000000000" },
+    "selectTokens": {
+      "token1": "0x4200000000000000000000000000000000000006",
+      "token2": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    }
+  }'
+```
+
+Note: deposit amounts must be in the token's smallest unit (e.g. 6 decimals for USDC = 1000000000 for 1000 USDC).
 
 ## Deploy Strategy Calldata
 
@@ -39,15 +70,12 @@ Optional query params: `?registryUrl=<url>&forceRefresh=true`
 curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy \
   -H 'Content-Type: application/json' \
   -d '{
-    "strategyKey": "fixed-limit",
-    "deploymentKey": "base",
+    "strategyKey": "<strategy-key>",
+    "deploymentKey": "<deployment-key>",
     "owner": "0x...",
-    "fields": { "fixed-io": "0.0005", "max-amount": "1000" },
-    "deposits": { "usdc": "1000" },
-    "selectTokens": {
-      "input-token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      "output-token": "0x4200000000000000000000000000000000000006"
-    }
+    "fields": { ... },
+    "deposits": { ... },
+    "selectTokens": { ... }
   }'
 ```
 
@@ -59,15 +87,15 @@ Optional fields:
 Response:
 ```json
 {
-  "to": "0xd2938e7c9fe3597f78832ce780feb61945c377d7",
-  "data": "0xabcdef...",
+  "to": "0xOrderbookAddress",
+  "data": "0xDeploymentCalldata...",
   "value": "0",
   "chainId": 8453,
   "approvals": [
     {
-      "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "token": "0xTokenAddress",
       "symbol": "USDC",
-      "approvalData": "0x095ea7b3..."
+      "approvalData": "0xApprovalCalldata..."
     }
   ],
   "composedRainlang": "#calculate-io\n..."

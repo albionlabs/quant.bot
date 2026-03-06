@@ -1,4 +1,4 @@
-import { createBasePublicClient } from '@quant-bot/evm-utils';
+import { createBasePublicClient, getChain } from '@quant-bot/evm-utils';
 import type { TxExecuteResponse, Address, Hex } from '@quant-bot/shared-types';
 import {
 	createDelegatedEvmWalletClient,
@@ -18,18 +18,34 @@ export async function executeTransaction(
 		config.internalSecret
 	);
 
+	const publicClient = createBasePublicClient(config.rpcUrl, config.chainName);
+	const chain = getChain(config.chainName);
+
+	const prepared = await publicClient.prepareTransactionRequest({
+		account: credentials.walletAddress as Address,
+		to: request.to as Address,
+		data: request.data as Hex,
+		value: request.value ? BigInt(request.value) : 0n,
+		chain
+	});
+
+	const transaction = {
+		chainId: chain.id,
+		type: 'eip1559' as const,
+		to: request.to as Address,
+		data: request.data as Hex,
+		value: request.value ? BigInt(request.value) : 0n,
+		nonce: prepared.nonce,
+		gas: prepared.gas,
+		maxFeePerGas: prepared.maxFeePerGas,
+		maxPriorityFeePerGas: prepared.maxPriorityFeePerGas
+	};
+
 	const client = createDelegatedEvmWalletClient({
 		environmentId: config.dynamicEnvironmentId,
 		apiKey: config.dynamicSigningKey
 	});
 
-	const transaction = {
-		to: request.to as Address,
-		data: request.data as Hex,
-		value: request.value ? BigInt(request.value) : undefined
-	};
-
-	// keyShare is stored as a serialized ServerKeyShare object
 	const keyShare = JSON.parse(credentials.keyShare);
 
 	const signedTx = await delegatedSignTransaction(client, {
@@ -39,7 +55,6 @@ export async function executeTransaction(
 		transaction
 	});
 
-	const publicClient = createBasePublicClient(config.rpcUrl, config.chainName);
 	const hash = await publicClient.sendRawTransaction({
 		serializedTransaction: signedTx as Hex
 	});
