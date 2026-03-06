@@ -37,6 +37,16 @@ function toHexChainId(chainId: number): `0x${string}` {
 	return `0x${chainId.toString(16)}`;
 }
 
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isLikelyMinedReceipt(value: unknown): boolean {
+	if (!value || typeof value !== 'object') return false;
+	const candidate = value as Record<string, unknown>;
+	return typeof candidate.blockNumber === 'string' && candidate.blockNumber !== '0x0';
+}
+
 export async function signTransactionRequest(request: TxSignRequestPayload): Promise<string> {
 	const provider = get(walletProvider);
 	if (!provider) {
@@ -71,4 +81,33 @@ export async function signTransactionRequest(request: TxSignRequestPayload): Pro
 	}
 
 	return result;
+}
+
+export async function waitForTransactionConfirmation(
+	txHash: string,
+	{ timeoutMs = 180_000, pollIntervalMs = 3_000 }: { timeoutMs?: number; pollIntervalMs?: number } = {}
+): Promise<boolean> {
+	const provider = get(walletProvider);
+	if (!provider) {
+		throw new Error('Wallet provider is not available. Please reconnect Dynamic.');
+	}
+	if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+		throw new Error('Invalid transaction hash');
+	}
+
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		const receipt = await provider.request({
+			method: 'eth_getTransactionReceipt',
+			params: [txHash]
+		});
+
+		if (isLikelyMinedReceipt(receipt)) {
+			return true;
+		}
+
+		await sleep(pollIntervalMs);
+	}
+
+	return false;
 }

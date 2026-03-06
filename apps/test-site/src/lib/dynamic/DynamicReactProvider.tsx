@@ -169,6 +169,19 @@ function DynamicBridge({
 						return hash
 					}
 
+					if (args.method === 'eth_getTransactionReceipt') {
+						const [txHash] = (args.params ?? []) as [string?]
+						if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+							throw new Error('eth_getTransactionReceipt requires a transaction hash')
+						}
+
+						const walletClient = await activeWallet.getWalletClient()
+						return await walletClient.request({
+							method: 'eth_getTransactionReceipt',
+							params: [txHash]
+						})
+					}
+
 					throw new Error(`Unsupported provider method: ${args.method}`)
 				}
 			}

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { DisplayMessage } from '../types.js';
 	import type { TxSignRequestPayload } from '../types.js';
-	import { signTransactionRequest } from '../stores/wallet.js';
+	import { sendMessage } from '../stores/chat.js';
+	import { signTransactionRequest, waitForTransactionConfirmation } from '../stores/wallet.js';
 
 	let { message }: { message: DisplayMessage } = $props();
 
@@ -93,6 +94,9 @@
 	let isSigningTx = $state(false);
 	let signedTxHash = $state<string | null>(null);
 	let signingError = $state<string | null>(null);
+	let waitingForConfirmation = $state(false);
+	let confirmationError = $state<string | null>(null);
+	let autoProceedSent = $state(false);
 
 	const isUser = $derived(message.role === 'user');
 	const isSystem = $derived(message.role === 'system');
@@ -107,11 +111,28 @@
 
 		isSigningTx = true;
 		signingError = null;
+		confirmationError = null;
 		try {
 			const hash = await signTransactionRequest(txSignRequest.request);
 			signedTxHash = hash;
+			waitingForConfirmation = true;
+			const isConfirmed = await waitForTransactionConfirmation(hash);
+			if (!isConfirmed) {
+				waitingForConfirmation = false;
+				confirmationError = 'Timed out waiting for confirmation. You can still continue manually.';
+				return;
+			}
+
+			waitingForConfirmation = false;
+			if (!autoProceedSent) {
+				autoProceedSent = true;
+				sendMessage(
+					`Transaction confirmed on-chain: ${hash}\nBaseScan: ${basescanTxUrl(txSignRequest.request.chainId, hash)}\nPlease continue with the next required step.`
+				);
+			}
 		} catch (error) {
 			signingError = error instanceof Error ? error.message : 'Failed to sign transaction';
+			waitingForConfirmation = false;
 		} finally {
 			isSigningTx = false;
 		}
@@ -148,6 +169,15 @@
 						View on BaseScan
 					</a>
 				</div>
+			{/if}
+			{#if waitingForConfirmation}
+				<div class="sign-status pending">Waiting for on-chain confirmation...</div>
+			{/if}
+			{#if autoProceedSent}
+				<div class="sign-status success">Confirmed on-chain. Bot notified to proceed.</div>
+			{/if}
+			{#if confirmationError}
+				<div class="sign-status error">{confirmationError}</div>
 			{/if}
 			{#if signingError}
 				<div class="sign-status error">{signingError}</div>
@@ -301,6 +331,11 @@
 	.sign-status.error {
 		background: #fef2f2;
 		color: #991b1b;
+	}
+
+	.sign-status.pending {
+		background: #eff6ff;
+		color: #1d4ed8;
 	}
 
 	.tx-details {
