@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { DelegationStatus } from '@quant-bot/shared-types';
 import { encrypt, decrypt } from './delegation-crypto.js';
 
@@ -38,6 +39,14 @@ export function storeDelegation(
 	ttlMs: number
 ): void {
 	const combined = JSON.stringify({ walletApiKey, keyShare });
+
+	// === Phase 5: Pre-encrypt integrity ===
+	console.log('[delegation-store] PRE-ENCRYPT:', {
+		combinedLength: combined.length,
+		keyShareLength: keyShare.length,
+		combinedHash: createHash('sha256').update(combined).digest('hex').substring(0, 16),
+	});
+
 	const { ciphertext, iv, authTag } = encrypt(combined, encryptionKey);
 
 	delegations.set(id, {
@@ -85,7 +94,18 @@ export function getDecryptedCredentials(delegationId: string, encryptionKey: str
 	}
 
 	const decrypted = decrypt(delegation.encryptedCredentials, delegation.iv, delegation.authTag, encryptionKey);
+
+	// === Phase 5: Post-decrypt integrity ===
+	console.log('[delegation-store] POST-DECRYPT:', {
+		decryptedLength: decrypted.length,
+		decryptedHash: createHash('sha256').update(decrypted).digest('hex').substring(0, 16),
+	});
+
 	const { walletApiKey, keyShare } = JSON.parse(decrypted);
+	console.log('[delegation-store] EXTRACTED keyShare:', {
+		keyShareLength: keyShare.length,
+		keyShareType: typeof keyShare,
+	});
 
 	return {
 		walletId: delegation.walletId,

@@ -54,8 +54,29 @@ export function decryptDelegatedWebhookData({ privateKeyPem, encryptedDelegatedK
 	const shareJson = decryptPayload(privateKeyPem, encryptedDelegatedKeyShare);
 	const apiKey = decryptPayload(privateKeyPem, encryptedWalletApiKey);
 
+	const parsed = JSON.parse(shareJson);
+
+	// === Phase 2: Raw share from Dynamic ===
+	console.log('[delegation-decrypt] RAW SHARE FROM DYNAMIC:', {
+		topLevelKeys: Object.keys(parsed),
+		pubkeyType: typeof parsed?.pubkey,
+		pubkeyKeys: parsed?.pubkey ? Object.keys(parsed.pubkey) : 'N/A',
+		pubkeyPubkeyConstructor: parsed?.pubkey?.pubkey?.constructor?.name,
+		pubkeyPubkeyIsUint8Array: parsed?.pubkey?.pubkey instanceof Uint8Array,
+		pubkeyPubkeyType: typeof parsed?.pubkey?.pubkey,
+		pubkeyPubkeyKeysSample: (() => {
+			const inner = parsed?.pubkey?.pubkey;
+			if (inner && typeof inner === 'object') {
+				return Object.keys(inner).slice(0, 5);
+			}
+			return 'not-object';
+		})(),
+		secretShareType: typeof parsed?.secretShare,
+		secretShareLen: parsed?.secretShare?.length,
+	});
+
 	return {
-		decryptedDelegatedShare: JSON.parse(shareJson),
+		decryptedDelegatedShare: parsed,
 		decryptedWalletApiKey: apiKey
 	};
 }

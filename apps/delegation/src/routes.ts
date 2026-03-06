@@ -129,6 +129,17 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 			encryptedWalletApiKey
 		});
 
+		// === Phase 2: Share shape before storage ===
+		const shareStringified = JSON.stringify(decryptedDelegatedShare);
+		const shareReparsed = JSON.parse(shareStringified);
+		console.log('[delegation-webhook] SHARE BEFORE STORAGE:', {
+			stringifiedLength: shareStringified.length,
+			pubkeyPubkeyConstructor: shareReparsed?.pubkey?.pubkey?.constructor?.name,
+			pubkeyPubkeyIsUint8Array: shareReparsed?.pubkey?.pubkey instanceof Uint8Array,
+			pubkeyPubkeyFirst3Keys: shareReparsed?.pubkey?.pubkey && typeof shareReparsed.pubkey.pubkey === 'object'
+				? Object.keys(shareReparsed.pubkey.pubkey).slice(0, 3) : 'N/A',
+		});
+
 		const walletAddress = publicKey.toLowerCase();
 		const chainId = CHAIN_ID_MAP[chain] ?? 8453;
 		const delegationId = randomUUID();
@@ -138,13 +149,29 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 			walletId,
 			walletAddress,
 			decryptedWalletApiKey,
-			JSON.stringify(decryptedDelegatedShare),
+			shareStringified,
 			config.delegationEncryptionKey,
 			chainId,
 			config.delegationTtlMs
 		);
 
 		activateDelegation(walletAddress, delegationId);
+
+		// === Phase 4: Delegation fingerprint ===
+		const keyShareHash = await crypto.subtle.digest(
+			'SHA-256',
+			new TextEncoder().encode(shareStringified)
+		).then(buf => Buffer.from(buf).toString('hex').substring(0, 16));
+
+		console.log('[delegation-webhook] DELEGATION FINGERPRINT:', {
+			delegationId,
+			walletId,
+			walletAddress,
+			chainId,
+			keyShareHash,
+			walletApiKeyPrefix: decryptedWalletApiKey.substring(0, 8) + '...',
+			storedAt: new Date().toISOString(),
+		});
 
 		app.log.info({ delegationId, walletAddress, chain, chainId, dynamicUserId: userId }, 'Delegation stored from webhook');
 
