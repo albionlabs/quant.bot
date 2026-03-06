@@ -57,6 +57,14 @@
 		return `${value.slice(0, head)}...${value.slice(-tail)}`;
 	}
 
+	function basescanTxUrl(chainId: number, txHash: string): string {
+		const hash = txHash.trim();
+		if (chainId === 84532) {
+			return `https://sepolia.basescan.org/tx/${hash}`;
+		}
+		return `https://basescan.org/tx/${hash}`;
+	}
+
 	function parseRainlangReview(content: string): RainlangReviewPayload | null {
 		const taggedMatch = content.match(taggedReviewRegex);
 		if (taggedMatch) {
@@ -129,7 +137,17 @@
 				{/if}
 			</button>
 			{#if signedTxHash}
-				<div class="sign-status success">Tx Hash: <code>{shortenHex(signedTxHash, 14, 12)}</code></div>
+				<div class="sign-status success">
+					Tx Hash: <code>{signedTxHash}</code>
+					<a
+						class="tx-link"
+						href={basescanTxUrl(txSignRequest.request.chainId, signedTxHash)}
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						View on BaseScan
+					</a>
+				</div>
 			{/if}
 			{#if signingError}
 				<div class="sign-status error">{signingError}</div>
@@ -271,6 +289,13 @@
 	.sign-status.success {
 		background: #ecfdf3;
 		color: #166534;
+	}
+
+	.tx-link {
+		margin-left: 0.5rem;
+		font-weight: 600;
+		color: #065f46;
+		text-decoration: underline;
 	}
 
 	.sign-status.error {
