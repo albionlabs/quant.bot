@@ -142,6 +142,9 @@ importers:
       '@quant-bot/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
+      cbor-web:
+        specifier: ^9.0.2
+        version: 9.0.2
       cbor-x:
         specifier: ^1.6.0
         version: 1.6.0
@@ -2186,6 +2189,10 @@ packages:
   cbor-extract@2.2.0:
     resolution: {integrity: sha512-Ig1zM66BjLfTXpNgKpvBePq271BPOvu8MR0Jl080yG7Jsl+wAZunfrwiwA+9ruzm/WEdIV5QF/bjDZTqyAIVHA==}
     hasBin: true
+
+  cbor-web@9.0.2:
+    resolution: {integrity: sha512-N6gU2GsJS8RR5gy1d9wQcSPgn9FGJFY7KNvdDRlwHfz6kCxrQr2TDnrjXHmr6TFSl6Fd0FC4zRnityEldjRGvQ==}
+    engines: {node: '>=16'}
 
   cbor-x@1.6.0:
     resolution: {integrity: sha512-0kareyRwHSkL6ws5VXHEf8uY1liitysCVJjlmhaLG+IXLqhSaOO+t63coaso7yjwEzWZzLy8fJo06gZDVQM9Qg==}
@@ -7492,6 +7499,8 @@ snapshots:
       '@cbor-extract/cbor-extract-linux-x64': 2.2.0
       '@cbor-extract/cbor-extract-win32-x64': 2.2.0
     optional: true
+
+  cbor-web@9.0.2: {}
 
   cbor-x@1.6.0:
     optionalDependencies:

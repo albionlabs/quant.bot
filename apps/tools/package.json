@@ -16,6 +16,7 @@
 		"@modelcontextprotocol/sdk": "^1.12.1",
 		"@quant-bot/evm-utils": "workspace:*",
 		"@quant-bot/shared-types": "workspace:*",
+		"cbor-web": "^9.0.2",
 		"cbor-x": "^1.6.0",
 		"fastify": "^5.3.0",
 		"jose": "^6.0.0",

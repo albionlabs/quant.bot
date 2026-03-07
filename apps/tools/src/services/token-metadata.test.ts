@@ -2,21 +2,30 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchTokenMetadata } from './token-metadata.js';
 
 // Build a minimal CBOR+pako encoded meta hex string for testing
-async function buildMockMetaHex(): Promise<string> {
+async function buildMockMetaHex(
+	payload: Record<string, unknown> = { name: 'Test Asset', location: 'Test Location' },
+	options?: { deflate?: boolean; payloadAsHexString?: boolean; includeMagicPrefix?: boolean }
+): Promise<string> {
 	const { encode } = await import('cbor-x');
 	const pako = await import('pako');
 
-	const payload = { name: 'Test Asset', location: 'Test Location' };
-	const compressed = pako.deflate(JSON.stringify(payload));
+	const shouldDeflate = options?.deflate ?? true;
+	const includeMagicPrefix = options?.includeMagicPrefix ?? true;
+	const payloadBytes = shouldDeflate
+		? Buffer.from(pako.deflate(JSON.stringify(payload)))
+		: Buffer.from(JSON.stringify(payload), 'utf8');
+	const encodedPayload = options?.payloadAsHexString
+		? `0x${payloadBytes.toString('hex')}`
+		: payloadBytes;
 
-	const container = new Map<number, Uint8Array>();
-	container.set(0, compressed);
+	const container = new Map<number, Uint8Array | string>();
+	container.set(0, encodedPayload);
 
 	const cborBytes = encode(container);
 
 	// 8 bytes of rain meta document magic (0xff0a89c674ee7874)
 	const magic = Buffer.from('ff0a89c674ee7874', 'hex');
-	const full = Buffer.concat([magic, cborBytes]);
+	const full = includeMagicPrefix ? Buffer.concat([magic, cborBytes]) : cborBytes;
 
 	return '0x' + full.toString('hex');
 }
@@ -99,5 +108,110 @@ describe('fetchTokenMetadata', () => {
 		const result = await fetchTokenMetadata('0xf836a500910453A397084ADe41321ee20a5AAde1');
 		expect(result.latest).not.toBeNull();
 		expect(result.latest!.decodedData).toBeNull();
+	});
+
+	it('converts dot-notation keys into nested objects', async () => {
+		const metaHex = await buildMockMetaHex({
+			'asset.name': 'Wressle-1',
+			'asset.royalty.sharePercentage': 4.5
+		});
+
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: {
+						metaV1S: [
+							{
+								id: 'meta-dot-keys',
+								meta: metaHex,
+								sender: '0xabc123',
+								subject: '0x000000000000000000000000f836a500910453a397084ade41321ee20a5aade1',
+								metaHash: '0xhash3',
+								transaction: { timestamp: '1700000100' }
+							}
+						]
+					}
+				}),
+				{ status: 200 }
+			)
+		);
+
+		const result = await fetchTokenMetadata('0xf836a500910453A397084ADe41321ee20a5AAde1');
+		expect(result.latest).not.toBeNull();
+		expect(result.latest!.decodedData).toEqual({
+			asset: {
+				name: 'Wressle-1',
+				royalty: {
+					sharePercentage: 4.5
+				}
+			}
+		});
+	});
+
+	it('decodes non-deflated payloads encoded as hex strings', async () => {
+		const metaHex = await buildMockMetaHex(
+			{ name: 'Wressle-1', royaltyPercentage: 4.5 },
+			{ deflate: false, payloadAsHexString: true }
+		);
+
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: {
+						metaV1S: [
+							{
+								id: 'meta-plain-json',
+								meta: metaHex,
+								sender: '0xabc123',
+								subject: '0x000000000000000000000000f836a500910453a397084ade41321ee20a5aade1',
+								metaHash: '0xhash4',
+								transaction: { timestamp: '1700000200' }
+							}
+						]
+					}
+				}),
+				{ status: 200 }
+			)
+		);
+
+		const result = await fetchTokenMetadata('0xf836a500910453A397084ADe41321ee20a5AAde1');
+		expect(result.latest).not.toBeNull();
+		expect(result.latest!.decodedData).toEqual({
+			name: 'Wressle-1',
+			royaltyPercentage: 4.5
+		});
+	});
+
+	it('decodes metadata without the rain document magic prefix', async () => {
+		const metaHex = await buildMockMetaHex(
+			{ name: 'No Prefix Asset' },
+			{ includeMagicPrefix: false }
+		);
+
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: {
+						metaV1S: [
+							{
+								id: 'meta-no-prefix',
+								meta: metaHex,
+								sender: '0xabc123',
+								subject: '0x000000000000000000000000f836a500910453a397084ade41321ee20a5aade1',
+								metaHash: '0xhash5',
+								transaction: { timestamp: '1700000300' }
+							}
+						]
+					}
+				}),
+				{ status: 200 }
+			)
+		);
+
+		const result = await fetchTokenMetadata('0xf836a500910453A397084ADe41321ee20a5AAde1');
+		expect(result.latest).not.toBeNull();
+		expect(result.latest!.decodedData).toEqual({
+			name: 'No Prefix Asset'
+		});
 	});
 });

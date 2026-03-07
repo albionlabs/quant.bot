@@ -1,4 +1,5 @@
 import { decodeMultiple } from 'cbor-x';
+import cbor from 'cbor-web';
 import pako from 'pako';
 import type { DecodedMetaEntry } from '@quant-bot/shared-types';
 import { executeGraphQL } from './graphql-client.js';
@@ -39,33 +40,155 @@ query MetadataForToken($subject: String!) {
 }
 `;
 
+const RAIN_META_DOCUMENT_PREFIX = 'ff0a89c674ee7874';
+
+/** Convert a hex string (with or without 0x prefix) to Uint8Array */
+function hexToBytes(hex: string): Uint8Array {
+	const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
+	const bytes = new Uint8Array(clean.length / 2);
+	for (let i = 0; i < bytes.length; i++) {
+		bytes[i] = parseInt(clean.substring(i * 2, i * 2 + 2), 16);
+	}
+	return bytes;
+}
+
+/** Decode CBOR data with the same approach used by the metadata visualiser. */
+function cborDecode(dataEncoded: Uint8Array | string): unknown {
+	try {
+		return cbor.decodeAllSync(dataEncoded);
+	} catch (firstError) {
+		if (typeof dataEncoded !== 'string') throw firstError;
+		return cbor.decodeAllSync(hexToBytes(dataEncoded));
+	}
+}
+
 /**
- * Decode a CBOR+pako metadata payload from the subgraph.
+ * Decode metadata bytes: prefer inflate+JSON, fallback to plain UTF-8 JSON/text.
+ * Mirrors the visualiser behaviour while handling older/non-deflated payloads.
+ */
+function bytesToMeta(bytes: unknown): unknown {
+	let bytesArr: Uint8Array;
+
+	if (bytes instanceof Uint8Array) {
+		bytesArr = bytes;
+	} else if (bytes instanceof ArrayBuffer) {
+		bytesArr = new Uint8Array(bytes);
+	} else if (typeof bytes === 'string') {
+		bytesArr = hexToBytes(bytes);
+	} else if (ArrayBuffer.isView(bytes)) {
+		bytesArr = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+	} else {
+		throw new Error('invalid meta: input must be bytes-like');
+	}
+
+	let decoded: string;
+	try {
+		decoded = pako.inflate(bytesArr, { to: 'string' });
+	} catch {
+		decoded = new TextDecoder().decode(bytesArr);
+	}
+
+	try {
+		return JSON.parse(decoded);
+	} catch {
+		return decoded;
+	}
+}
+
+/**
+ * Convert flat dot-notation keys into nested objects.
+ * e.g. { "asset.location.country": "UK" } -> { asset: { location: { country: "UK" } } }
+ */
+function convertDotNotationToObject(input: Record<string, unknown>): Record<string, unknown> {
+	const result: Record<string, unknown> = {};
+
+	for (const key of Object.keys(input)) {
+		const value = input[key];
+		const keyParts = key.split('.');
+
+		let currentPart: Record<string, unknown> = result;
+		for (let i = 0; i < keyParts.length; i++) {
+			const part = keyParts[i];
+
+			if (i === keyParts.length - 1) {
+				currentPart[part] = value;
+				break;
+			}
+
+			if (!currentPart[part] || typeof currentPart[part] !== 'object') {
+				currentPart[part] = {};
+			}
+
+			currentPart = currentPart[part] as Record<string, unknown>;
+		}
+	}
+
+	return result;
+}
+
+function normalizeMetaHex(metaHex: string): string | null {
+	if (!metaHex) return null;
+	const clean = metaHex.startsWith('0x') ? metaHex.slice(2) : metaHex;
+	if (clean.length === 0 || clean.length % 2 !== 0) return null;
+	return clean.startsWith(RAIN_META_DOCUMENT_PREFIX)
+		? clean.slice(RAIN_META_DOCUMENT_PREFIX.length)
+		: clean;
+}
+
+function getPayload(container: unknown): unknown {
+	const unwrapped =
+		typeof container === 'object' && container !== null && 'value' in container
+			? (container as Record<string, unknown>).value
+			: container;
+
+	if (unwrapped instanceof Map) {
+		return unwrapped.get(0) ?? unwrapped.get(BigInt(0));
+	}
+	if (typeof unwrapped === 'object' && unwrapped !== null) {
+		const record = unwrapped as Record<string, unknown>;
+		return record['0'] ?? record[0];
+	}
+	return undefined;
+}
+
+function decodeContainers(cborHex: string): unknown[] {
+	try {
+		const decoded = cborDecode(cborHex);
+		if (Array.isArray(decoded)) return decoded;
+		return [decoded];
+	} catch {
+		// Backward-compatibility fallback with existing decoder.
+		const decoded = decodeMultiple(Buffer.from(cborHex, 'hex')) as unknown[];
+		return Array.isArray(decoded) ? decoded : [];
+	}
+}
+
+/**
+ * Decode a CBOR metadata payload from the subgraph.
  *
  * Pipeline:
- * 1. Strip 18-char prefix (0x + 16 hex chars of rain meta doc magic)
- * 2. Buffer.from(hex, 'hex') -> decodeMultiple() from cbor-x
- * 3. First Map item: key 0 -> pako.inflate(payload, { to: 'string' }) -> JSON.parse
+ * 1. Normalize and strip the rain meta document magic prefix if present
+ * 2. Decode CBOR with cbor-web (fallback to cbor-x for compatibility)
+ * 3. Extract payload from key 0 (handling tagged wrappers)
+ * 4. Inflate+parse JSON with UTF-8 fallback
  */
 function decodeMeta(metaHex: string): Record<string, unknown> | null {
 	try {
-		// Strip "0x" prefix + 16 hex chars (8 bytes) of rain meta document magic
-		const stripped = metaHex.slice(18);
-		const bytes = Buffer.from(stripped, 'hex');
+		const stripped = normalizeMetaHex(metaHex);
+		if (!stripped) return null;
 
-		const decoded = decodeMultiple(bytes) as unknown[];
-		if (!decoded || decoded.length === 0) return null;
+		const decoded = decodeContainers(stripped);
+		if (decoded.length === 0) return null;
 
 		const container = decoded[0];
-		if (!(container instanceof Map)) return null;
-
-		const payload = (container as Map<unknown, unknown>).get(0);
+		const payload = getPayload(container);
 		if (!payload) return null;
 
-		const inflated = pako.inflate(payload as Uint8Array, { to: 'string' });
-		const parsed: unknown = JSON.parse(inflated);
-		if (typeof parsed === 'object' && parsed !== null) {
-			return parsed as Record<string, unknown>;
+		const parsed = bytesToMeta(payload);
+		if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+			const raw = parsed as Record<string, unknown>;
+			const hasDotKeys = Object.keys(raw).some((k) => k.includes('.'));
+			return hasDotKeys ? convertDotNotationToObject(raw) : raw;
 		}
 		return null;
 	} catch (error) {
