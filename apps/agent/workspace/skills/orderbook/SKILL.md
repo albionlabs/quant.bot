@@ -1,13 +1,11 @@
 ---
 name: "Orderbook"
 description: "Deploy Raindex orderbook strategies via MCP-backed tooling"
-version: "3.0.0"
+version: "4.0.0"
 ---
 
-Use backend tools to compose/simulate deployment calldata, then request client signature for execution.
-Users should never be asked for API keys or raw execution tokens.
-All requests use `curl` via the exec tool against the internal tools service.
-Base URL: http://quant-bot-tools.internal:4000
+Use backend tools to compose deployment calldata, then stage all transactions for batch signing.
+All requests use `curl` via the exec tool against `http://quant-bot-tools.internal:4000`.
 
 ## List Available Strategies
 
@@ -15,8 +13,7 @@ Base URL: http://quant-bot-tools.internal:4000
 curl -s 'http://quant-bot-tools.internal:4000/api/strategy/list'
 ```
 
-Returns registry-backed strategy entries with keys like `fixed-limit`, `auction-dca`, `grid`, etc.
-Optional query params: `?registryUrl=<url>&forceRefresh=true`
+Returns `[{ key, name, description }]`. Optional: `?registryUrl=<url>&forceRefresh=true`
 
 ## Get Strategy Details
 
@@ -24,16 +21,14 @@ Optional query params: `?registryUrl=<url>&forceRefresh=true`
 curl -s 'http://quant-bot-tools.internal:4000/api/strategy/details/{strategyKey}'
 ```
 
-Returns the full schema for a strategy including deployment keys, field bindings (with names, descriptions, defaults, and presets), token selectors, and deposit keys. **Always call this before deploying** to discover the exact parameter keys for any strategy.
-Optional query params: `?registryUrl=<url>&forceRefresh=true`
+Returns deployment keys, field bindings (name, description, default), token selectors, and deposit keys. **Always call before deploying.** Optional: `?registryUrl=<url>&forceRefresh=true`
 
 ## Deploying a Strategy
 
 1. Call `/api/strategy/details/{strategyKey}` to discover deployments, fields, token selectors, and deposit keys.
 2. Use the returned keys exactly as field bindings, select-token keys, and deposit keys in the deploy request.
-3. All field values and deposit amounts are **human-readable strings** (e.g. `"0.0005"`, `"1000"`, `"0.2"`). The SDK handles decimal conversion internally.
+3. All field values and deposit amounts are **human-readable strings** (e.g. `"0.0005"`, `"1000"`). The SDK handles decimal conversion.
 
-Example (fixed-limit: buy WETH with USDC at 0.0005 WETH/USDC, depositing 1000 USDC):
 ```bash
 curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy \
   -H 'Content-Type: application/json' \
@@ -50,43 +45,39 @@ curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy \
   }'
 ```
 
-## Deploy Strategy Calldata
+Optional fields: `registryUrl`, `forceRefresh`, `dotrainSource` (triggers Rainlang composition for review).
 
+Returns `{ to, data, value, chainId, approvals: [{ token, symbol, approvalData }], composedRainlang? }`.
+
+## Staging for Signing
+
+After getting calldata from `/api/order/strategy/deploy`:
+
+1. Build the `transactions` array:
+   - For each approval: `{ "label": "Approve {symbol}", "to": "{token}", "data": "{approvalData}", "symbol": "{symbol}" }`
+   - Main deploy tx: `{ "label": "Deploy Strategy", "to": "{to}", "data": "{data}", "value": "{value}" }`
+
+2. Call stage-signing with all transactions in one request:
 ```bash
-curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy \
+curl -s -X POST http://quant-bot-tools.internal:4000/api/evm/stage-signing \
   -H 'Content-Type: application/json' \
   -d '{
-    "strategyKey": "<strategy-key>",
-    "deploymentKey": "<deployment-key>",
-    "owner": "0x...",
-    "fields": { ... },
-    "deposits": { ... },
-    "selectTokens": { ... }
+    "executionToken": "<trusted-execution-token>",
+    "transactions": [...],
+    "metadata": {
+      "operationType": "strategy_deployment",
+      "strategyKey": "fixed-limit",
+      "composedRainlang": "..."
+    }
   }'
 ```
 
-Optional fields:
-- `registryUrl`: Override registry URL for this call
-- `forceRefresh`: Force registry refresh
-- `dotrainSource`: If provided, a second MCP call composes the Rainlang for review
-
-Response:
-```json
-{
-  "to": "0xOrderbookAddress",
-  "data": "0xDeploymentCalldata...",
-  "value": "0",
-  "chainId": 8453,
-  "approvals": [
-    {
-      "token": "0xTokenAddress",
-      "symbol": "USDC",
-      "approvalData": "0xApprovalCalldata..."
-    }
-  ],
-  "composedRainlang": "#calculate-io\n..."
-}
+3. If `allSimulationsSucceeded`, output a single tag:
+```text
+<tx-sign id="<signingId>">summary</tx-sign>
 ```
+
+The widget handles sequential signing, confirmations, order hash resolution, and Raindex link display automatically.
 
 ## Compose Rainlang (Optional)
 
@@ -96,54 +87,11 @@ curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/compose 
   -d '{"dotrainSource": "version: 4\n...", "deploymentKey": "base"}'
 ```
 
-Response:
-```json
-{
-  "rainlang": "#calculate-io\n..."
-}
-```
-
-## Post-Deployment: Report Order Hash
-
-After a strategy deployment transaction is confirmed, you MUST:
-
-1. **Look up the new order** by querying the owner's orders:
-```bash
-curl -s 'http://quant-bot-tools.internal:4000/api/orders?owner=0xOWNER_ADDRESS&limit=5'
-```
-The most recently created order (first in the list) is the one just deployed.
-
-2. **Generate the Raindex order URL** using the order hash:
-```bash
-curl -s 'http://quant-bot-tools.internal:4000/api/raindex/order-url/0xORDER_HASH'
-```
-Response:
-```json
-{
-  "url": "https://v6.raindex.finance/orders/8453-0x...-0x...",
-  "orderHash": "0x...",
-  "chainId": 8453,
-  "orderbook": "0x..."
-}
-```
-
-3. **Always report** the order hash and include the Raindex link in your response:
-```text
-<order-link orderHash="0x..." url="https://v6.raindex.finance/orders/...">View order on Raindex</order-link>
-```
-
-Note: The subgraph may take a few seconds to index the new order. If the query returns no matching order, wait briefly and retry once.
+Returns `{ rainlang }`.
 
 ## Execution Safety
 
-Before proceeding to signing/execution for any strategy transaction:
-- Ask: `Do you want to review the Rainlang strategy before signing?`
-- If yes, present the composed Rainlang in a modal-compatible block:
-```text
-<rainlang-review title="Rainlang Strategy Review">
-...composed Rainlang...
-</rainlang-review>
-```
-- Then ask for explicit execute confirmation.
-
-Use this skill when the user wants to deploy Raindex strategies and generate calldata for signing. Always simulate returned calldata before requesting signature.
+- Pass `composedRainlang` in the stage-signing metadata — the widget renders a review modal before signing.
+- Do NOT output `<tx-sign>` tag if any simulation fails.
+- ALWAYS ask for explicit user confirmation before outputting the tag.
+- Do NOT handle post-deployment lookups — the widget completion endpoint does this.

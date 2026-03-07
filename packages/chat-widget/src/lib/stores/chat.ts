@@ -1,6 +1,7 @@
 import { writable, get } from 'svelte/store';
 import type { DisplayMessage } from '../types.js';
 import type { ClientMessage, ServerMessage } from '@quant-bot/shared-types';
+import { setGatewayConfig } from '../services/gateway-api.js';
 
 export interface ChatState {
 	messages: DisplayMessage[];
@@ -181,6 +182,7 @@ export function connect(gatewayUrl: string, token: string) {
 	reconnectAttempts = 0;
 	lastGatewayUrl = gatewayUrl;
 	lastToken = token;
+	setGatewayConfig(gatewayUrl, token);
 	clearReconnectTimer();
 	connectInternal(gatewayUrl, token);
 

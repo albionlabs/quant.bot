@@ -11,6 +11,7 @@ import { tradeHistoryRoutes } from './routes/trade-history.js';
 import { raindexOrderUrlRoutes } from './routes/raindex-order-url.js';
 import { ownerOrdersRoutes } from './routes/owner-orders.js';
 import { customStrategiesRoutes } from './routes/custom-strategies.js';
+import { signingRoutes } from './routes/signing.js';
 
 const config = loadConfig();
 const app = Fastify({ logger: true });
@@ -28,6 +29,7 @@ await app.register((instance) => evmSimulateRoutes(instance, config));
 await app.register((instance) => txExecuteRoutes(instance, config));
 await app.register((instance) => raindexStrategyRoutes(instance, config));
 await app.register((instance) => orderbookRoutes(instance, config));
+await app.register((instance) => signingRoutes(instance, config));
 if (config.customStrategiesDir) {
 	await app.register((instance) => customStrategiesRoutes(instance, config));
 }

@@ -94,6 +94,7 @@ export interface DecodedMetaEntry {
 
 export interface TokenMetadataResponse {
 	address: string;
+	display: string;
 	latest: DecodedMetaEntry | null;
 	history: DecodedMetaEntry[];
 }
@@ -102,10 +103,8 @@ export interface TokenMetadataResponse {
 
 export interface OrderSummary {
 	orderHash: string;
-	owner: string;
 	price: number | null;
 	maxOutput: string | null;
-	ratio: string | null;
 	inputToken: string;
 	outputToken: string;
 }
@@ -114,11 +113,14 @@ export type OrderbookSide = 'buy' | 'sell';
 
 export interface OrderbookResponse {
 	tokenAddress: string;
-	bids: OrderSummary[];
-	asks: OrderSummary[];
+	display: string;
+	bids?: OrderSummary[];
+	asks?: OrderSummary[];
 	bestBid: number | null;
 	bestAsk: number | null;
 	spread: number | null;
+	bidCount: number;
+	askCount: number;
 }
 
 // ── Trade History ───────────────────────────────────────────────────
@@ -128,10 +130,10 @@ export interface TradeTokenAmount {
 	symbol: string | null;
 	decimals: number | null;
 	amount: string;
+	readableAmount?: string;
 }
 
 export interface NormalizedTrade {
-	id: string;
 	orderHash: string;
 	timestamp: number;
 	input: TradeTokenAmount;
@@ -141,6 +143,62 @@ export interface NormalizedTrade {
 
 export interface TradeHistoryResponse {
 	tokenAddress: string;
-	trades: NormalizedTrade[];
+	display: string;
+	trades?: NormalizedTrade[];
 	total: number;
+}
+
+// ── Staged Signing ─────────────────────────────────────────────────
+
+export interface StagedTransaction {
+	label: string;
+	to: string;
+	data: string;
+	value?: string;
+	symbol?: string;
+}
+
+export interface TransactionSimulation {
+	index: number;
+	label: string;
+	success: boolean;
+	gasUsed: string;
+	error?: string;
+}
+
+export interface StageSigningRequest {
+	executionToken: string;
+	transactions: StagedTransaction[];
+	metadata?: {
+		operationType?: string;
+		strategyKey?: string;
+		composedRainlang?: string;
+	};
+}
+
+export interface StageSigningResponse {
+	signingId: string;
+	summary: string;
+	simulations: TransactionSimulation[];
+	allSimulationsSucceeded: boolean;
+}
+
+export interface SigningBundle {
+	signingId: string;
+	chainId: number;
+	from: string;
+	transactions: Array<StagedTransaction & { simulation: TransactionSimulation }>;
+	metadata?: StageSigningRequest['metadata'];
+	expiresAt: number;
+}
+
+export interface SigningCompleteRequest {
+	txHashes: string[];
+}
+
+export interface SigningCompleteResponse {
+	success: boolean;
+	orderHash?: string;
+	raindexUrl?: string;
+	message?: string;
 }

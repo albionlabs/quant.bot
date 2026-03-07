@@ -9,6 +9,8 @@ export interface JwtPayload {
 	exp: number;
 }
 
+export type AuthenticatedRequest = FastifyRequest & { user: JwtPayload };
+
 export async function createToken(
 	address: string,
 	userId: string,
@@ -39,7 +41,7 @@ export function authMiddleware(config: GatewayConfig) {
 		const token = authHeader.slice(7);
 		try {
 			const payload = await verifyToken(token, config);
-			(request as FastifyRequest & { user: JwtPayload }).user = payload;
+			(request as AuthenticatedRequest).user = payload;
 		} catch {
 			return reply.status(401).send({ error: 'Invalid or expired token' });
 		}

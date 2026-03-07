@@ -1,8 +1,9 @@
 <script lang="ts">
-	import type { DisplayMessage } from '../types.js';
-	import type { TxSignRequestPayload } from '../types.js';
+	import type { DisplayMessage, TxSignRequestPayload } from '../types.js';
+	import type { SigningBundle, SigningCompleteResponse } from '@quant-bot/shared-types';
 	import { sendMessage } from '../stores/chat.js';
 	import { signTransactionRequest, waitForTransactionConfirmation } from '../stores/wallet.js';
+	import { fetchSigningBundle, completeSigningBundle } from '../services/gateway-api.js';
 
 	let { message }: { message: DisplayMessage } = $props();
 
@@ -16,6 +17,7 @@
 	const taggedReviewRegex = /<rainlang-review(?:\s+title="([^"]*)")?>([\s\S]*?)<\/rainlang-review>/i;
 	const fencedReviewRegex = /```rainlang\s*([\s\S]*?)```/i;
 	const txSignRequestRegex = /<(tx-sign-request|signature_request)>([\s\S]*?)<\/\1>/gi;
+	const txSignRefRegex = /<tx-sign\s+id="([^"]+)">([\s\S]*?)<\/tx-sign>/gi;
 
 	type TxSignRequestView = {
 		requests: Array<{
@@ -23,6 +25,20 @@
 			request: TxSignRequestPayload;
 		}>;
 		contentWithoutRequests: string;
+	};
+
+	type TxSignRefView = {
+		refs: Array<{ signingId: string; summary: string }>;
+		contentWithoutRefs: string;
+	};
+
+	type BundleSignState = {
+		status: 'idle' | 'loading' | 'ready' | 'signing' | 'completed' | 'error';
+		bundle?: SigningBundle;
+		currentTxIndex: number;
+		txHashes: string[];
+		error?: string;
+		completionResult?: SigningCompleteResponse;
 	};
 
 	type TxSignState = {
@@ -78,6 +94,24 @@
 		};
 	}
 
+	function parseTxSignRefs(content: string): TxSignRefView {
+		const refs: TxSignRefView['refs'] = [];
+		let contentWithoutRefs = content;
+		txSignRefRegex.lastIndex = 0;
+		let match: RegExpExecArray | null = txSignRefRegex.exec(content);
+
+		while (match) {
+			const [fullMatch, signingId, summary] = match;
+			if (signingId) {
+				refs.push({ signingId, summary: (summary ?? '').trim() });
+				contentWithoutRefs = contentWithoutRefs.replace(fullMatch, '');
+			}
+			match = txSignRefRegex.exec(content);
+		}
+
+		return { refs, contentWithoutRefs: contentWithoutRefs.trim() };
+	}
+
 	function shortenHex(value: string, head = 12, tail = 10): string {
 		if (!value.startsWith('0x')) return value;
 		if (value.length <= head + tail + 3) return value;
@@ -118,6 +152,124 @@
 
 	let isReviewModalOpen = $state(false);
 	let txSignStates = $state<Record<string, TxSignState>>({});
+	let bundleStates = $state<Record<string, BundleSignState>>({});
+
+	function getBundleState(signingId: string): BundleSignState {
+		return bundleStates[signingId] ?? {
+			status: 'idle',
+			currentTxIndex: 0,
+			txHashes: []
+		};
+	}
+
+	function patchBundleState(signingId: string, patch: Partial<BundleSignState>): void {
+		bundleStates = {
+			...bundleStates,
+			[signingId]: { ...getBundleState(signingId), ...patch }
+		};
+	}
+
+	async function handleSignBundle(signingId: string) {
+		const current = getBundleState(signingId);
+		if (current.status === 'loading' || current.status === 'signing' || current.status === 'completed') return;
+
+		patchBundleState(signingId, { status: 'loading', error: undefined });
+
+		let bundle: SigningBundle;
+		try {
+			bundle = await fetchSigningBundle(signingId);
+		} catch (error) {
+			patchBundleState(signingId, {
+				status: 'error',
+				error: error instanceof Error ? error.message : 'Failed to load signing bundle'
+			});
+			return;
+		}
+
+		patchBundleState(signingId, { status: 'ready', bundle });
+
+		// If there's composedRainlang in metadata, show review modal
+		if (bundle.metadata?.composedRainlang) {
+			isReviewModalOpen = true;
+		}
+	}
+
+	async function executeBundleSigning(signingId: string) {
+		const state = getBundleState(signingId);
+		if (!state.bundle || state.status === 'signing' || state.status === 'completed') return;
+
+		const bundle = state.bundle;
+		patchBundleState(signingId, { status: 'signing', currentTxIndex: 0, txHashes: [] });
+
+		const collectedHashes: string[] = [];
+		for (let i = 0; i < bundle.transactions.length; i++) {
+			patchBundleState(signingId, { currentTxIndex: i });
+
+			const tx = bundle.transactions[i];
+			const payload: TxSignRequestPayload = {
+				kind: 'evm_send_transaction',
+				chainId: bundle.chainId,
+				from: bundle.from,
+				to: tx.to,
+				data: tx.data,
+				value: tx.value ?? '0'
+			};
+
+			let hash: string;
+			try {
+				hash = await signTransactionRequest(payload);
+			} catch (error) {
+				patchBundleState(signingId, {
+					status: 'error',
+					error: `Failed signing tx ${i + 1} (${tx.label}): ${error instanceof Error ? error.message : 'Unknown error'}`,
+					txHashes: collectedHashes
+				});
+				return;
+			}
+
+			collectedHashes.push(hash);
+			patchBundleState(signingId, { txHashes: [...collectedHashes] });
+
+			// Wait for confirmation before proceeding to next tx
+			try {
+				const confirmed = await waitForTransactionConfirmation(hash);
+				if (!confirmed) {
+					patchBundleState(signingId, {
+						status: 'error',
+						error: `Tx ${i + 1} (${tx.label}) timed out waiting for confirmation`,
+						txHashes: collectedHashes
+					});
+					return;
+				}
+			} catch (error) {
+				patchBundleState(signingId, {
+					status: 'error',
+					error: `Tx ${i + 1} confirmation error: ${error instanceof Error ? error.message : 'Unknown'}`,
+					txHashes: collectedHashes
+				});
+				return;
+			}
+		}
+
+		// All signed and confirmed — call completion endpoint
+		try {
+			const result = await completeSigningBundle(signingId, collectedHashes);
+			patchBundleState(signingId, {
+				status: 'completed',
+				txHashes: collectedHashes,
+				completionResult: result
+			});
+			sendMessage('Deployment complete.');
+		} catch (error) {
+			// Transactions are on-chain, just completion lookup failed
+			patchBundleState(signingId, {
+				status: 'completed',
+				txHashes: collectedHashes,
+				error: `Completion lookup failed: ${error instanceof Error ? error.message : 'Unknown'}`
+			});
+			sendMessage('All transactions confirmed on-chain.');
+		}
+	}
 
 	function createInitialTxSignState(): TxSignState {
 		return {
@@ -148,9 +300,25 @@
 	const isSystem = $derived(message.role === 'system');
 	const txSignRequestView = $derived(parseTxSignRequests(message.content));
 	const txSignRequests = $derived(txSignRequestView.requests);
-	const contentWithoutTxRequest = $derived(txSignRequestView.contentWithoutRequests);
+	const txSignRefView = $derived(parseTxSignRefs(txSignRequestView.contentWithoutRequests));
+	const txSignRefs = $derived(txSignRefView.refs);
+	const contentWithoutTxRequest = $derived(txSignRefView.contentWithoutRefs);
 	const rainlangReview = $derived(parseRainlangReview(contentWithoutTxRequest));
+	const bundleRainlangReview = $derived.by(() => {
+		for (const ref of txSignRefs) {
+			const state = getBundleState(ref.signingId);
+			if (state.bundle?.metadata?.composedRainlang) {
+				return {
+					title: DEFAULT_REVIEW_TITLE,
+					rainlang: state.bundle.metadata.composedRainlang,
+					contentWithoutReview: ''
+				};
+			}
+		}
+		return null;
+	});
 	const displayContent = $derived(rainlangReview?.contentWithoutReview ?? contentWithoutTxRequest);
+	const activeReview = $derived(rainlangReview ?? bundleRainlangReview);
 	const timeStr = $derived(new Date(message.timestamp).toLocaleTimeString());
 
 	async function handleSignTxRequest(requestId: string, requestPayload: TxSignRequestPayload, position: number) {
@@ -263,11 +431,65 @@
 				</div>
 			{/each}
 		{/if}
+		{#if txSignRefs.length > 0 && !isUser && !isSystem}
+			{#each txSignRefs as ref (ref.signingId)}
+				{@const bState = getBundleState(ref.signingId)}
+				<div class="tx-request-card">
+					<div class="bundle-summary">{ref.summary}</div>
+					{#if bState.status === 'idle'}
+						<button class="sign-btn" onclick={() => handleSignBundle(ref.signingId)}>
+							Prepare Signing
+						</button>
+					{:else if bState.status === 'loading'}
+						<button class="sign-btn" disabled>Loading bundle...</button>
+					{:else if bState.status === 'ready'}
+						{#if bundleRainlangReview}
+							<button class="review-btn" onclick={() => (isReviewModalOpen = true)}>Review Rainlang Strategy</button>
+						{/if}
+						<button class="sign-btn" onclick={() => executeBundleSigning(ref.signingId)}>
+							Sign {bState.bundle?.transactions.length ?? 0} Transaction{(bState.bundle?.transactions.length ?? 0) === 1 ? '' : 's'}
+						</button>
+					{:else if bState.status === 'signing'}
+						<button class="sign-btn" disabled>
+							Signing {bState.currentTxIndex + 1} of {bState.bundle?.transactions.length ?? 0}: {bState.bundle?.transactions[bState.currentTxIndex]?.label ?? ''}...
+						</button>
+						{#each bState.txHashes as hash, i}
+							<div class="sign-status success">
+								Tx {i + 1}: <code>{hash}</code>
+							</div>
+						{/each}
+					{:else if bState.status === 'completed'}
+						{#each bState.txHashes as hash, i}
+							<div class="sign-status success">
+								Tx {i + 1}: <code>{hash}</code>
+							</div>
+						{/each}
+						{#if bState.completionResult?.raindexUrl}
+							<div class="sign-status success">
+								<a class="tx-link" href={bState.completionResult.raindexUrl} target="_blank" rel="noopener noreferrer">
+									View order on Raindex
+								</a>
+							</div>
+						{/if}
+					{:else if bState.status === 'error'}
+						<div class="sign-status error">{bState.error}</div>
+						{#each bState.txHashes as hash, i}
+							<div class="sign-status success">
+								Tx {i + 1}: <code>{hash}</code>
+							</div>
+						{/each}
+						{#if bState.error?.includes('not found or expired')}
+							<div class="sign-status pending">Bundle expired — ask the agent to prepare again.</div>
+						{/if}
+					{/if}
+				</div>
+			{/each}
+		{/if}
 	</div>
 	<div class="bubble-time">{timeStr}</div>
 </div>
 
-{#if isReviewModalOpen && rainlangReview}
+{#if isReviewModalOpen && activeReview}
 	<div
 		class="review-modal-backdrop"
 		role="button"
@@ -286,12 +508,12 @@
 	>
 		<div class="review-modal" role="dialog" aria-modal="true" aria-labelledby={`rainlang-review-title-${message.id}`}>
 			<div class="review-modal-header">
-				<h3 id={`rainlang-review-title-${message.id}`}>{rainlangReview.title}</h3>
+				<h3 id={`rainlang-review-title-${message.id}`}>{activeReview.title}</h3>
 				<button class="close-btn" aria-label="Close Rainlang review modal" onclick={() => (isReviewModalOpen = false)}>
 					Close
 				</button>
 			</div>
-			<pre class="rainlang-code"><code>{rainlangReview.rainlang}</code></pre>
+			<pre class="rainlang-code"><code>{activeReview.rainlang}</code></pre>
 		</div>
 	</div>
 {/if}
@@ -380,6 +602,12 @@
 	.sign-btn:disabled {
 		cursor: not-allowed;
 		opacity: 0.7;
+	}
+
+	.bundle-summary {
+		font-size: 0.8rem;
+		color: #374151;
+		line-height: 1.4;
 	}
 
 	.tx-request-card + .tx-request-card {

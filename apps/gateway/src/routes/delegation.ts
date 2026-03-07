@@ -1,9 +1,9 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type {
 	DelegationActivateRequest,
 	DelegationActivateResponse
 } from '@quant-bot/shared-types';
-import { authMiddleware, type JwtPayload } from '../middleware/auth.js';
+import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.js';
 import {
 	getDelegationStatus,
 	getDelegationById,
@@ -13,8 +13,6 @@ import {
 	DelegationServiceError
 } from '../services/delegation-client.js';
 import type { GatewayConfig } from '../config.js';
-
-type AuthenticatedRequest = FastifyRequest & { user: JwtPayload };
 
 export async function delegationRoutes(app: FastifyInstance, config: GatewayConfig): Promise<void> {
 	app.post<{ Body: DelegationActivateRequest }>('/api/auth/delegation/activate', {

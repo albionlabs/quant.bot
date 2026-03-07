@@ -16,6 +16,7 @@ export interface GatewayConfig {
 	delegationServiceUrl: string;
 	internalSecret: string;
 	dynamicWebhookSecret: string;
+	toolsBaseUrl: string;
 }
 
 export function loadConfig(): GatewayConfig {
@@ -43,6 +44,7 @@ export function loadConfig(): GatewayConfig {
 		corsOrigin,
 		delegationServiceUrl: process.env.DELEGATION_SERVICE_URL ?? 'http://quant-bot.internal:5000',
 		internalSecret,
-		dynamicWebhookSecret
+		dynamicWebhookSecret,
+		toolsBaseUrl: (process.env.TOOLS_BASE_URL ?? '').trim() || 'http://127.0.0.1:4000'
 	};
 }

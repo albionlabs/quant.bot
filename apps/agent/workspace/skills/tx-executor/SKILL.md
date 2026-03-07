@@ -1,60 +1,51 @@
 ---
 name: "Transaction Executor"
-description: "Prepare client-side transaction signature requests on Base"
-version: "3.0.0"
+description: "Stage transactions for client-side batch signing on Base"
+version: "4.0.0"
 ---
 
-To request a client signature on Base, use `curl` via the exec tool:
+To stage transactions for client signing on Base, bundle all transactions in a single call:
 
 ```bash
-curl -s -X POST http://quant-bot-tools.internal:4000/api/evm/request-signature \
+curl -s -X POST http://quant-bot-tools.internal:4000/api/evm/stage-signing \
   -H 'Content-Type: application/json' \
-  -d '{"to": "0x...", "data": "0x...", "value": "0", "executionToken": "<trusted-execution-token>"}'
+  -d '{
+    "executionToken": "<trusted-execution-token>",
+    "transactions": [
+      { "label": "Approve USDC", "to": "0x...", "data": "0x...", "value": "0", "symbol": "USDC" },
+      { "label": "Deploy Strategy", "to": "0x...", "data": "0x..." }
+    ],
+    "metadata": {
+      "operationType": "strategy_deployment",
+      "strategyKey": "fixed-limit",
+      "composedRainlang": "..."
+    }
+  }'
 ```
 
 Parameters:
-- `to`: Target contract address (must be valid 0x address)
-- `data`: Encoded calldata (hex string starting with 0x)
-- `value`: Optional ETH value in wei as string
-- `executionToken`: Required short-lived token from trusted gateway context. Never ask the user for this.
+- `executionToken` (from gateway context, never ask the user)
+- `transactions[]`: each has `label` (human-readable), `to`, `data`, `value?`, `symbol?`
+- `metadata?`: optional context (`operationType`, `strategyKey`, `composedRainlang`)
 
-Response:
+The endpoint **simulates all transactions server-side** and returns:
 ```json
-{
-  "kind": "evm_send_transaction",
-  "chainId": 8453,
-  "from": "0x...",
-  "to": "0x...",
-  "data": "0x...",
-  "value": "0",
-  "summary": {
-    "to": "0x...",
-    "valueWei": "0",
-    "dataBytes": 123
-  }
-}
+{ "signingId": "uuid", "summary": "2 transactions staged: [1] Approve USDC (ok, ~52k gas) [2] Deploy Strategy (ok, ~340k gas)", "simulations": [...], "allSimulationsSucceeded": true }
 ```
 
-When returning the final assistant response that asks user to sign, always include this hidden machine-readable block exactly once:
+## Output Format
 
+If `allSimulationsSucceeded` is true, output a single tag:
 ```text
-<tx-sign-request>{"kind":"evm_send_transaction",...}</tx-sign-request>
+<tx-sign id="<signingId>">summary text here</tx-sign>
 ```
 
-Rules for the tag:
-- Must be valid JSON copied from the tool response.
-- Do not alter `to`, `data`, `value`, `chainId`, or `from`.
-- Keep human-facing explanation outside the tag.
+The widget handles fetching the full bundle, sequential signing, confirmation, and post-deployment lookups automatically.
 
 CRITICAL RULES:
-1. ALWAYS simulate the transaction first using the EVM Simulator skill
-2. Before signing/executing strategy transactions, ALWAYS ask: "Do you want to review the Rainlang strategy before signing?"
-3. If user says yes, render Rainlang in a modal-compatible block:
-```text
-<rainlang-review title="Rainlang Strategy Review">
-...composed Rainlang...
-</rainlang-review>
-```
-4. ALWAYS ask for explicit user confirmation before requesting signature (after any requested review)
-5. Display the simulation results and explain what the transaction will do
-6. Never request signature if the simulation fails
+1. Do NOT output `<tx-sign>` tag if any simulation fails — explain the failure instead
+2. ALWAYS ask for explicit user confirmation before outputting the signing tag
+3. Display the simulation summary and explain what the transactions will do
+4. Do NOT manually simulate — the stage-signing endpoint does this automatically
+5. Do NOT handle post-deployment order hash lookups — the widget does this via the completion endpoint
+6. Pass `composedRainlang` in metadata — the widget renders the review modal before signing

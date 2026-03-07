@@ -8,6 +8,7 @@ import { chatRoutes } from './routes/chat.js';
 import { healthRoutes } from './routes/health.js';
 import { webhookRoutes } from './routes/webhook.js';
 import { delegationRoutes } from './routes/delegation.js';
+import { signingProxyRoutes } from './routes/signing.js';
 import { connectToAgent } from './services/agent-proxy.js';
 
 const config = loadConfig();
@@ -22,6 +23,7 @@ await app.register((instance) => authRoutes(instance, config));
 await app.register((instance) => chatRoutes(instance, config));
 await app.register((instance) => webhookRoutes(instance, config));
 await app.register((instance) => delegationRoutes(instance, config));
+await app.register((instance) => signingProxyRoutes(instance, config));
 
 // Attempt agent connection (non-blocking - gateway starts even if agent is down)
 connectToAgent(config).catch((err) => {
