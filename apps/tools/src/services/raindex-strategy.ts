@@ -88,8 +88,14 @@ interface StrategySummary {
 function summarizeStrategies(raw: unknown): StrategySummary[] {
 	if (!raw || typeof raw !== 'object') return [];
 
-	if (Array.isArray(raw)) {
-		return raw
+	const root = raw as Record<string, unknown>;
+	const candidate =
+		root.valid && typeof root.valid === 'object' && !Array.isArray(root.valid)
+			? (root.valid as unknown)
+			: raw;
+
+	if (Array.isArray(candidate)) {
+		return candidate
 			.filter((e): e is Record<string, unknown> => !!e && typeof e === 'object' && !Array.isArray(e))
 			.map((e) => ({
 				key: typeof e.key === 'string' ? e.key : '',
@@ -100,7 +106,7 @@ function summarizeStrategies(raw: unknown): StrategySummary[] {
 	}
 
 	const strategies: StrategySummary[] = [];
-	for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+	for (const [key, value] of Object.entries(candidate as Record<string, unknown>)) {
 		if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
 		const entry = value as Record<string, unknown>;
 		strategies.push({

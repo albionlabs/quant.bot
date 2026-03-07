@@ -76,6 +76,34 @@ describe('raindex strategy service', () => {
 		expect(result.display).toContain('oil-token-fair-value');
 	});
 
+	it('handles wrapped valid/invalid strategy responses from MCP', async () => {
+		callRaindexMcpTool.mockResolvedValueOnce({
+			valid: {
+				'fixed-limit': { name: 'Fixed Limit', description: 'A limit order' },
+				'oil-token-fair-value-dca': {
+					name: 'Oil reserve auction DCA',
+					description: 'Auction-DCA with an oil-NAV floor.'
+				}
+			},
+			invalid: {
+				'broken-strategy': { error: 'parse failure' }
+			}
+		});
+
+		const result = await listStrategies(config, {});
+
+		expect(result.strategies).toEqual([
+			{ key: 'fixed-limit', name: 'Fixed Limit', description: 'A limit order' },
+			{
+				key: 'oil-token-fair-value-dca',
+				name: 'Oil reserve auction DCA',
+				description: 'Auction-DCA with an oil-NAV floor.'
+			}
+		]);
+		expect(result.display).not.toContain('valid');
+		expect(result.display).not.toContain('invalid');
+	});
+
 	it('falls back to config registry URL when none provided', async () => {
 		callRaindexMcpTool.mockResolvedValueOnce([{ key: 'fixed-limit' }]);
 
