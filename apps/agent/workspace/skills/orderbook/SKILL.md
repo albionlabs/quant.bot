@@ -103,6 +103,37 @@ Response:
 }
 ```
 
+## Post-Deployment: Report Order Hash
+
+After a strategy deployment transaction is confirmed, you MUST:
+
+1. **Look up the new order** by querying the owner's orders:
+```bash
+curl -s 'http://quant-bot-tools.internal:4000/api/orders?owner=0xOWNER_ADDRESS&limit=5'
+```
+The most recently created order (first in the list) is the one just deployed.
+
+2. **Generate the Raindex order URL** using the order hash:
+```bash
+curl -s 'http://quant-bot-tools.internal:4000/api/raindex/order-url/0xORDER_HASH'
+```
+Response:
+```json
+{
+  "url": "https://v6.raindex.finance/orders/8453-0x...-0x...",
+  "orderHash": "0x...",
+  "chainId": 8453,
+  "orderbook": "0x..."
+}
+```
+
+3. **Always report** the order hash and include the Raindex link in your response:
+```text
+<order-link orderHash="0x..." url="https://v6.raindex.finance/orders/...">View order on Raindex</order-link>
+```
+
+Note: The subgraph may take a few seconds to index the new order. If the query returns no matching order, wait briefly and retry once.
+
 ## Execution Safety
 
 Before proceeding to signing/execution for any strategy transaction:

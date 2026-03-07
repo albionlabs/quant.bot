@@ -9,6 +9,7 @@ import { tokenMetadataRoutes } from './routes/token-metadata.js';
 import { orderbookRoutes } from './routes/orderbook.js';
 import { tradeHistoryRoutes } from './routes/trade-history.js';
 import { raindexOrderUrlRoutes } from './routes/raindex-order-url.js';
+import { ownerOrdersRoutes } from './routes/owner-orders.js';
 import { customStrategiesRoutes } from './routes/custom-strategies.js';
 
 const config = loadConfig();
@@ -20,6 +21,7 @@ await app.register(tokenMetadataRoutes);  // more specific path first
 await app.register(tokenRegistryRoutes);
 await app.register(tradeHistoryRoutes);
 await app.register(raindexOrderUrlRoutes);
+await app.register(ownerOrdersRoutes);
 
 // Config-dependent routes
 await app.register((instance) => evmSimulateRoutes(instance, config));
