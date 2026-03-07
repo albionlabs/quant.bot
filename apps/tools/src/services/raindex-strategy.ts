@@ -79,15 +79,145 @@ function normalizeApprovals(raw: unknown): NormalizedApproval[] {
 	return approvals;
 }
 
+interface StrategySummary {
+	key: string;
+	name: string;
+	description: string;
+}
+
+function summarizeStrategies(raw: unknown): StrategySummary[] {
+	if (!raw || typeof raw !== 'object') return [];
+	const entries = Array.isArray(raw) ? raw : Object.values(raw);
+	return entries
+		.filter((e): e is Record<string, unknown> => !!e && typeof e === 'object' && !Array.isArray(e))
+		.map((e) => ({
+			key: typeof e.key === 'string' ? e.key : String(e.key ?? ''),
+			name: typeof e.name === 'string' ? e.name : String(e.name ?? ''),
+			description: typeof e.description === 'string' ? e.description : ''
+		}))
+		.filter((e) => e.key);
+}
+
+export interface StrategyListResponse {
+	display: string;
+	strategies: StrategySummary[];
+}
+
+function buildStrategyListDisplay(strategies: StrategySummary[]): string {
+	if (strategies.length === 0) return 'No strategies found.';
+	return strategies
+		.map((s) => `${s.key} — ${s.description || s.name}`)
+		.join('\n');
+}
+
 export async function listStrategies(
 	config: ToolsConfig,
 	params: { registryUrl?: string; forceRefresh?: boolean }
-): Promise<unknown> {
+): Promise<StrategyListResponse> {
 	const registryUrl = params.registryUrl || config.raindexRegistryUrl;
-	return callRaindexMcpTool(config, 'raindex_list_strategies', {
+	const raw = await callRaindexMcpTool(config, 'raindex_list_strategies', {
 		...(registryUrl ? { registry_url: registryUrl } : {}),
 		...(params.forceRefresh !== undefined ? { force_refresh: params.forceRefresh } : {})
 	});
+	const strategies = summarizeStrategies(raw);
+	return {
+		display: buildStrategyListDisplay(strategies),
+		strategies
+	};
+}
+
+interface FieldSummary {
+	name: string;
+	description: string;
+	default?: string;
+}
+
+interface DeploymentSummary {
+	key: string;
+	name: string;
+	description: string;
+	fields: Record<string, FieldSummary>;
+	selectTokens: Record<string, { name: string; description: string }>;
+	deposits: string[];
+}
+
+interface StrategyDetailsSummary {
+	name: string;
+	description: string;
+	deployments: DeploymentSummary[];
+}
+
+function pickString(obj: Record<string, unknown>, key: string, fallback = ''): string {
+	return typeof obj[key] === 'string' ? obj[key] : fallback;
+}
+
+function summarizeStrategyDetails(raw: unknown): StrategyDetailsSummary | unknown {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+	const r = raw as Record<string, unknown>;
+
+	const deployments: DeploymentSummary[] = [];
+	const rawDeployments = r.deployments;
+	if (rawDeployments && typeof rawDeployments === 'object') {
+		const entries = Array.isArray(rawDeployments)
+			? rawDeployments.map((d, i) => [String(i), d])
+			: Object.entries(rawDeployments);
+
+		for (const [key, dep] of entries) {
+			if (!dep || typeof dep !== 'object' || Array.isArray(dep)) continue;
+			const d = dep as Record<string, unknown>;
+
+			const fields: Record<string, FieldSummary> = {};
+			if (d.fields && typeof d.fields === 'object') {
+				for (const [fk, fv] of Object.entries(d.fields as Record<string, unknown>)) {
+					if (!fv || typeof fv !== 'object' || Array.isArray(fv)) continue;
+					const f = fv as Record<string, unknown>;
+					fields[fk] = {
+						name: pickString(f, 'name', fk),
+						description: pickString(f, 'description'),
+						...(typeof f.default === 'string' ? { default: f.default } : {})
+					};
+				}
+			}
+
+			const selectTokens: Record<string, { name: string; description: string }> = {};
+			if (d.selectTokens && typeof d.selectTokens === 'object') {
+				for (const [tk, tv] of Object.entries(d.selectTokens as Record<string, unknown>)) {
+					if (!tv || typeof tv !== 'object' || Array.isArray(tv)) continue;
+					const t = tv as Record<string, unknown>;
+					selectTokens[tk] = {
+						name: pickString(t, 'name', tk),
+						description: pickString(t, 'description')
+					};
+				}
+			}
+
+			const deposits: string[] = [];
+			if (d.deposits && typeof d.deposits === 'object') {
+				if (Array.isArray(d.deposits)) {
+					deposits.push(...d.deposits.filter((x): x is string => typeof x === 'string'));
+				} else {
+					deposits.push(...Object.keys(d.deposits));
+				}
+			}
+
+			deployments.push({
+				key: typeof d.key === 'string' ? d.key : key,
+				name: pickString(d, 'name', key),
+				description: pickString(d, 'description'),
+				fields,
+				selectTokens,
+				deposits
+			});
+		}
+	}
+
+	if (deployments.length === 0) return raw;
+
+	return {
+		name: pickString(r, 'name'),
+		description: pickString(r, 'description'),
+		deployments
+	};
 }
 
 export async function getStrategyDetails(
@@ -95,11 +225,12 @@ export async function getStrategyDetails(
 	params: { strategyKey: string; registryUrl?: string; forceRefresh?: boolean }
 ): Promise<unknown> {
 	const registryUrl = params.registryUrl || config.raindexRegistryUrl;
-	return callRaindexMcpTool(config, 'raindex_get_strategy_details', {
+	const raw = await callRaindexMcpTool(config, 'raindex_get_strategy_details', {
 		strategy_key: params.strategyKey,
 		...(registryUrl ? { registry_url: registryUrl } : {}),
 		...(params.forceRefresh !== undefined ? { force_refresh: params.forceRefresh } : {})
 	});
+	return summarizeStrategyDetails(raw);
 }
 
 export async function composeStrategyRainlang(
@@ -118,10 +249,6 @@ export async function deployStrategyCalldata(
 	config: ToolsConfig,
 	params: DeployStrategyRequest
 ): Promise<DeployStrategyResponse> {
-	console.log('[deploy] deployStrategyCalldata called: strategyKey=%s deploymentKey=%s owner=%s fields=%s selectTokens=%s deposits=%s',
-		params.strategyKey, params.deploymentKey, params.owner,
-		JSON.stringify(params.fields), JSON.stringify(params.selectTokens), JSON.stringify(params.deposits));
-
 	const registryUrl = params.registryUrl || config.raindexRegistryUrl;
 	const payload = await callRaindexMcpTool(config, 'raindex_deploy_strategy', {
 		strategy_key: params.strategyKey,
@@ -134,19 +261,7 @@ export async function deployStrategyCalldata(
 		...(params.forceRefresh !== undefined ? { force_refresh: params.forceRefresh } : {})
 	});
 
-	console.log('[deploy] raw payload from MCP: type=%s', typeof payload);
-	try {
-		const payloadStr = JSON.stringify(payload);
-		const preview = payloadStr.length > 2000 ? payloadStr.slice(0, 2000) + '...' : payloadStr;
-		console.log('[deploy] raw payload: %s', preview);
-	} catch { /* circular ref guard */ }
-
 	const data = asRecord(payload, 'deploy strategy');
-	console.log('[deploy] asRecord keys: %s', Object.keys(data).join(', '));
-	console.log('[deploy] field types: orderbookAddress=%s deploymentCalldata=%s chainId=%s approvals=%s',
-		typeof data.orderbookAddress, typeof data.deploymentCalldata, typeof data.chainId, typeof data.approvals);
-	if (typeof data.orderbookAddress === 'string') console.log('[deploy] orderbookAddress=%s', data.orderbookAddress.slice(0, 66));
-	if (typeof data.deploymentCalldata === 'string') console.log('[deploy] deploymentCalldata length=%d prefix=%s', data.deploymentCalldata.length, data.deploymentCalldata.slice(0, 20));
 
 	const response: DeployStrategyResponse = {
 		to: asString(data.orderbookAddress, 'orderbookAddress'),
@@ -155,9 +270,6 @@ export async function deployStrategyCalldata(
 		chainId: asNumber(data.chainId, 'chainId'),
 		approvals: normalizeApprovals(data.approvals)
 	};
-
-	console.log('[deploy] normalized response: to=%s chainId=%d approvalsCount=%d calldataLen=%d',
-		response.to, response.chainId, response.approvals.length, response.data.length);
 
 	// When dotrainSource is provided, a second MCP call (raindex_compose_rainlang) is made
 	// to return the composed Rainlang for user review before execution.

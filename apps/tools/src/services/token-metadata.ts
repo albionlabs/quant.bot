@@ -74,7 +74,49 @@ function decodeMeta(metaHex: string): Record<string, unknown> | null {
 	}
 }
 
-export async function fetchTokenMetadata(tokenAddress: string): Promise<{
+function truncateDecodedData(data: Record<string, unknown> | null): Record<string, unknown> | null {
+	if (!data) return null;
+	const result: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(data)) {
+		if (typeof value === 'string' && value.length > 2000) {
+			result[key] = value.slice(0, 2000) + '...(truncated)';
+		} else {
+			result[key] = value;
+		}
+	}
+	return result;
+}
+
+function buildDisplay(latest: DecodedMetaEntry | null): string {
+	if (!latest || !latest.decodedData) return 'No metadata found.';
+
+	const d = latest.decodedData;
+	const fields = ['name', 'description', 'location', 'type', 'status', 'category'];
+	const lines: string[] = [];
+	for (const key of fields) {
+		if (key in d && d[key] !== null && d[key] !== undefined) {
+			const val = String(d[key]);
+			lines.push(`${key}: ${val.length > 200 ? val.slice(0, 200) + '...' : val}`);
+		}
+	}
+
+	// Include any other top-level keys not in the standard fields
+	for (const [key, val] of Object.entries(d)) {
+		if (fields.includes(key)) continue;
+		if (val === null || val === undefined) continue;
+		if (typeof val === 'object') {
+			lines.push(`${key}: [object]`);
+		} else {
+			const s = String(val);
+			lines.push(`${key}: ${s.length > 200 ? s.slice(0, 200) + '...' : s}`);
+		}
+	}
+
+	return lines.length > 0 ? lines.join('\n') : 'Metadata present but no readable fields.';
+}
+
+export async function fetchTokenMetadata(tokenAddress: string, limit = 1): Promise<{
+	display: string;
 	latest: DecodedMetaEntry | null;
 	history: DecodedMetaEntry[];
 }> {
@@ -86,19 +128,22 @@ export async function fetchTokenMetadata(tokenAddress: string): Promise<{
 		{ subject: paddedSubject }
 	);
 
-	const entries: DecodedMetaEntry[] = data.metaV1S.map((raw) => ({
+	const entries: DecodedMetaEntry[] = data.metaV1S.slice(0, limit).map((raw) => ({
 		id: raw.id,
 		metaHash: raw.metaHash,
 		sender: raw.sender,
 		subject: raw.subject,
-		decodedData: raw.meta ? decodeMeta(raw.meta) : null,
+		decodedData: truncateDecodedData(raw.meta ? decodeMeta(raw.meta) : null),
 		timestamp: raw.transaction?.timestamp
 			? parseInt(raw.transaction.timestamp)
 			: undefined
 	}));
 
+	const latest = entries[0] ?? null;
+
 	return {
-		latest: entries[0] ?? null,
+		display: buildDisplay(latest),
+		latest,
 		history: entries
 	};
 }

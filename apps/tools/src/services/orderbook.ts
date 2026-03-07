@@ -117,10 +117,59 @@ function parsePrice(ratio: string | undefined): number | null {
 	return isFinite(parsed) ? parsed : null;
 }
 
+function formatPrice(price: number | null): string {
+	if (price === null) return '—';
+	if (price < 0.01) return `$${price.toPrecision(3)}`;
+	return `$${price.toFixed(4)}`;
+}
+
+function formatAmount(maxOutput: string | null): string {
+	if (!maxOutput) return '—';
+	const num = parseFloat(maxOutput);
+	if (!isFinite(num)) return '—';
+	return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+function buildDisplay(
+	bids: OrderSummary[],
+	asks: OrderSummary[],
+	bestBid: number | null,
+	bestAsk: number | null,
+	spread: number | null
+): string {
+	const lines: string[] = [];
+
+	const maxRows = Math.max(bids.length, asks.length);
+	if (maxRows === 0) {
+		return 'No orders found.';
+	}
+
+	lines.push('BID                    ASK');
+	for (let i = 0; i < maxRows; i++) {
+		const bid = bids[i];
+		const ask = asks[i];
+		const bidStr = bid
+			? `${formatPrice(bid.price)}  ${formatAmount(bid.maxOutput)}`
+			: '';
+		const askStr = ask
+			? `${formatPrice(ask.price)}  ${formatAmount(ask.maxOutput)}`
+			: '';
+		lines.push(`${bidStr.padEnd(23)}${askStr}`);
+	}
+
+	if (spread !== null && bestBid !== null) {
+		const pct = ((spread / bestBid) * 100).toFixed(2);
+		lines.push(`Spread: ${formatPrice(spread)} (${pct}%)`);
+	}
+
+	return lines.join('\n');
+}
+
 export async function fetchOrderbookDepth(
 	tokenAddress: string,
 	side: 'buy' | 'sell' | 'both',
-	config: ToolsConfig
+	config: ToolsConfig,
+	detail = false
 ): Promise<OrderbookResponse> {
 	const data = await executeGraphQL<OrdersQueryResult>(
 		ORDERBOOK_SUBGRAPH_V6,
@@ -147,10 +196,8 @@ export async function fetchOrderbookDepth(
 
 		const summary: OrderSummary = {
 			orderHash: order.orderHash,
-			owner: order.owner,
 			price: parsePrice(quote?.ratio),
 			maxOutput: quote?.maxOutput ?? null,
-			ratio: quote?.ratio ?? null,
 			inputToken: order.inputs[0]?.token.address ?? '',
 			outputToken: order.outputs[0]?.token.address ?? ''
 		};
@@ -170,12 +217,16 @@ export async function fetchOrderbookDepth(
 	const bestAsk = asks[0]?.price ?? null;
 	const spread = bestBid !== null && bestAsk !== null ? bestAsk - bestBid : null;
 
+	const display = buildDisplay(bids, asks, bestBid, bestAsk, spread);
+
 	return {
 		tokenAddress,
-		bids,
-		asks,
+		display,
+		...(detail ? { bids, asks } : {}),
 		bestBid,
 		bestAsk,
-		spread
+		spread,
+		bidCount: bids.length,
+		askCount: asks.length
 	};
 }

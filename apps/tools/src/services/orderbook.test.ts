@@ -69,13 +69,39 @@ describe('fetchOrderbookDepth', () => {
 			)
 		);
 
-		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig);
+		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig, true);
 		expect(result.bids).toHaveLength(1);
 		expect(result.asks).toHaveLength(1);
-		expect(result.bids[0].orderHash).toBe('0xbid1');
-		expect(result.asks[0].orderHash).toBe('0xask1');
+		expect(result.bids![0].orderHash).toBe('0xbid1');
+		expect(result.asks![0].orderHash).toBe('0xask1');
 		expect(result.bestBid).toBe(1.5);
 		expect(result.bestAsk).toBe(1.5);
+		expect(result.bidCount).toBe(1);
+		expect(result.askCount).toBe(1);
+		expect(result.display).toContain('BID');
+	});
+
+	it('omits arrays when detail is false', async () => {
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: {
+						orders: [
+							makeOrder('0xbid1', TOKEN, USDC),
+							makeOrder('0xask1', USDC, TOKEN)
+						]
+					}
+				}),
+				{ status: 200 }
+			)
+		);
+
+		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig);
+		expect(result.bids).toBeUndefined();
+		expect(result.asks).toBeUndefined();
+		expect(result.bidCount).toBe(1);
+		expect(result.askCount).toBe(1);
+		expect(result.display).toContain('BID');
 	});
 
 	it('filters by side when requested', async () => {
@@ -93,7 +119,7 @@ describe('fetchOrderbookDepth', () => {
 			)
 		);
 
-		const result = await fetchOrderbookDepth(TOKEN, 'buy', mockConfig);
+		const result = await fetchOrderbookDepth(TOKEN, 'buy', mockConfig, true);
 		expect(result.bids).toHaveLength(1);
 		expect(result.asks).toHaveLength(0);
 	});
@@ -107,10 +133,11 @@ describe('fetchOrderbookDepth', () => {
 		);
 
 		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig);
-		expect(result.bids).toHaveLength(0);
-		expect(result.asks).toHaveLength(0);
+		expect(result.bidCount).toBe(0);
+		expect(result.askCount).toBe(0);
 		expect(result.bestBid).toBeNull();
 		expect(result.bestAsk).toBeNull();
 		expect(result.spread).toBeNull();
+		expect(result.display).toBe('No orders found.');
 	});
 });

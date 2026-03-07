@@ -59,11 +59,36 @@ describe('fetchTradeHistory', () => {
 			makeTradeResponse([makeTrade('trade-2', '0xorder1', '1700000000')])
 		);
 
-		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1');
+		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1', 50, true);
 		expect(result.trades).toHaveLength(2);
 		// Should be sorted by timestamp descending
-		expect(result.trades[0].id).toBe('trade-1');
-		expect(result.trades[1].id).toBe('trade-2');
+		expect(result.trades![0].timestamp).toBe(1700000100);
+		expect(result.trades![1].timestamp).toBe(1700000000);
+		expect(result.trades![0].input.readableAmount).toBeDefined();
+		expect(result.display).toContain('Recent trades');
+	});
+
+	it('omits trades array when detail is false', async () => {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+		fetchSpy.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: { orders: [{ orderHash: '0xorder1' }] }
+				}),
+				{ status: 200 }
+			)
+		);
+
+		fetchSpy.mockResolvedValueOnce(
+			makeTradeResponse([makeTrade('trade-1', '0xorder1', '1700000100')])
+		);
+		fetchSpy.mockResolvedValueOnce(makeTradeResponse([]));
+
+		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1');
+		expect(result.trades).toBeUndefined();
+		expect(result.total).toBe(1);
+		expect(result.display).toContain('Recent trades');
 	});
 
 	it('deduplicates trades by ID (v6 overwrites legacy)', async () => {
@@ -86,10 +111,10 @@ describe('fetchTradeHistory', () => {
 			makeTradeResponse([makeTrade('trade-dup', '0xorder1', '1700000000')])
 		);
 
-		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1');
+		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1', 50, true);
 		expect(result.trades).toHaveLength(1);
 		// v6 version should win (timestamp 1700000100)
-		expect(result.trades[0].timestamp).toBe(1700000100);
+		expect(result.trades![0].timestamp).toBe(1700000100);
 	});
 
 	it('returns empty when no orders exist', async () => {
@@ -101,8 +126,9 @@ describe('fetchTradeHistory', () => {
 		);
 
 		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1');
-		expect(result.trades).toHaveLength(0);
+		expect(result.trades).toBeUndefined();
 		expect(result.total).toBe(0);
+		expect(result.display).toBe('No trades found.');
 	});
 
 	it('clamps limit between 1 and 100', async () => {
@@ -121,7 +147,7 @@ describe('fetchTradeHistory', () => {
 		fetchSpy.mockResolvedValueOnce(makeTradeResponse([]));
 
 		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1', 200);
-		expect(result.trades).toHaveLength(0);
+		expect(result.total).toBe(0);
 		// Verify the query was called with clamped limit (100)
 		const v6Call = fetchSpy.mock.calls[1];
 		const body = JSON.parse(v6Call[1]!.body as string);

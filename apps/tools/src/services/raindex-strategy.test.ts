@@ -46,7 +46,8 @@ describe('raindex strategy service', () => {
 			forceRefresh: true
 		});
 
-		expect(result).toEqual([{ key: 'fixed-limit' }]);
+		expect(result.strategies).toEqual([{ key: 'fixed-limit', name: '', description: '' }]);
+		expect(result.display).toContain('fixed-limit');
 		expect(callRaindexMcpTool).toHaveBeenCalledWith(config, 'raindex_list_strategies', {
 			registry_url: 'https://example.com/custom-registry',
 			force_refresh: true

@@ -57,6 +57,8 @@ describe('fetchTokenMetadata', () => {
 		});
 		expect(result.latest!.timestamp).toBe(1700000000);
 		expect(result.history).toHaveLength(1);
+		expect(result.display).toContain('name: Test Asset');
+		expect(result.display).toContain('location: Test Location');
 	});
 
 	it('returns null latest when no metadata exists', async () => {
@@ -70,6 +72,7 @@ describe('fetchTokenMetadata', () => {
 		const result = await fetchTokenMetadata('0xf836a500910453A397084ADe41321ee20a5AAde1');
 		expect(result.latest).toBeNull();
 		expect(result.history).toHaveLength(0);
+		expect(result.display).toBe('No metadata found.');
 	});
 
 	it('handles malformed CBOR gracefully', async () => {

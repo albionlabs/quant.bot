@@ -4,7 +4,7 @@ import { fetchTradeHistory } from '../services/trade-history.js';
 export async function tradeHistoryRoutes(app: FastifyInstance) {
 	app.get<{
 		Params: { tokenAddress: string };
-		Querystring: { limit?: string };
+		Querystring: { limit?: string; detail?: string };
 	}>(
 		'/api/exchange/trades/:tokenAddress',
 		async (request, reply) => {
@@ -19,9 +19,11 @@ export async function tradeHistoryRoutes(app: FastifyInstance) {
 				return reply.status(400).send({ error: 'limit must be between 1 and 100' });
 			}
 
+			const detail = request.query.detail === 'true';
+
 			try {
-				const { trades, total } = await fetchTradeHistory(tokenAddress, limit);
-				return { tokenAddress, trades, total };
+				const result = await fetchTradeHistory(tokenAddress, limit, detail);
+				return { tokenAddress, ...result };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : 'Failed to fetch trades';
 				return reply.status(500).send({ error: message });

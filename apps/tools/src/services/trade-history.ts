@@ -1,6 +1,6 @@
 // TODO: This service will share an API client with orderbook when a unified exchange API is built.
 
-import type { NormalizedTrade } from '@quant-bot/shared-types';
+import type { NormalizedTrade, TradeTokenAmount } from '@quant-bot/shared-types';
 import { executeGraphQL } from './graphql-client.js';
 import { ORDERBOOK_SUBGRAPH_V6, ORDERBOOK_SUBGRAPH_LEGACY } from '../constants.js';
 
@@ -95,35 +95,73 @@ query TradesForOrders($orderHashes: [Bytes!]!, $first: Int!) {
 }
 `;
 
+function computeReadableAmount(amount: string, decimals: number | null): string {
+	if (decimals === null) return amount;
+	const abs = amount.startsWith('-') ? amount.slice(1) : amount;
+	const sign = amount.startsWith('-') ? '-' : '';
+	const padded = abs.padStart(decimals + 1, '0');
+	const intPart = padded.slice(0, padded.length - decimals) || '0';
+	const fracPart = padded.slice(padded.length - decimals).replace(/0+$/, '');
+	const num = parseFloat(`${sign}${intPart}${fracPart ? '.' + fracPart : ''}`);
+	return num.toLocaleString('en-US', { maximumFractionDigits: 6 });
+}
+
+function makeTokenAmount(bc: SubgraphBalanceChange): TradeTokenAmount {
+	const decimals = bc.vault.token.decimals ? parseInt(bc.vault.token.decimals) : null;
+	return {
+		token: bc.vault.token.id,
+		symbol: bc.vault.token.symbol,
+		decimals,
+		amount: bc.amount,
+		readableAmount: computeReadableAmount(bc.amount, decimals)
+	};
+}
+
 function normalizeTrade(trade: SubgraphTrade): NormalizedTrade | null {
 	const input = trade.inputVaultBalanceChange;
 	const output = trade.outputVaultBalanceChange;
 	if (!input || !output) return null;
 
 	return {
-		id: trade.id,
 		orderHash: trade.order.orderHash,
 		timestamp: parseInt(trade.timestamp),
-		input: {
-			token: input.vault.token.id,
-			symbol: input.vault.token.symbol,
-			decimals: input.vault.token.decimals ? parseInt(input.vault.token.decimals) : null,
-			amount: input.amount
-		},
-		output: {
-			token: output.vault.token.id,
-			symbol: output.vault.token.symbol,
-			decimals: output.vault.token.decimals ? parseInt(output.vault.token.decimals) : null,
-			amount: output.amount
-		},
+		input: makeTokenAmount(input),
+		output: makeTokenAmount(output),
 		txHash: trade.tradeEvent.transaction.id
 	};
 }
 
+function formatTimestamp(ts: number): string {
+	const d = new Date(ts * 1000);
+	const mon = d.toLocaleString('en-US', { month: 'short' });
+	const day = d.getDate();
+	const h = d.getHours().toString().padStart(2, '0');
+	const m = d.getMinutes().toString().padStart(2, '0');
+	return `${mon} ${day} ${h}:${m}`;
+}
+
+function buildDisplay(trades: NormalizedTrade[], total: number): string {
+	if (trades.length === 0) return 'No trades found.';
+
+	const shown = Math.min(trades.length, 10);
+	const lines: string[] = [`Recent trades (${shown} of ${total}):`];
+	for (let i = 0; i < shown; i++) {
+		const t = trades[i];
+		const inAmt = t.input.readableAmount ?? t.input.amount;
+		const outAmt = t.output.readableAmount ?? t.output.amount;
+		const inSym = t.input.symbol ?? t.input.token.slice(0, 8);
+		const outSym = t.output.symbol ?? t.output.token.slice(0, 8);
+		const txShort = `${t.txHash.slice(0, 6)}...`;
+		lines.push(`${formatTimestamp(t.timestamp)}  ${inAmt} ${inSym} -> ${outAmt} ${outSym}  tx:${txShort}`);
+	}
+	return lines.join('\n');
+}
+
 export async function fetchTradeHistory(
 	tokenAddress: string,
-	limit: number = 50
-): Promise<{ trades: NormalizedTrade[]; total: number }> {
+	limit: number = 50,
+	detail = false
+): Promise<{ display: string; trades?: NormalizedTrade[]; total: number }> {
 	const clampedLimit = Math.max(1, Math.min(100, limit));
 
 	// Step 1: Get order hashes involving this token
@@ -135,7 +173,7 @@ export async function fetchTradeHistory(
 
 	const orderHashes = orderData.orders.map((o) => o.orderHash.toLowerCase());
 	if (orderHashes.length === 0) {
-		return { trades: [], total: 0 };
+		return { display: 'No trades found.', total: 0 };
 	}
 
 	// Step 2: Query both v6 + legacy subgraphs in parallel
@@ -174,5 +212,10 @@ export async function fetchTradeHistory(
 	normalized.sort((a, b) => b.timestamp - a.timestamp);
 
 	const clamped = normalized.slice(0, clampedLimit);
-	return { trades: clamped, total: clamped.length };
+	const display = buildDisplay(clamped, clamped.length);
+	return {
+		display,
+		...(detail ? { trades: clamped } : {}),
+		total: clamped.length
+	};
 }

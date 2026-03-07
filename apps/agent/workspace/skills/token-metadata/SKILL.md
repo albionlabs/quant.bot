@@ -1,42 +1,17 @@
 ---
 name: "Token Metadata"
 description: "Fetch decoded on-chain asset metadata (location, cash flows, production data)"
-version: "1.0.0"
+version: "1.2.0"
 ---
 
-To fetch decoded metadata for a token:
-
 ```bash
-curl -s http://quant-bot-tools.internal:4000/api/tokens/0xf836a500910453A397084ADe41321ee20a5AAde1/metadata
+curl -s 'http://quant-bot-tools.internal:4000/api/tokens/0xADDRESS/metadata'
 ```
 
-Parameters:
-- `:address` — The token contract address (must be a valid `0x`-prefixed 40-hex-char address)
+Optional: `?limit=N` (default 1, max 100) — controls how many history entries to return.
 
-Response:
-```json
-{
-  "address": "0xf836a500910453A397084ADe41321ee20a5AAde1",
-  "latest": {
-    "id": "meta-1",
-    "metaHash": "0x...",
-    "sender": "0x...",
-    "subject": "0x000000000000000000000000...",
-    "decodedData": {
-      "name": "Asset Name",
-      "location": "Asset Location",
-      "description": "..."
-    },
-    "timestamp": 1700000000
-  },
-  "history": [...]
-}
-```
+Returns `{ address, display, latest, history }` where `latest` and each history entry contain `{ id, metaHash, sender, subject, decodedData, timestamp }`.
 
-The `decodedData` field contains the CBOR-decoded asset metadata. Its structure varies by asset but typically includes:
-- `name` — Asset name
-- `location` — Physical location
-- `description` — Asset description
-- Cash flow projections, production data, and other asset-specific fields
+The `decodedData` field contains CBOR-decoded asset metadata (name, location, description, cash flows, production data, etc.).
 
-Use this tool when the user asks about asset details, metadata, location, or on-chain asset information for a specific token.
+Include the `display` field verbatim. Only elaborate on specific `decodedData` fields if the user asks.

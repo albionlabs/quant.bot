@@ -5,7 +5,7 @@ import { fetchOrderbookDepth } from '../services/orderbook.js';
 export async function orderbookRoutes(app: FastifyInstance, config: ToolsConfig) {
 	app.get<{
 		Params: { tokenAddress: string };
-		Querystring: { side?: string };
+		Querystring: { side?: string; detail?: string };
 	}>(
 		'/api/exchange/orderbook/:tokenAddress',
 		async (request, reply) => {
@@ -20,8 +20,10 @@ export async function orderbookRoutes(app: FastifyInstance, config: ToolsConfig)
 				return reply.status(400).send({ error: 'side must be "buy", "sell", or "both"' });
 			}
 
+			const detail = request.query.detail === 'true';
+
 			try {
-				return await fetchOrderbookDepth(tokenAddress, sideParam, config);
+				return await fetchOrderbookDepth(tokenAddress, sideParam, config, detail);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : 'Failed to fetch orderbook';
 				return reply.status(500).send({ error: message });
