@@ -126,6 +126,21 @@
 		return `https://basescan.org/tx/${hash}`;
 	}
 
+	const DEFAULT_CHAIN_ID = 8453;
+
+	function escapeHtml(text: string): string {
+		return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	}
+
+	function renderContentWithHashLinks(content: string): string {
+		const escaped = escapeHtml(content);
+		return escaped.replace(
+			/\b(0x[a-fA-F0-9]{64})\b/g,
+			(hash) =>
+				`<a class="inline-hash" href="${basescanTxUrl(DEFAULT_CHAIN_ID, hash)}" target="_blank" rel="noopener noreferrer">${shortenHex(hash, 10, 8)}</a>`
+		);
+	}
+
 	function parseRainlangReview(content: string): RainlangReviewPayload | null {
 		const taggedMatch = content.match(taggedReviewRegex);
 		if (taggedMatch) {
@@ -318,6 +333,7 @@
 		return null;
 	});
 	const displayContent = $derived(rainlangReview?.contentWithoutReview ?? contentWithoutTxRequest);
+	const renderedContent = $derived(renderContentWithHashLinks(displayContent));
 	const activeReview = $derived(rainlangReview ?? bundleRainlangReview);
 	const timeStr = $derived(new Date(message.timestamp).toLocaleTimeString());
 
@@ -368,10 +384,26 @@
 	}
 </script>
 
+{#snippet txHashBox(hash: string, index: number, chainId: number)}
+	<div class="hash-link-box">
+		<span class="hash-label">Tx {index + 1}</span>
+		<code>{shortenHex(hash, 10, 8)}</code>
+		<a class="hash-explorer-link" href={basescanTxUrl(chainId, hash)} target="_blank" rel="noopener noreferrer">BaseScan ↗</a>
+	</div>
+{/snippet}
+
+{#snippet orderHashBox(hash: string, url: string)}
+	<div class="hash-link-box order">
+		<span class="hash-label">Order</span>
+		<code>{shortenHex(hash, 10, 8)}</code>
+		<a class="hash-explorer-link" href={url} target="_blank" rel="noopener noreferrer">Raindex ↗</a>
+	</div>
+{/snippet}
+
 <div class="chat-bubble" class:user={isUser} class:assistant={!isUser && !isSystem} class:system={isSystem}>
 	<div class="bubble-content">
 		{#if displayContent}
-			<div class="message-text">{displayContent}</div>
+			<div class="message-text">{@html renderedContent}</div>
 		{/if}
 		{#if rainlangReview}
 			<button class="review-btn" onclick={() => (isReviewModalOpen = true)}>Review Rainlang Strategy</button>
@@ -454,29 +486,19 @@
 							Signing {bState.currentTxIndex + 1} of {bState.bundle?.transactions.length ?? 0}: {bState.bundle?.transactions[bState.currentTxIndex]?.label ?? ''}...
 						</button>
 						{#each bState.txHashes as hash, i}
-							<div class="sign-status success">
-								Tx {i + 1}: <code>{hash}</code>
-							</div>
+							{@render txHashBox(hash, i, bState.bundle?.chainId ?? DEFAULT_CHAIN_ID)}
 						{/each}
 					{:else if bState.status === 'completed'}
 						{#each bState.txHashes as hash, i}
-							<div class="sign-status success">
-								Tx {i + 1}: <code>{hash}</code>
-							</div>
+							{@render txHashBox(hash, i, bState.bundle?.chainId ?? DEFAULT_CHAIN_ID)}
 						{/each}
 						{#if bState.completionResult?.raindexUrl}
-							<div class="sign-status success">
-								<a class="tx-link" href={bState.completionResult.raindexUrl} target="_blank" rel="noopener noreferrer">
-									View order on Raindex
-								</a>
-							</div>
+							{@render orderHashBox(bState.completionResult.orderHash ?? '', bState.completionResult.raindexUrl)}
 						{/if}
 					{:else if bState.status === 'error'}
 						<div class="sign-status error">{bState.error}</div>
 						{#each bState.txHashes as hash, i}
-							<div class="sign-status success">
-								Tx {i + 1}: <code>{hash}</code>
-							</div>
+							{@render txHashBox(hash, i, bState.bundle?.chainId ?? DEFAULT_CHAIN_ID)}
 						{/each}
 						{#if bState.error?.includes('not found or expired')}
 							<div class="sign-status pending">Bundle expired — ask the agent to prepare again.</div>
@@ -624,6 +646,79 @@
 	.sign-status.success {
 		background: #ecfdf3;
 		color: #166534;
+	}
+
+	.hash-link-box {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.35rem 0.5rem;
+		border-radius: 0.4rem;
+		background: #ecfdf3;
+		font-size: 0.76rem;
+	}
+
+	.hash-link-box.order {
+		background: #eff6ff;
+	}
+
+	.hash-link-box .hash-label {
+		color: #166534;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+
+	.hash-link-box.order .hash-label {
+		color: #1d4ed8;
+	}
+
+	.hash-link-box code {
+		color: #166534;
+		word-break: break-all;
+	}
+
+	.hash-link-box.order code {
+		color: #1e40af;
+	}
+
+	.hash-explorer-link {
+		margin-left: auto;
+		color: #065f46;
+		font-weight: 600;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.hash-explorer-link:hover {
+		text-decoration: underline;
+	}
+
+	.hash-link-box.order .hash-explorer-link {
+		color: #1e40af;
+	}
+
+	:global(.inline-hash) {
+		background: #f0fdf4;
+		padding: 0.1rem 0.3rem;
+		border-radius: 0.25rem;
+		color: #166534;
+		text-decoration: none;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		font-size: 0.85em;
+	}
+
+	:global(.inline-hash:hover) {
+		text-decoration: underline;
+		background: #dcfce7;
+	}
+
+	.user :global(.inline-hash) {
+		background: rgba(255, 255, 255, 0.2);
+		color: #ffffff;
+	}
+
+	.user :global(.inline-hash:hover) {
+		background: rgba(255, 255, 255, 0.3);
 	}
 
 	.tx-link {
