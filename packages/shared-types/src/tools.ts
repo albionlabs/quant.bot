@@ -162,6 +162,8 @@ export interface TransactionSimulation {
 	index: number;
 	label: string;
 	success: boolean;
+	status?: 'ok' | 'requires_prior_state' | 'failed';
+	reasonCode?: string;
 	gasUsed: string;
 	error?: string;
 }
@@ -180,6 +182,7 @@ export interface StageSigningResponse {
 	signingId: string;
 	summary: string;
 	simulations: TransactionSimulation[];
+	readyToSign: boolean;
 	allSimulationsSucceeded: boolean;
 }
 

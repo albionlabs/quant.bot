@@ -30,12 +30,12 @@ Parameters:
 
 The endpoint **simulates all transactions server-side** and returns:
 ```json
-{ "signingId": "uuid", "summary": "2 transactions staged: [1] Approve USDC (ok, ~52k gas) [2] Deploy Strategy (ok, ~340k gas)", "simulations": [...], "allSimulationsSucceeded": true }
+{ "signingId": "uuid", "summary": "...", "simulations": [...], "readyToSign": true, "allSimulationsSucceeded": true }
 ```
 
 ## Output Format
 
-If `allSimulationsSucceeded` is true, output a single tag:
+If `readyToSign` is true, output a single tag:
 ```text
 <tx-sign id="<signingId>">summary text here</tx-sign>
 ```
@@ -43,7 +43,7 @@ If `allSimulationsSucceeded` is true, output a single tag:
 The widget handles fetching the full bundle, sequential signing, confirmation, and post-deployment lookups automatically.
 
 CRITICAL RULES:
-1. Do NOT output `<tx-sign>` tag if any simulation fails — explain the failure instead
+1. Do NOT output `<tx-sign>` tag if `readyToSign` is false — explain the failure instead
 2. ALWAYS ask for explicit user confirmation before outputting the signing tag
 3. Display the simulation summary and explain what the transactions will do
 4. Do NOT manually simulate — the stage-signing endpoint does this automatically
