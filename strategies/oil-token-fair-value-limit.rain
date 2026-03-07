@@ -17,7 +17,7 @@ scenarios:
       raindex-subparser: 0x22839F16281E67E5Fd395fAFd1571e820CbD46cB
       subparser-0: 0x21026b98bA3909E34e9a42295A812614bb0C7F21
       pyth-pair: 0x27f0d5e09a830083e5491795cac9ca521399c8f7fd56240d09484b14e614d57a
-      target-price-fn: '''oil-target-price
+      target-price-fn: '''oil-target-price'
 
   oil-target-base-inv:
     orderbook: base
@@ -27,7 +27,7 @@ scenarios:
       raindex-subparser: 0x22839F16281E67E5Fd395fAFd1571e820CbD46cB
       subparser-0: 0x21026b98bA3909E34e9a42295A812614bb0C7F21
       pyth-pair: 0x27f0d5e09a830083e5491795cac9ca521399c8f7fd56240d09484b14e614d57a
-      target-price-fn: '''oil-target-price-inv
+      target-price-fn: '''oil-target-price-inv'
 
 deployments:
   base:
