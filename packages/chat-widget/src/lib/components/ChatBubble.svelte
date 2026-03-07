@@ -274,7 +274,6 @@
 				txHashes: collectedHashes,
 				completionResult: result
 			});
-			sendMessage('Deployment complete.');
 		} catch (error) {
 			// Transactions are on-chain, just completion lookup failed
 			patchBundleState(signingId, {
@@ -282,7 +281,6 @@
 				txHashes: collectedHashes,
 				error: `Completion lookup failed: ${error instanceof Error ? error.message : 'Unknown'}`
 			});
-			sendMessage('All transactions confirmed on-chain.');
 		}
 	}
 
@@ -369,9 +367,7 @@
 			if (!getTxSignState(requestId).autoProceedSent) {
 				patchTxSignState(requestId, { autoProceedSent: true });
 				const transactionLabel = txSignRequests.length > 1 ? `Transaction ${position + 1}` : 'Transaction';
-				sendMessage(
-					`${transactionLabel} confirmed on-chain: ${hash}\nBaseScan: ${basescanTxUrl(requestPayload.chainId, hash)}\nPlease continue with the next required step.`
-				);
+				sendMessage(`${transactionLabel} confirmed on-chain: ${hash}. Continue.`);
 			}
 		} catch (error) {
 			patchTxSignState(requestId, {

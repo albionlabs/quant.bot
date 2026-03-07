@@ -17,13 +17,31 @@ export interface GatewayConfig {
 	internalSecret: string;
 	dynamicWebhookSecret: string;
 	toolsBaseUrl: string;
+	tokenMetricsEnabled: boolean;
+	tokenMetricsMaxRuns: number;
+}
+
+function parseBoolean(value: string | undefined, fallback: boolean): boolean {
+	if (value === undefined) return fallback;
+	const normalized = value.trim().toLowerCase();
+	if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on')
+		return true;
+	if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off')
+		return false;
+	return fallback;
 }
 
 export function loadConfig(): GatewayConfig {
 	const jwtSecret = requireNonEmpty('JWT_SECRET', process.env.JWT_SECRET ?? '');
-	const openclawGatewayToken = requireNonEmpty('OPENCLAW_GATEWAY_TOKEN', process.env.OPENCLAW_GATEWAY_TOKEN ?? '');
+	const openclawGatewayToken = requireNonEmpty(
+		'OPENCLAW_GATEWAY_TOKEN',
+		process.env.OPENCLAW_GATEWAY_TOKEN ?? ''
+	);
 	const internalSecret = requireNonEmpty('INTERNAL_SECRET', process.env.INTERNAL_SECRET ?? '');
-	const dynamicWebhookSecret = requireNonEmpty('DYNAMIC_WEBHOOK_SECRET', process.env.DYNAMIC_WEBHOOK_SECRET ?? '');
+	const dynamicWebhookSecret = requireNonEmpty(
+		'DYNAMIC_WEBHOOK_SECRET',
+		process.env.DYNAMIC_WEBHOOK_SECRET ?? ''
+	);
 
 	const corsOrigin = process.env.CORS_ORIGIN
 		? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
@@ -45,6 +63,8 @@ export function loadConfig(): GatewayConfig {
 		delegationServiceUrl: process.env.DELEGATION_SERVICE_URL ?? 'http://quant-bot.internal:5000',
 		internalSecret,
 		dynamicWebhookSecret,
-		toolsBaseUrl: (process.env.TOOLS_BASE_URL ?? '').trim() || 'http://127.0.0.1:4000'
+		toolsBaseUrl: (process.env.TOOLS_BASE_URL ?? '').trim() || 'http://127.0.0.1:4000',
+		tokenMetricsEnabled: parseBoolean(process.env.TOKEN_METRICS_ENABLED, true),
+		tokenMetricsMaxRuns: parseInt(process.env.TOKEN_METRICS_MAX_RUNS ?? '2000', 10)
 	};
 }

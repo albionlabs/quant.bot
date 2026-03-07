@@ -37,10 +37,12 @@ beforeEach(() => {
 
 // Mock the MCP client module
 vi.mock('./raindex-mcp-client.js', () => ({
-	callRaindexMcpTool: vi.fn().mockResolvedValue({
+	callRaindexMcpTool: vi.fn().mockResolvedValue([{
+		pair: 'USDC/TOKEN',
+		success: true,
 		maxOutput: '100',
 		ratio: '1.5'
-	}),
+	}]),
 	RaindexMcpError: class extends Error {
 		status: number;
 		source = 'raindex-mcp' as const;
@@ -127,6 +129,32 @@ describe('fetchOrderbookDepth', () => {
 		const result = await fetchOrderbookDepth(TOKEN, 'buy', mockConfig, true);
 		expect(result.bids).toHaveLength(1);
 		expect(result.asks).toHaveLength(0);
+	});
+
+	it('handles failed dynamic quotes (success: false) as null price', async () => {
+		const { callRaindexMcpTool } = await import('./raindex-mcp-client.js');
+		vi.mocked(callRaindexMcpTool).mockResolvedValue([{
+			pair: 'USDC/TOKEN',
+			success: false,
+			error: 'Execution reverted with error: StalePrice'
+		}]);
+
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: {
+						orders: [
+							makeOrder('0xbid1', TOKEN, USDC)
+						]
+					}
+				}),
+				{ status: 200 }
+			)
+		);
+
+		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig, true);
+		expect(result.bids).toHaveLength(1);
+		expect(result.bids![0].price).toBeNull();
 	});
 
 	it('returns empty orderbook when no orders exist', async () => {

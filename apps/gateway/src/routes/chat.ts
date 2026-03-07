@@ -4,6 +4,7 @@ import { verifyToken } from '../middleware/auth.js';
 import { createSession, getSession, touchSession } from '../services/session.js';
 import { sendToAgent, isAgentConnected } from '../services/agent-proxy.js';
 import { createExecutionToken } from '../services/execution-token.js';
+import { recordTokenRun } from '../services/token-metrics.js';
 import type { GatewayConfig } from '../config.js';
 import { UI_VERSION } from '../version.js';
 import type { ClientMessage, ServerMessage } from '@quant-bot/shared-types';
@@ -14,7 +15,9 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 		const token = url.searchParams.get('token');
 
 		if (!token) {
-			socket.send(JSON.stringify({ type: 'error', code: 'AUTH_REQUIRED', message: 'Token required' }));
+			socket.send(
+				JSON.stringify({ type: 'error', code: 'AUTH_REQUIRED', message: 'Token required' })
+			);
 			socket.close();
 			return;
 		}
@@ -23,7 +26,9 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 		try {
 			user = await verifyToken(token, config);
 		} catch {
-			socket.send(JSON.stringify({ type: 'error', code: 'AUTH_INVALID', message: 'Invalid token' }));
+			socket.send(
+				JSON.stringify({ type: 'error', code: 'AUTH_INVALID', message: 'Invalid token' })
+			);
 			socket.close();
 			return;
 		}
@@ -36,11 +41,13 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 			return;
 		}
 
-		socket.send(JSON.stringify({
-			type: 'connected',
-			sessionId: '',
-			version: UI_VERSION
-		}));
+		socket.send(
+			JSON.stringify({
+				type: 'connected',
+				sessionId: '',
+				version: UI_VERSION
+			})
+		);
 
 		socket.on('message', async (raw: Buffer) => {
 			try {
@@ -64,19 +71,16 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 					);
 
 					const messageWithContext = [
-						'[Trusted execution context from authenticated gateway session]',
-						`Authenticated userId: ${user!.sub}`,
-						`Execution token for /api/evm/request-signature: ${executionToken}`,
-						'Never ask the user for userId, wallet address, or execution token.',
-						'When requesting transaction signing, call /api/evm/request-signature with this token.',
-						'[/Trusted execution context]',
-						'',
+						`[trusted-context userId=${user!.sub} executionToken=${executionToken}]`,
+						'Use this executionToken for signing/staging APIs. Never ask the user for userId, wallet address, or execution token.',
+						'[/trusted-context]',
 						msg.content
 					].join('\n');
 
 					const result = await sendToAgent({
 						message: messageWithContext,
 						userId: user!.sub,
+						sessionId,
 						timeoutMs: config.agentResponseTimeoutMs,
 						onDelta: (delta) => {
 							const streamMsg: ServerMessage = {
@@ -93,8 +97,53 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 								delta: `\n${progress}\n`
 							};
 							socket.send(JSON.stringify(streamMsg));
+						},
+						onUsage: (usage) => {
+							if (config.tokenMetricsEnabled) {
+								recordTokenRun({
+									ts: Date.now(),
+									userId: user!.sub,
+									sessionId,
+									status: usage.status,
+									promptChars: usage.promptChars,
+									completionChars: usage.completionChars,
+									inputTokens: usage.inputTokens,
+									outputTokens: usage.outputTokens,
+									totalTokens: usage.totalTokens,
+									providerInputTokens: usage.providerInputTokens,
+									providerOutputTokens: usage.providerOutputTokens,
+									providerTotalTokens: usage.providerTotalTokens,
+									estimatedInputTokens: usage.estimatedInputTokens,
+									estimatedOutputTokens: usage.estimatedOutputTokens,
+									modelCalls: usage.modelCalls,
+									usageEvents: usage.usageEvents,
+									toolCalls: usage.toolCalls,
+									streamCounts: usage.streamCounts
+								});
+							}
+
+							app.log.info(
+								{
+									userId: user!.sub,
+									sessionId,
+									status: usage.status,
+									inputTokens: usage.inputTokens,
+									outputTokens: usage.outputTokens,
+									totalTokens: usage.totalTokens,
+									providerInputTokens: usage.providerInputTokens,
+									providerOutputTokens: usage.providerOutputTokens,
+									providerTotalTokens: usage.providerTotalTokens,
+									estimatedInputTokens: usage.estimatedInputTokens,
+									estimatedOutputTokens: usage.estimatedOutputTokens,
+									modelCalls: usage.modelCalls,
+									usageEvents: usage.usageEvents,
+									toolCalls: usage.toolCalls
+								},
+								'chat.run.usage'
+							);
 						}
 					});
+
 					const response: ServerMessage = {
 						type: 'message',
 						role: 'assistant',
@@ -112,7 +161,9 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 					socket.send(JSON.stringify(error));
 				}
 			} catch {
-				socket.send(JSON.stringify({ type: 'error', code: 'PARSE_ERROR', message: 'Invalid message' }));
+				socket.send(
+					JSON.stringify({ type: 'error', code: 'PARSE_ERROR', message: 'Invalid message' })
+				);
 			}
 		});
 	});

@@ -9,10 +9,15 @@ import { healthRoutes } from './routes/health.js';
 import { webhookRoutes } from './routes/webhook.js';
 import { delegationRoutes } from './routes/delegation.js';
 import { signingProxyRoutes } from './routes/signing.js';
+import { metricsRoutes } from './routes/metrics.js';
+import { dataProxyRoutes } from './routes/data.js';
 import { connectToAgent } from './services/agent-proxy.js';
+import { configureTokenMetrics } from './services/token-metrics.js';
 
 const config = loadConfig();
 const app = Fastify({ logger: true });
+
+configureTokenMetrics({ maxRuns: config.tokenMetricsMaxRuns });
 
 await app.register(cors, { origin: config.corsOrigin });
 await app.register(websocket);
@@ -24,6 +29,8 @@ await app.register((instance) => chatRoutes(instance, config));
 await app.register((instance) => webhookRoutes(instance, config));
 await app.register((instance) => delegationRoutes(instance, config));
 await app.register((instance) => signingProxyRoutes(instance, config));
+await app.register((instance) => dataProxyRoutes(instance, config));
+await app.register((instance) => metricsRoutes(instance, config));
 
 // Attempt agent connection (non-blocking - gateway starts even if agent is down)
 connectToAgent(config).catch((err) => {

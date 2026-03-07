@@ -1,10 +1,14 @@
 ---
 name: "Transaction Executor"
 description: "Stage transactions for client-side batch signing on Base"
-version: "4.0.0"
+version: "4.2.0"
 ---
 
-To stage transactions for client signing on Base, bundle all transactions in a single call:
+## Use When
+- Transactions are already prepared and must be staged for client signing.
+
+## Call
+Bundle all transactions in one request:
 
 ```bash
 curl -s -X POST http://quant-bot-tools.internal:4000/api/evm/stage-signing \
@@ -23,29 +27,25 @@ curl -s -X POST http://quant-bot-tools.internal:4000/api/evm/stage-signing \
   }'
 ```
 
-Parameters:
-- `executionToken` (from gateway context, never ask the user)
-- `transactions[]`: each has `label` (human-readable), `to`, `data`, `value?`, `symbol?`
-- `metadata?`: optional context (`operationType`, `strategyKey`, `composedRainlang`)
-
-The endpoint **simulates all transactions server-side** and returns:
+## Endpoint Behavior
+- Simulates all transactions server-side.
+- Returns:
 ```json
 { "signingId": "uuid", "summary": "...", "simulations": [...], "readyToSign": true, "allSimulationsSucceeded": true }
 ```
 
-## Output Format
-
+## Output (Default)
 If `readyToSign` is true, output a single tag:
 ```text
 <tx-sign id="<signingId>">summary text here</tx-sign>
 ```
+If `readyToSign` is false, return max 3 bullets with blockers.
 
-The widget handles fetching the full bundle, sequential signing, confirmation, and post-deployment lookups automatically.
+## Never
+- Ask user for `executionToken`.
+- Output `<tx-sign>` before explicit confirmation.
+- Manually simulate transactions already staged.
+- Handle post-deployment order hash lookups (widget completion does this).
 
-CRITICAL RULES:
-1. Do NOT output `<tx-sign>` tag if `readyToSign` is false — explain the failure instead
-2. ALWAYS ask for explicit user confirmation before outputting the signing tag
-3. Display the simulation summary and explain what the transactions will do
-4. Do NOT manually simulate — the stage-signing endpoint does this automatically
-5. Do NOT handle post-deployment order hash lookups — the widget does this via the completion endpoint
-6. Pass `composedRainlang` in metadata — the widget renders the review modal before signing
+## Stop
+- Stop after readiness summary, or after single `<tx-sign>` tag.

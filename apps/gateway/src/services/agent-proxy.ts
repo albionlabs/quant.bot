@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { randomUUID } from 'crypto';
 import type { GatewayConfig } from '../config.js';
+import { TokenUsageAccumulator, estimateTokens } from './token-usage.js';
 
 let agentWs: WebSocket | null = null;
 let connected = false;
@@ -9,7 +10,11 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 1000;
 const MAX_RECONNECT_DELAY = 30_000;
 
-type ResHandler = (msg: { ok: boolean; payload?: Record<string, unknown>; error?: { code: string; message: string } }) => void;
+type ResHandler = (msg: {
+	ok: boolean;
+	payload?: Record<string, unknown>;
+	error?: { code: string; message: string };
+}) => void;
 const responseHandlers = new Map<string, ResHandler>();
 
 interface AgentEvent {
@@ -70,28 +75,30 @@ export function connectToAgent(config: GatewayConfig): Promise<void> {
 							fail(new Error(res.error?.message ?? 'Auth failed'));
 						}
 					});
-					ws.send(JSON.stringify({
-						type: 'req',
-						id,
-						method: 'connect',
-						params: {
-							minProtocol: 3,
-							maxProtocol: 3,
-							client: {
-								id: 'node-host',
-								version: '2026.2.27',
-								platform: 'linux',
-								mode: 'backend',
-								displayName: 'Quant Bot Gateway'
-							},
-							role: 'operator',
-							scopes: ['operator.admin'],
-							caps: [],
-							auth: {
-								token: config.openclawGatewayToken
+					ws.send(
+						JSON.stringify({
+							type: 'req',
+							id,
+							method: 'connect',
+							params: {
+								minProtocol: 3,
+								maxProtocol: 3,
+								client: {
+									id: 'node-host',
+									version: '2026.2.27',
+									platform: 'linux',
+									mode: 'backend',
+									displayName: 'Quant Bot Gateway'
+								},
+								role: 'operator',
+								scopes: ['operator.admin'],
+								caps: [],
+								auth: {
+									token: config.openclawGatewayToken
+								}
 							}
-						}
-					}));
+						})
+					);
 					return;
 				}
 
@@ -133,9 +140,29 @@ export function connectToAgent(config: GatewayConfig): Promise<void> {
 export interface SendOptions {
 	message: string;
 	userId: string;
+	sessionId: string;
 	onDelta?: (delta: string) => void;
 	onProgress?: (progress: string) => void;
+	onUsage?: (usage: AgentRunUsage) => void;
 	timeoutMs?: number;
+}
+
+export interface AgentRunUsage {
+	status: 'completed' | 'timeout' | 'error';
+	promptChars: number;
+	completionChars: number;
+	inputTokens: number;
+	outputTokens: number;
+	totalTokens: number;
+	providerInputTokens: number;
+	providerOutputTokens: number;
+	providerTotalTokens: number;
+	estimatedInputTokens: number;
+	estimatedOutputTokens: number;
+	modelCalls: number;
+	usageEvents: number;
+	toolCalls: Record<string, number>;
+	streamCounts: Record<string, number>;
 }
 
 /**
@@ -148,30 +175,70 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 	}
 
 	const ws = agentWs;
-	const sessionKey = `agent:main:web:${opts.userId}`;
+	const sessionKey = `agent:main:web:${opts.userId}:${opts.sessionId}`;
 
 	return new Promise<string>((resolve, reject) => {
 		const reqId = randomUUID();
 		let timeout: ReturnType<typeof setTimeout> | null = null;
 		const idleTimeoutMs = opts.timeoutMs ?? 120_000;
+		const usageAccumulator = new TokenUsageAccumulator();
+		const estimatedInputTokens = estimateTokens(opts.message);
+		let usageReported = false;
+		let runId: string | null = null;
+		let finalText = '';
+
+		const reportUsage = (status: AgentRunUsage['status']) => {
+			if (usageReported) return;
+			usageReported = true;
+
+			const summary = usageAccumulator.summarize();
+			const estimatedOutputTokens = estimateTokens(finalText);
+			const providerInputTokens = summary.providerInputTokens;
+			const providerOutputTokens = summary.providerOutputTokens;
+			const providerTotalTokens = summary.providerTotalTokens;
+			const inputTokens = providerInputTokens > 0 ? providerInputTokens : estimatedInputTokens;
+			const outputTokens = providerOutputTokens > 0 ? providerOutputTokens : estimatedOutputTokens;
+			const totalTokens =
+				providerTotalTokens > 0 ? providerTotalTokens : inputTokens + outputTokens;
+
+			if (opts.onUsage) {
+				opts.onUsage({
+					status,
+					promptChars: opts.message.length,
+					completionChars: finalText.length,
+					inputTokens,
+					outputTokens,
+					totalTokens,
+					providerInputTokens,
+					providerOutputTokens,
+					providerTotalTokens,
+					estimatedInputTokens,
+					estimatedOutputTokens,
+					modelCalls: summary.modelCalls,
+					usageEvents: summary.usageEvents,
+					toolCalls: summary.toolCalls,
+					streamCounts: summary.streamCounts
+				});
+			}
+		};
+
 		const resetIdleTimeout = () => {
 			if (timeout) clearTimeout(timeout);
 			timeout = setTimeout(() => {
 				runHandlers.delete(reqId);
 				responseHandlers.delete(reqId);
 				if (runId) runHandlers.delete(runId);
+				reportUsage('timeout');
 				reject(new Error('Agent response timeout'));
 			}, idleTimeoutMs);
 		};
 		resetIdleTimeout();
-
-		let runId: string | null = null;
-		let finalText = '';
 		let lastProgress: string | null = null;
 
 		// Register event handler for agent events on this run
 		const onAgentEvent = (event: AgentEvent) => {
 			resetIdleTimeout();
+			usageAccumulator.addEvent(event.stream, event.data);
 
 			if (event.stream === 'assistant' && event.data) {
 				const delta = event.data.delta as string | undefined;
@@ -209,6 +276,7 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 			if (event.stream === 'lifecycle' && event.data?.phase === 'end') {
 				if (timeout) clearTimeout(timeout);
 				if (runId) runHandlers.delete(runId);
+				reportUsage('completed');
 				resolve(finalText);
 			}
 		};
@@ -217,6 +285,7 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 		responseHandlers.set(reqId, (res) => {
 			if (!res.ok) {
 				if (timeout) clearTimeout(timeout);
+				reportUsage('error');
 				reject(new Error(res.error?.message ?? 'chat.send failed'));
 				return;
 			}
@@ -227,15 +296,17 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 			}
 		});
 
-		ws.send(JSON.stringify({
-			type: 'req',
-			id: reqId,
-			method: 'chat.send',
-			params: {
-				message: opts.message,
-				idempotencyKey: randomUUID(),
-				sessionKey
-			}
-		}));
+		ws.send(
+			JSON.stringify({
+				type: 'req',
+				id: reqId,
+				method: 'chat.send',
+				params: {
+					message: opts.message,
+					idempotencyKey: randomUUID(),
+					sessionKey
+				}
+			})
+		);
 	});
 }

@@ -73,6 +73,14 @@ interface QuoteResult {
 	ratio?: string;
 }
 
+interface McpQuoteEntry {
+	pair?: string;
+	success?: boolean;
+	maxOutput?: string;
+	ratio?: string;
+	error?: string;
+}
+
 async function fetchQuote(
 	config: ToolsConfig,
 	orderHash: string
@@ -85,10 +93,17 @@ async function fetchQuote(
 		});
 
 		if (!result || typeof result !== 'object') return null;
-		const record = result as Record<string, unknown>;
+
+		// The MCP tool returns an array of quote entries, one per trading pair.
+		// Find the first successful quote.
+		const entries = Array.isArray(result) ? result as McpQuoteEntry[] : [result as McpQuoteEntry];
+		const hit = entries.find((e) => e.success !== false && (e.ratio || e.maxOutput));
+
+		if (!hit) return null;
+
 		return {
-			maxOutput: typeof record.maxOutput === 'string' ? record.maxOutput : undefined,
-			ratio: typeof record.ratio === 'string' ? record.ratio : undefined
+			maxOutput: typeof hit.maxOutput === 'string' ? hit.maxOutput : undefined,
+			ratio: typeof hit.ratio === 'string' ? hit.ratio : undefined
 		};
 	} catch (error) {
 		console.warn(`[orderbook] Failed to fetch quote for ${orderHash}:`, error);

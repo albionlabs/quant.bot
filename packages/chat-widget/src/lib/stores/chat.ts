@@ -1,7 +1,14 @@
 import { writable, get } from 'svelte/store';
 import type { DisplayMessage } from '../types.js';
 import type { ClientMessage, ServerMessage } from '@quant-bot/shared-types';
-import { setGatewayConfig } from '../services/gateway-api.js';
+import {
+	fetchNpv,
+	fetchOrderbook,
+	fetchTokenMetadata,
+	fetchTrades,
+	lookupToken,
+	setGatewayConfig
+} from '../services/gateway-api.js';
 
 export interface ChatState {
 	messages: DisplayMessage[];
@@ -210,31 +217,171 @@ function handleVisibilityChange() {
 	}
 }
 
+function appendMessage(role: DisplayMessage['role'], content: string): void {
+	const displayMsg: DisplayMessage = {
+		id: `msg-${++messageCounter}`,
+		role,
+		content,
+		timestamp: Date.now()
+	};
+	chat.update((s) => ({ ...s, messages: [...s.messages, displayMsg] }));
+}
+
+type DirectCommand =
+	| { kind: 'token'; query: string }
+	| { kind: 'orderbook'; tokenAddress: string; side: 'buy' | 'sell' | 'both' }
+	| { kind: 'trades'; tokenAddress: string; limit: number }
+	| { kind: 'metadata'; tokenAddress: string; limit: number }
+	| { kind: 'npv'; discountRate: number; cashFlows: number[] }
+	| { kind: 'help' };
+
+function parseSide(value: string | undefined): 'buy' | 'sell' | 'both' {
+	const normalized = (value ?? 'both').toLowerCase();
+	if (normalized === 'buy' || normalized === 'bid') return 'buy';
+	if (normalized === 'sell' || normalized === 'ask') return 'sell';
+	return 'both';
+}
+
+function parseDirectCommand(content: string): DirectCommand | null {
+	const trimmed = content.trim();
+	if (!trimmed.startsWith('/')) return null;
+	const parts = trimmed.split(/\s+/);
+	const command = parts[0]?.toLowerCase();
+
+	switch (command) {
+		case '/token':
+			return parts[1] ? { kind: 'token', query: parts[1] } : { kind: 'help' };
+		case '/orderbook':
+			return parts[1]
+				? {
+						kind: 'orderbook',
+						tokenAddress: parts[1],
+						side: parseSide(parts[2])
+					}
+				: { kind: 'help' };
+		case '/trades': {
+			if (!parts[1]) return { kind: 'help' };
+			const parsedLimit = parts[2] ? parseInt(parts[2], 10) : 20;
+			const limit = Number.isFinite(parsedLimit) ? parsedLimit : 20;
+			return { kind: 'trades', tokenAddress: parts[1], limit };
+		}
+		case '/metadata': {
+			if (!parts[1]) return { kind: 'help' };
+			const parsedLimit = parts[2] ? parseInt(parts[2], 10) : 1;
+			const limit = Number.isFinite(parsedLimit) ? parsedLimit : 1;
+			return { kind: 'metadata', tokenAddress: parts[1], limit };
+		}
+		case '/npv': {
+			if (parts.length < 4) return { kind: 'help' };
+			const discountRate = Number(parts[1]);
+			const cashFlows = parts.slice(2).map((value) => Number(value));
+			if (!Number.isFinite(discountRate) || cashFlows.some((value) => !Number.isFinite(value))) {
+				return { kind: 'help' };
+			}
+			return { kind: 'npv', discountRate, cashFlows };
+		}
+		case '/help':
+			return { kind: 'help' };
+		default:
+			return null;
+	}
+}
+
+function directCommandHelpText(): string {
+	return [
+		'Direct commands (LLM bypass):',
+		'/token <symbol|address>',
+		'/orderbook <tokenAddress> [buy|sell|both]',
+		'/trades <tokenAddress> [limit]',
+		'/metadata <tokenAddress> [limit]',
+		'/npv <discountRate> <cashFlow1> <cashFlow2> ...'
+	].join('\n');
+}
+
+async function executeDirectCommand(command: DirectCommand): Promise<string> {
+	switch (command.kind) {
+		case 'help':
+			return directCommandHelpText();
+		case 'token': {
+			const response = await lookupToken(command.query);
+			const { token } = response;
+			return `Token: ${token.symbol} (${token.name})\nAddress: ${token.address}\nDecimals: ${token.decimals}`;
+		}
+		case 'orderbook': {
+			const response = await fetchOrderbook(command.tokenAddress, command.side);
+			return [
+				`Orderbook (${command.side}) ${response.tokenAddress}`,
+				`Best bid: ${response.bestBid ?? 'n/a'}`,
+				`Best ask: ${response.bestAsk ?? 'n/a'}`,
+				`Spread: ${response.spread ?? 'n/a'}`,
+				`Counts: bids=${response.bidCount}, asks=${response.askCount}`
+			].join('\n');
+		}
+		case 'trades': {
+			const response = await fetchTrades(command.tokenAddress, command.limit);
+			return `Trades ${response.tokenAddress}: total=${response.total}\n${response.display}`;
+		}
+		case 'metadata': {
+			const response = await fetchTokenMetadata(command.tokenAddress, command.limit);
+			const decoded = response.latest?.decodedData;
+			const preview =
+				decoded && typeof decoded === 'object'
+					? Object.entries(decoded)
+							.slice(0, 6)
+							.map(([key, value]) => `${key}: ${String(value)}`)
+							.join('\n')
+					: 'No decoded metadata available.';
+			return `Metadata ${response.address}\n${preview}`;
+		}
+		case 'npv': {
+			const response = await fetchNpv(command.cashFlows, command.discountRate);
+			return `NPV=${response.npv}${response.irr !== undefined ? `, IRR=${response.irr}` : ''}`;
+		}
+		default:
+			return 'Unsupported command.';
+	}
+}
+
 export function sendMessage(content: string) {
-	if (!ws || ws.readyState !== WebSocket.OPEN) return;
+	const trimmed = content.trim();
+	if (!trimmed) return;
 	streamingAssistantMessageId = null;
+
+	appendMessage('user', trimmed);
+	chat.update((s) => ({ ...s, loading: true }));
+
+	const directCommand = parseDirectCommand(trimmed);
+	if (directCommand) {
+		void executeDirectCommand(directCommand)
+			.then((result) => {
+				appendMessage('assistant', result);
+			})
+			.catch((error) => {
+				appendMessage(
+					'system',
+					`Error: ${error instanceof Error ? error.message : 'Request failed'}`
+				);
+			})
+			.finally(() => {
+				chat.update((s) => ({ ...s, loading: false }));
+			});
+		return;
+	}
+
+	if (!ws || ws.readyState !== WebSocket.OPEN) {
+		appendMessage('system', 'Error: Chat connection is not available');
+		chat.update((s) => ({ ...s, loading: false }));
+		return;
+	}
 
 	const state = get(chat);
 	const msg: ClientMessage = {
 		type: 'message',
-		content,
+		content: trimmed,
 		sessionId: state.sessionId ?? undefined
 	};
 
 	ws.send(JSON.stringify(msg));
-
-	const displayMsg: DisplayMessage = {
-		id: `msg-${++messageCounter}`,
-		role: 'user',
-		content,
-		timestamp: Date.now()
-	};
-
-	chat.update((s) => ({
-		...s,
-		messages: [...s.messages, displayMsg],
-		loading: true
-	}));
 }
 
 export function disconnect() {

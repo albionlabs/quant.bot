@@ -1,19 +1,25 @@
 ---
 name: "Token Registry"
 description: "Look up Albion token addresses, symbols, and decimals from the registry"
-version: "1.2.0"
+version: "1.4.0"
 ---
 
-List all tokens:
-```bash
-curl -s http://quant-bot-tools.internal:4000/api/tokens
-```
+## Use When
+- User asks for token address/symbol/decimals.
 
-Look up by symbol or address:
+## Default Call (Targeted)
 ```bash
 curl -s http://quant-bot-tools.internal:4000/api/tokens/ALB-WR1-R1
 ```
 
-Returns `{ token: { address, symbol, name, decimals } }` for lookups, or `{ name, tokens, updatedAt }` for the full list.
+## Only If Explicitly Requested
+```bash
+curl -s http://quant-bot-tools.internal:4000/api/tokens
+```
 
-List matching tokens concisely: symbol, name, address on one line each.
+## Output (Default)
+- One line per token: `symbol | name | address | decimals`
+- Max 10 lines unless user asks for full list.
+
+## Stop
+- Stop after direct match or requested subset.

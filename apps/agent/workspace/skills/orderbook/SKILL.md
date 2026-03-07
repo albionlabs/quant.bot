@@ -1,99 +1,48 @@
 ---
 name: "Orderbook"
 description: "Deploy Raindex orderbook strategies via MCP-backed tooling"
-version: "4.0.0"
+version: "4.2.0"
 ---
 
-Use backend tools to compose deployment calldata, then stage all transactions for batch signing.
-All requests use `curl` via the exec tool against `http://quant-bot-tools.internal:4000`.
+## Use When
+- User asks to list, inspect, compose, or deploy a Raindex strategy.
 
-## List Available Strategies
-
+## Procedure
+1. **Discovery (MANDATORY before any deploy)**:
 ```bash
 curl -s 'http://quant-bot-tools.internal:4000/api/strategy/list'
-```
-
-Returns `[{ key, name, description }]`. Optional: `?registryUrl=<url>&forceRefresh=true`
-
-## Get Strategy Details
-
-```bash
 curl -s 'http://quant-bot-tools.internal:4000/api/strategy/details/{strategyKey}'
 ```
-
-Returns deployment keys, field bindings (name, description, default), token selectors, and deposit keys. **Always call before deploying.** Optional: `?registryUrl=<url>&forceRefresh=true`
-
-## Deploying a Strategy
-
-1. Call `/api/strategy/details/{strategyKey}` to discover deployments, fields, token selectors, and deposit keys.
-2. Use the returned keys exactly as field bindings, select-token keys, and deposit keys in the deploy request.
-3. All field values and deposit amounts are **human-readable strings** (e.g. `"0.0005"`, `"1000"`). The SDK handles decimal conversion.
-
-```bash
-curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "strategyKey": "fixed-limit",
-    "deploymentKey": "base",
-    "owner": "0xUSER_ADDRESS",
-    "fields": { "fixed-io": "0.0005" },
-    "deposits": { "token2": "1000" },
-    "selectTokens": {
-      "token1": "0x4200000000000000000000000000000000000006",
-      "token2": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-    }
-  }'
-```
-
-Optional fields: `registryUrl`, `forceRefresh`, `dotrainSource` (triggers Rainlang composition for review).
-
-Returns `{ to, data, value, chainId, approvals: [{ token, symbol, approvalData }], composedRainlang? }`.
-
-## Deploy + Stage for Signing (Preferred)
-
-Use the single orchestration endpoint to avoid manual approval/deploy assembly:
+   - Field names, deployment keys, and token selectors are **different per strategy**.
+   - You MUST call `details` to get the exact field bindings. NEVER guess or assume field names.
+2. Build the deploy payload using ONLY the keys returned by `details`.
+3. Preferred deploy path:
 ```bash
 curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy-and-stage \
   -H 'Content-Type: application/json' \
-  -d '{
-    "strategyKey": "fixed-limit",
-    "deploymentKey": "base",
-    "owner": "0xUSER_ADDRESS",
-    "fields": { "fixed-io": "0.0005" },
-    "deposits": { "token2": "1000" },
-    "selectTokens": {
-      "token1": "0x4200000000000000000000000000000000000006",
-      "token2": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-    },
-    "executionToken": "<trusted-execution-token>",
-    "metadata": {
-      "composedRainlang": "..."
-    }
-  }'
+  -d '{"strategyKey":"...","deploymentKey":"...","owner":"0x...","fields":{},"deposits":{},"selectTokens":{},"executionToken":"<trusted-execution-token>","metadata":{"composedRainlang":"..."}}'
+```
+4. Optional compose:
+```bash
+curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/compose \
+  -H 'Content-Type: application/json' \
+  -d '{"dotrainSource":"...","deploymentKey":"..."}'
 ```
 
-Returns `{ signingId, summary, simulations, readyToSign, allSimulationsSucceeded, deployment }`.
-
-If `readyToSign` is true, output a single tag:
+## Output (Default)
+- Pre-signing: max 5 bullets: strategy, deployment, approval count, simulation status, readiness.
+- If `readyToSign=false`: max 3 bullets with blockers.
+- If `readyToSign=true` and user confirmed: output only:
 ```text
 <tx-sign id="<signingId>">summary</tx-sign>
 ```
 
-The widget handles sequential signing, confirmations, order hash resolution, and Raindex link display automatically.
+## Never
+- Guess or invent field binding names. Every strategy has unique bindings that MUST come from the `details` response.
+- Skip the discovery step. Deploying without calling `details` first will fail.
+- Ask user for execution token.
+- Output `<tx-sign>` before explicit confirmation.
+- Handle post-deployment lookups (widget handles completion).
 
-## Compose Rainlang (Optional)
-
-```bash
-curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/compose \
-  -H 'Content-Type: application/json' \
-  -d '{"dotrainSource": "version: 4\n...", "deploymentKey": "base"}'
-```
-
-Returns `{ rainlang }`.
-
-## Execution Safety
-
-- Pass `composedRainlang` in the stage-signing metadata — the widget renders a review modal before signing.
-- Do NOT output `<tx-sign>` tag if `readyToSign` is false.
-- ALWAYS ask for explicit user confirmation before outputting the tag.
-- Do NOT handle post-deployment lookups — the widget completion endpoint does this.
+## Stop
+- Stop after concise status, or after single `<tx-sign>` tag.

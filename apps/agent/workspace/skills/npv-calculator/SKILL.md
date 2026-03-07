@@ -1,17 +1,22 @@
 ---
 name: "NPV Calculator"
 description: "Calculate Net Present Value and IRR for cash flow analysis"
-version: "1.2.0"
+version: "1.3.0"
 ---
 
+## Use When
+- User asks for NPV/IRR from cash flows and discount rate.
+
+## Call
 ```bash
 curl -s -X POST http://quant-bot-tools.internal:4000/api/npv \
   -H 'Content-Type: application/json' \
   -d '{"cashFlows": [-1000, 300, 400, 500], "discountRate": 0.1}'
 ```
 
-Parameters: `cashFlows` (array, first value typically negative for initial investment), `discountRate` (decimal, e.g. 0.1 for 10%).
+## Output (Default)
+- One sentence: `NPV=...` and `IRR=...` if available.
+- Add assumptions only if missing or ambiguous inputs.
 
-Returns `{ npv, irr }`. IRR may be null if it cannot be computed.
-
-State NPV (and IRR if calculated) in one sentence.
+## Stop
+- Stop after the computed result.
