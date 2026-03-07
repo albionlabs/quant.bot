@@ -17,8 +17,9 @@ import { StageSigningError, stageSigningBundle } from './signing.js';
 
 function parseOptionalBoolean(value: string | undefined): boolean | undefined {
 	if (value === undefined) return undefined;
-	if (value.toLowerCase() === 'true') return true;
-	if (value.toLowerCase() === 'false') return false;
+	const lowered = value.toLowerCase();
+	if (lowered === 'true') return true;
+	if (lowered === 'false') return false;
 	return undefined;
 }
 

@@ -165,11 +165,20 @@ export async function stageSigningBundle(
 			? shouldMarkRequiresPriorState(i, tx, errorMessage, request.transactions, simulations, request)
 			: false;
 
+		let status: 'ok' | 'requires_prior_state' | 'failed';
+		if (result.success) {
+			status = 'ok';
+		} else if (requiresPriorState) {
+			status = 'requires_prior_state';
+		} else {
+			status = 'failed';
+		}
+
 		simulations.push({
 			index: i,
 			label: tx.label,
 			success: result.success,
-			status: result.success ? 'ok' : requiresPriorState ? 'requires_prior_state' : 'failed',
+			status,
 			reasonCode: requiresPriorState ? 'requires_prior_approval_execution' : undefined,
 			gasUsed: result.gasUsed,
 			error: result.success ? undefined : result.returnData
@@ -246,7 +255,7 @@ export async function signingRoutes(app: FastifyInstance, config: ToolsConfig) {
 			return reply.status(404).send({ error: 'Bundle not found or expired' });
 		}
 
-		const { userId: _owner, ...bundleData } = bundle;
+		const { userId, ...bundleData } = bundle;
 		return bundleData;
 	});
 

@@ -34,14 +34,10 @@ interface DynamicBridgeProps {
 
 function parseChainId(value: unknown): number | undefined {
 	if (typeof value !== 'string' || value.trim() === '') return undefined
-	try {
-		if (value.startsWith('0x')) {
-			return Number.parseInt(value, 16)
-		}
-		return Number.parseInt(value, 10)
-	} catch {
-		return undefined
-	}
+	const parsed = value.startsWith('0x')
+		? Number.parseInt(value, 16)
+		: Number.parseInt(value, 10)
+	return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function parseOptionalWei(value: unknown): bigint | undefined {
@@ -50,10 +46,8 @@ function parseOptionalWei(value: unknown): bigint | undefined {
 }
 
 function normalizeRpcUrl(value: string | undefined): string | null {
-	if (!value) return null
-	const trimmed = value.trim()
-	if (!trimmed) return null
-	return trimmed
+	const trimmed = value?.trim()
+	return trimmed || null
 }
 
 async function rpcRequest(rpcUrl: string, method: string, params: unknown[]): Promise<unknown> {

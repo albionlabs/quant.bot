@@ -191,11 +191,14 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 							? event.data.name
 							: null;
 
-				const progress = lifecyclePhase
-					? `[${lifecyclePhase}]`
-					: toolName
-						? `[tool] ${toolName}`
-						: `[${event.stream}]`;
+				let progress: string;
+				if (lifecyclePhase) {
+					progress = `[${lifecyclePhase}]`;
+				} else if (toolName) {
+					progress = `[tool] ${toolName}`;
+				} else {
+					progress = `[${event.stream}]`;
+				}
 
 				if (progress !== lastProgress) {
 					lastProgress = progress;

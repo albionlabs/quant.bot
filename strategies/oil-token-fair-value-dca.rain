@@ -94,7 +94,7 @@ gui:
 
         - binding: required-discount
           name: Required discount
-          description: Decimal discount fraction. Example: 0.20 = 20%.
+          description: 'Decimal discount fraction. Example: 0.20 = 20%.'
           show-custom-field: true
           default: 0.20
 
@@ -220,7 +220,7 @@ gui:
 
         - binding: required-discount
           name: Required discount
-          description: Decimal discount fraction. Example: 0.20 = 20%.
+          description: 'Decimal discount fraction. Example: 0.20 = 20%.'
           show-custom-field: true
           default: 0.20
 

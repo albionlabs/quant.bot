@@ -77,4 +77,3 @@ export function markCompleted(signingId: string, txHashes: string[]): boolean {
 	entry.txHashes = txHashes;
 	return true;
 }
-
