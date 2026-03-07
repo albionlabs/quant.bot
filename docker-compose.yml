@@ -50,6 +50,7 @@ services:
       - RAINDEX_SETTINGS_PATH=${RAINDEX_SETTINGS_PATH}
       - RAINDEX_SETTINGS_YAML=${RAINDEX_SETTINGS_YAML}
       - RAINDEX_REGISTRY_URL=${RAINDEX_REGISTRY_URL}
+      - CUSTOM_STRATEGIES_DIR=${CUSTOM_STRATEGIES_DIR:-/app/strategies}
     volumes:
       - ${RAINDEX_MCP_HOST_PATH:-./services/raindex-mcp}:/app/raindex-mcp:ro
     restart: unless-stopped

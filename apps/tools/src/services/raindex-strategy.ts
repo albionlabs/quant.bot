@@ -87,15 +87,30 @@ interface StrategySummary {
 
 function summarizeStrategies(raw: unknown): StrategySummary[] {
 	if (!raw || typeof raw !== 'object') return [];
-	const entries = Array.isArray(raw) ? raw : Object.values(raw);
-	return entries
-		.filter((e): e is Record<string, unknown> => !!e && typeof e === 'object' && !Array.isArray(e))
-		.map((e) => ({
-			key: typeof e.key === 'string' ? e.key : String(e.key ?? ''),
-			name: typeof e.name === 'string' ? e.name : String(e.name ?? ''),
-			description: typeof e.description === 'string' ? e.description : ''
-		}))
-		.filter((e) => e.key);
+
+	if (Array.isArray(raw)) {
+		return raw
+			.filter((e): e is Record<string, unknown> => !!e && typeof e === 'object' && !Array.isArray(e))
+			.map((e) => ({
+				key: typeof e.key === 'string' ? e.key : '',
+				name: typeof e.name === 'string' ? e.name : '',
+				description: typeof e.description === 'string' ? e.description : ''
+			}))
+			.filter((e) => e.key);
+	}
+
+	const strategies: StrategySummary[] = [];
+	for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+		if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+		const entry = value as Record<string, unknown>;
+		strategies.push({
+			key: typeof entry.key === 'string' && entry.key.trim() ? entry.key : key,
+			name: typeof entry.name === 'string' ? entry.name : '',
+			description: typeof entry.description === 'string' ? entry.description : ''
+		});
+	}
+
+	return strategies.filter((e) => e.key);
 }
 
 export interface StrategyListResponse {

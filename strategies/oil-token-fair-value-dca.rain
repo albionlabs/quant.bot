@@ -1,0 +1,430 @@
+version: 4
+
+orders:
+  base:
+    orderbook: base
+    inputs:
+      - token: input
+    outputs:
+      - token: output
+
+scenarios:
+  oil-floor-base:
+    orderbook: base
+    deployer: base
+    runs: 1
+    bindings:
+      raindex-subparser: 0x22839F16281E67E5Fd395fAFd1571e820CbD46cB
+      subparser-0: 0x3348438b5045f73568b3a871Bea55D7884c46d77
+      baseline-fn: '''oil-floor-baseline'
+      initial-io-fn: '''oil-floor-baseline'
+      next-trade-baseline-multiplier: 0
+      shy-epoch: 0.05
+      pyth-pair: 0x27f0d5e09a830083e5491795cac9ca521399c8f7fd56240d09484b14e614d57a
+
+  oil-floor-base-inv:
+    orderbook: base
+    deployer: base
+    runs: 1
+    bindings:
+      raindex-subparser: 0x22839F16281E67E5Fd395fAFd1571e820CbD46cB
+      subparser-0: 0x3348438b5045f73568b3a871Bea55D7884c46d77
+      baseline-fn: '''oil-floor-baseline-inv'
+      initial-io-fn: '''oil-floor-baseline-inv'
+      next-trade-baseline-multiplier: 0
+      shy-epoch: 0.05
+      pyth-pair: 0x27f0d5e09a830083e5491795cac9ca521399c8f7fd56240d09484b14e614d57a
+
+deployments:
+  base:
+    order: base
+    scenario: oil-floor-base
+
+  base-inv:
+    order: base
+    scenario: oil-floor-base-inv
+
+gui:
+  name: Oil reserve auction DCA
+  description: >
+    Auction-DCA with the floor derived from discounted fair value of remaining
+    oil reserves using the Brent Pyth feed.
+  short-description: >
+    Registry auction-DCA with an oil-NAV floor.
+
+  deployments:
+    base:
+      name: Base sell reserve tokens
+      description: >
+        Uses the registry auction-DCA mechanics, but replaces the floor price
+        calculation with discounted fair value from remaining barrels and Brent.
+      deposits:
+        - token: output
+      fields:
+        - binding: oracle-price-timeout
+          name: Oracle price timeout
+          description: Maximum acceptable age of the Brent oracle price, in seconds.
+          show-custom-field: true
+          default: 300
+          presets:
+            - name: 5 minutes (300)
+              value: 300
+            - name: 1 hour (3600)
+              value: 3600
+            - name: 8 hours (28800)
+              value: 28800
+            - name: 3 days (259200)
+              value: 259200
+
+        - binding: start-time
+          name: Start time
+          description: Unix timestamp when the reserve decay starts.
+
+        - binding: end-time
+          name: End time
+          description: Unix timestamp when the reserve reaches zero.
+
+        - binding: barrels-of-oil
+          name: Total barrels of oil
+          description: Initial reserve in barrel units.
+
+        - binding: token-supply
+          name: Token supply
+          description: Total supply of the reserve token.
+
+        - binding: required-discount
+          name: Required discount
+          description: Decimal discount fraction. Example: 0.20 = 20%.
+          show-custom-field: true
+          default: 0.20
+
+        - binding: time-per-amount-epoch
+          name: Budget period (in seconds)
+          description: >
+            The budget is spent over this time period.
+          show-custom-field: true
+          presets:
+            - name: Per minute (60)
+              value: 60
+            - name: Per hour (3600)
+              value: 3600
+            - name: Per day (86400)
+              value: 86400
+            - name: Per week (604800)
+              value: 604800
+            - name: Per 30 days (2592000)
+              value: 2592000
+            - name: Per 365 days (31536000)
+              value: 31536000
+
+        - binding: amount-per-epoch
+          name: Budget (${order.outputs.0.token.symbol} per period)
+          description: >
+            The amount of ${order.outputs.0.token.symbol} to spend each budget period.
+
+        - binding: max-trade-amount
+          name: Maximum trade size (${order.outputs.0.token.symbol})
+          description: >
+            The maximum amount of ${order.outputs.0.token.symbol} to sell in a single auction.
+
+        - binding: min-trade-amount
+          name: Minimum trade size (${order.outputs.0.token.symbol})
+          description: >
+            The minimum amount of ${order.outputs.0.token.symbol} to sell in a single auction.
+
+        - binding: time-per-trade-epoch
+          name: Auction period (in seconds)
+          description: >
+            The auction period is the time between each auction price halvening.
+          show-custom-field: true
+          default: 3600
+          presets:
+            - name: Every 20 minutes (1200)
+              value: 1200
+            - name: Every 30 minutes (1800)
+              value: 1800
+            - name: Every hour (3600)
+              value: 3600
+            - name: Every 2 hours (7200)
+              value: 7200
+            - name: Every 3 hours (10800)
+              value: 10800
+            - name: Every 6 hours (21600)
+              value: 21600
+            - name: Every 12 hours (43200)
+              value: 43200
+            - name: Every 24 hours (86400)
+              value: 86400
+
+        - binding: next-trade-multiplier
+          name: Auction start multiplier
+          description: >
+            The multiplier to apply to the last trade to kick off the next auction.
+          show-custom-field: true
+          default: 1.01
+          presets:
+            - name: 1.01x
+              value: 1.01
+            - name: 1.02x
+              value: 1.02
+            - name: 1.05x
+              value: 1.05
+            - name: 1.10x
+              value: 1.10
+
+      select-tokens:
+        - key: output
+          name: Token to Sell
+          description: Select the reserve token you want to sell
+        - key: input
+          name: Token to Buy
+          description: Select the payment token you want to receive
+
+    base-inv:
+      name: Base buy reserve tokens
+      description: >
+        Inverse orientation of the same strategy.
+      deposits:
+        - token: output
+      fields:
+        - binding: oracle-price-timeout
+          name: Oracle price timeout
+          description: Maximum acceptable age of the Brent oracle price, in seconds.
+          show-custom-field: true
+          default: 300
+          presets:
+            - name: 5 minutes (300)
+              value: 300
+            - name: 1 hour (3600)
+              value: 3600
+            - name: 8 hours (28800)
+              value: 28800
+            - name: 3 days (259200)
+              value: 259200
+
+        - binding: start-time
+          name: Start time
+          description: Unix timestamp when the reserve decay starts.
+
+        - binding: end-time
+          name: End time
+          description: Unix timestamp when the reserve reaches zero.
+
+        - binding: barrels-of-oil
+          name: Total barrels of oil
+          description: Initial reserve in barrel units.
+
+        - binding: token-supply
+          name: Token supply
+          description: Total supply of the reserve token.
+
+        - binding: required-discount
+          name: Required discount
+          description: Decimal discount fraction. Example: 0.20 = 20%.
+          show-custom-field: true
+          default: 0.20
+
+        - binding: time-per-amount-epoch
+          name: Budget period (in seconds)
+          description: >
+            The budget is spent over this time period.
+          show-custom-field: true
+          presets:
+            - name: Per minute (60)
+              value: 60
+            - name: Per hour (3600)
+              value: 3600
+            - name: Per day (86400)
+              value: 86400
+            - name: Per week (604800)
+              value: 604800
+            - name: Per 30 days (2592000)
+              value: 2592000
+            - name: Per 365 days (31536000)
+              value: 31536000
+
+        - binding: amount-per-epoch
+          name: Budget (${order.outputs.0.token.symbol} per period)
+          description: >
+            The amount of ${order.outputs.0.token.symbol} to spend each budget period.
+
+        - binding: max-trade-amount
+          name: Maximum trade size (${order.outputs.0.token.symbol})
+          description: >
+            The maximum amount of ${order.outputs.0.token.symbol} to sell in a single auction.
+
+        - binding: min-trade-amount
+          name: Minimum trade size (${order.outputs.0.token.symbol})
+          description: >
+            The minimum amount of ${order.outputs.0.token.symbol} to sell in a single auction.
+
+        - binding: time-per-trade-epoch
+          name: Auction period (in seconds)
+          description: >
+            The auction period is the time between each auction price halvening.
+          show-custom-field: true
+          default: 3600
+          presets:
+            - name: Every 20 minutes (1200)
+              value: 1200
+            - name: Every 30 minutes (1800)
+              value: 1800
+            - name: Every hour (3600)
+              value: 3600
+            - name: Every 2 hours (7200)
+              value: 7200
+            - name: Every 3 hours (10800)
+              value: 10800
+            - name: Every 6 hours (21600)
+              value: 21600
+            - name: Every 12 hours (43200)
+              value: 43200
+            - name: Every 24 hours (86400)
+              value: 86400
+
+        - binding: next-trade-multiplier
+          name: Auction start multiplier
+          description: >
+            The multiplier to apply to the last trade to kick off the next auction.
+          show-custom-field: true
+          default: 1.01
+          presets:
+            - name: 1.01x
+              value: 1.01
+            - name: 1.02x
+              value: 1.02
+            - name: 1.05x
+              value: 1.05
+            - name: 1.10x
+              value: 1.10
+
+      select-tokens:
+        - key: output
+          name: Token to Sell
+          description: Select the reserve token you want to sell
+        - key: input
+          name: Token to Buy
+          description: Select the payment token you want to receive
+
+---
+#raindex-subparser !Raindex subparser.
+#subparser-0 !Subparser 0.
+
+#time-per-amount-epoch !Duration of one unit of streaming amount halflife.
+#amount-per-epoch !Amount of output token to approve for buying per epoch.
+#min-trade-amount !Each trade must be at least this many output tokens.
+#max-trade-amount !Each trade will be capped at this many tokens.
+
+#time-per-trade-epoch !Duration of one unit of io ratio halflife.
+#shy-epoch !Epoch below which only the minimum amount is offered.
+
+#baseline-fn !Function to calculate the baseline for the next trade.
+#initial-io-fn !Function to calculate the initial io ratio for the first trade.
+
+#next-trade-multiplier !Start next auction at this x the last trade.
+#next-trade-baseline-multiplier !Lifts the baseline to here relative to the previous trade.
+
+#pyth-pair !The Pyth pair to use for the Brent price feed.
+#oracle-price-timeout !Maximum oracle staleness in seconds.
+#start-time !Unix timestamp when reserve decay starts.
+#end-time !Unix timestamp when reserve reaches zero.
+#barrels-of-oil !Initial reserve in barrels.
+#token-supply !Total reserve token supply.
+#required-discount !Decimal discount fraction, e.g. 0.20.
+
+#last-trade-time-key "last-trade-time"
+#last-trade-io-key "last-trade-io"
+#initial-time-key "initial-time"
+#amount-used-key "amount-used"
+
+#set-last-trade
+last-io:,
+:set(hash(order-hash() last-trade-time-key) now()),
+:set(hash(order-hash() last-trade-io-key) last-io);
+
+#set-initial-time
+:set(hash(order-hash() initial-time-key) now());
+
+#get-initial-time
+_:get(hash(order-hash() initial-time-key));
+
+#get-last-trade
+last-time:get(hash(order-hash() last-trade-time-key)),
+last-io:get(hash(order-hash() last-trade-io-key));
+
+#get-epoch
+initial-time: call<'get-initial-time>(),
+last-time _: call<'get-last-trade>(),
+duration: sub(now() any(last-time initial-time)),
+total-duration: sub(now() initial-time),
+ratio-freeze-amount-epochs: div(min-trade-amount amount-per-epoch),
+ratio-freeze-trade-epochs: mul(ratio-freeze-amount-epochs div(time-per-amount-epoch time-per-trade-epoch)),
+amount-epochs: div(total-duration time-per-amount-epoch),
+trade-epochs: max(0 sub(div(duration time-per-trade-epoch) ratio-freeze-trade-epochs));
+
+#amount-for-epoch
+amount-epochs
+trade-epochs:,
+total-available: linear-growth(0 amount-per-epoch amount-epochs),
+used: get(hash(order-hash() amount-used-key)),
+unused: sub(total-available used),
+decay: call<'halflife>(trade-epochs),
+shy-decay: every(greater-than(trade-epochs shy-epoch) decay),
+variable-component: sub(max-trade-amount min-trade-amount),
+target-amount: add(min-trade-amount mul(variable-component shy-decay)),
+capped-unused: min(unused target-amount);
+
+#halflife
+epoch:,
+val: power(0.5 epoch);
+
+#io-for-epoch
+epoch:,
+last-io: call<'get-last-trade>(),
+max-next-trade: any(mul(last-io next-trade-multiplier) call<'initial-io-fn>()),
+baseline-next-trade: mul(last-io next-trade-baseline-multiplier),
+real-baseline: max(baseline-next-trade call<'baseline-fn>()),
+variable-component: max(0 sub(max-next-trade real-baseline)),
+above-baseline: mul(variable-component call<'halflife>(epoch)),
+_: add(real-baseline above-baseline);
+
+#oil-floor-price
+current-time: now(),
+duration: sub(end-time start-time),
+remaining-duration: sub(end-time current-time),
+remaining-barrels: div(mul(remaining-duration barrels-of-oil) duration),
+oil-price: pyth-price(pyth-pair oracle-price-timeout),
+fair-value: div(mul(remaining-barrels oil-price) token-supply),
+discount-multiplier: sub(1 required-discount),
+_: mul(fair-value discount-multiplier);
+
+#oil-floor-baseline
+_: call<'oil-floor-price>();
+
+#oil-floor-baseline-inv
+_: inv(call<'oil-floor-price>());
+
+#handle-add-order
+using-words-from raindex-subparser subparser-0
+:call<'set-initial-time>();
+
+#calculate-io
+using-words-from raindex-subparser subparser-0
+:ensure(gt(end-time start-time) "end-time must be greater than start-time"),
+:ensure(gt(token-supply 0) "token-supply must be greater than zero"),
+:ensure(gt(barrels-of-oil 0) "barrels-of-oil must be greater than zero"),
+:ensure(gte(required-discount 0) "required-discount must be >= 0"),
+:ensure(lt(required-discount 1) "required-discount must be < 1"),
+:ensure(gte(now() start-time) "strategy has not started"),
+:ensure(lt(now() end-time) "strategy has ended"),
+amount-epochs
+trade-epochs:call<'get-epoch>(),
+max-output: call<'amount-for-epoch>(amount-epochs trade-epochs),
+io: call<'io-for-epoch>(trade-epochs),
+:call<'set-last-trade>(io);
+
+#handle-io
+min-amount: mul(min-trade-amount 0.9),
+:ensure(greater-than-or-equal-to(output-vault-decrease() min-amount) "Min trade amount."),
+used: get(hash(order-hash() amount-used-key)),
+:set(hash(order-hash() amount-used-key) add(used output-vault-decrease()));

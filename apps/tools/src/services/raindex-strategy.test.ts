@@ -54,6 +54,28 @@ describe('raindex strategy service', () => {
 		});
 	});
 
+	it('handles map-shaped strategy responses from MCP', async () => {
+		callRaindexMcpTool.mockResolvedValueOnce({
+			'fixed-limit': { name: 'Fixed Limit', description: 'A limit order' },
+			'oil-token-fair-value': {
+				name: 'Oil reserve straight-line discount',
+				description: 'Oil-linked fair value strategy'
+			}
+		});
+
+		const result = await listStrategies(config, {});
+
+		expect(result.strategies).toEqual([
+			{ key: 'fixed-limit', name: 'Fixed Limit', description: 'A limit order' },
+			{
+				key: 'oil-token-fair-value',
+				name: 'Oil reserve straight-line discount',
+				description: 'Oil-linked fair value strategy'
+			}
+		]);
+		expect(result.display).toContain('oil-token-fair-value');
+	});
+
 	it('falls back to config registry URL when none provided', async () => {
 		callRaindexMcpTool.mockResolvedValueOnce([{ key: 'fixed-limit' }]);
 

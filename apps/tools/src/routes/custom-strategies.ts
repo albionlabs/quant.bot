@@ -68,12 +68,13 @@ export async function customStrategiesRoutes(app: FastifyInstance, config: Tools
 
 	app.get('/api/strategies/registry', async (_request, reply) => {
 		let official = '';
+		let officialError: string | null = null;
 		try {
 			official = await fetchOfficialRegistry(config.raindexRegistryUrl);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'unknown error';
+			officialError = message;
 			app.log.error('Failed to fetch official registry: %s', message);
-			return reply.status(502).send({ error: `Failed to fetch official registry: ${message}` });
 		}
 
 		let localEntries = '';
@@ -84,8 +85,17 @@ export async function customStrategiesRoutes(app: FastifyInstance, config: Tools
 			// No local registry or empty — that's fine
 		}
 
-		const parts = [official.trimEnd()];
+		const parts: string[] = [];
+		if (official.trim()) parts.push(official.trimEnd());
 		if (localEntries) parts.push(localEntries);
+
+		if (parts.length === 0) {
+			if (officialError) {
+				return reply.status(502).send({ error: `Failed to fetch official registry: ${officialError}` });
+			}
+			return reply.status(502).send({ error: 'No strategies available: empty official and local registries' });
+		}
+
 		const merged = parts.join('\n') + '\n';
 
 		return reply.type('text/plain').send(merged);
