@@ -15,11 +15,23 @@
 	const DEFAULT_REVIEW_TITLE = 'Rainlang Strategy Review';
 	const taggedReviewRegex = /<rainlang-review(?:\s+title="([^"]*)")?>([\s\S]*?)<\/rainlang-review>/i;
 	const fencedReviewRegex = /```rainlang\s*([\s\S]*?)```/i;
-	const txSignRequestRegex = /<tx-sign-request>([\s\S]*?)<\/tx-sign-request>/i;
+	const txSignRequestRegex = /<(tx-sign-request|signature_request)>([\s\S]*?)<\/\1>/gi;
 
 	type TxSignRequestView = {
-		request: TxSignRequestPayload;
-		contentWithoutRequest: string;
+		requests: Array<{
+			id: string;
+			request: TxSignRequestPayload;
+		}>;
+		contentWithoutRequests: string;
+	};
+
+	type TxSignState = {
+		isSigning: boolean;
+		signedTxHash: string | null;
+		signingError: string | null;
+		waitingForConfirmation: boolean;
+		confirmationError: string | null;
+		autoProceedSent: boolean;
 	};
 
 	function isTxSignRequestPayload(value: unknown): value is TxSignRequestPayload {
@@ -35,21 +47,35 @@
 		);
 	}
 
-	function parseTxSignRequest(content: string): TxSignRequestView | null {
-		const match = content.match(txSignRequestRegex);
-		if (!match) return null;
+	function parseTxSignRequests(content: string): TxSignRequestView {
+		const requests: TxSignRequestView['requests'] = [];
+		let contentWithoutRequests = content;
+		txSignRequestRegex.lastIndex = 0;
+		let match: RegExpExecArray | null = txSignRequestRegex.exec(content);
+		let requestIndex = 0;
 
-		const [fullMatch, jsonPayload] = match;
-		try {
-			const parsed = JSON.parse((jsonPayload ?? '').trim()) as unknown;
-			if (!isTxSignRequestPayload(parsed)) return null;
-			return {
-				request: parsed,
-				contentWithoutRequest: content.replace(fullMatch, '').trim()
-			};
-		} catch {
-			return null;
+		while (match) {
+			const [fullMatch, _tagName, jsonPayload] = match;
+			try {
+				const parsed = JSON.parse((jsonPayload ?? '').trim()) as unknown;
+				if (isTxSignRequestPayload(parsed)) {
+					requests.push({
+						id: `${message.id}:${requestIndex}`,
+						request: parsed
+					});
+					contentWithoutRequests = contentWithoutRequests.replace(fullMatch, '');
+				}
+			} catch {
+				// Keep malformed tags in message text for visibility.
+			}
+			requestIndex += 1;
+			match = txSignRequestRegex.exec(content);
 		}
+
+		return {
+			requests,
+			contentWithoutRequests: contentWithoutRequests.trim()
+		};
 	}
 
 	function shortenHex(value: string, head = 12, tail = 10): string {
@@ -91,50 +117,85 @@
 	}
 
 	let isReviewModalOpen = $state(false);
-	let isSigningTx = $state(false);
-	let signedTxHash = $state<string | null>(null);
-	let signingError = $state<string | null>(null);
-	let waitingForConfirmation = $state(false);
-	let confirmationError = $state<string | null>(null);
-	let autoProceedSent = $state(false);
+	let txSignStates = $state<Record<string, TxSignState>>({});
+
+	function createInitialTxSignState(): TxSignState {
+		return {
+			isSigning: false,
+			signedTxHash: null,
+			signingError: null,
+			waitingForConfirmation: false,
+			confirmationError: null,
+			autoProceedSent: false
+		};
+	}
+
+	function getTxSignState(requestId: string): TxSignState {
+		return txSignStates[requestId] ?? createInitialTxSignState();
+	}
+
+	function patchTxSignState(requestId: string, patch: Partial<TxSignState>): void {
+		txSignStates = {
+			...txSignStates,
+			[requestId]: {
+				...getTxSignState(requestId),
+				...patch
+			}
+		};
+	}
 
 	const isUser = $derived(message.role === 'user');
 	const isSystem = $derived(message.role === 'system');
-	const txSignRequest = $derived(parseTxSignRequest(message.content));
-	const contentWithoutTxRequest = $derived(txSignRequest?.contentWithoutRequest ?? message.content);
+	const txSignRequestView = $derived(parseTxSignRequests(message.content));
+	const txSignRequests = $derived(txSignRequestView.requests);
+	const contentWithoutTxRequest = $derived(txSignRequestView.contentWithoutRequests);
 	const rainlangReview = $derived(parseRainlangReview(contentWithoutTxRequest));
 	const displayContent = $derived(rainlangReview?.contentWithoutReview ?? contentWithoutTxRequest);
 	const timeStr = $derived(new Date(message.timestamp).toLocaleTimeString());
 
-	async function handleSignTxRequest() {
-		if (!txSignRequest || isSigningTx || signedTxHash) return;
+	async function handleSignTxRequest(requestId: string, requestPayload: TxSignRequestPayload, position: number) {
+		const currentState = getTxSignState(requestId);
+		if (currentState.isSigning || currentState.signedTxHash) return;
 
-		isSigningTx = true;
-		signingError = null;
-		confirmationError = null;
+		patchTxSignState(requestId, {
+			isSigning: true,
+			signingError: null,
+			confirmationError: null
+		});
 		try {
-			const hash = await signTransactionRequest(txSignRequest.request);
-			signedTxHash = hash;
-			waitingForConfirmation = true;
+			const hash = await signTransactionRequest(requestPayload);
+			patchTxSignState(requestId, {
+				signedTxHash: hash,
+				waitingForConfirmation: true
+			});
+
 			const isConfirmed = await waitForTransactionConfirmation(hash);
 			if (!isConfirmed) {
-				waitingForConfirmation = false;
-				confirmationError = 'Timed out waiting for confirmation. You can still continue manually.';
+				patchTxSignState(requestId, {
+					waitingForConfirmation: false,
+					confirmationError: 'Timed out waiting for confirmation. You can still continue manually.'
+				});
 				return;
 			}
 
-			waitingForConfirmation = false;
-			if (!autoProceedSent) {
-				autoProceedSent = true;
+			patchTxSignState(requestId, {
+				waitingForConfirmation: false
+			});
+
+			if (!getTxSignState(requestId).autoProceedSent) {
+				patchTxSignState(requestId, { autoProceedSent: true });
+				const transactionLabel = txSignRequests.length > 1 ? `Transaction ${position + 1}` : 'Transaction';
 				sendMessage(
-					`Transaction confirmed on-chain: ${hash}\nBaseScan: ${basescanTxUrl(txSignRequest.request.chainId, hash)}\nPlease continue with the next required step.`
+					`${transactionLabel} confirmed on-chain: ${hash}\nBaseScan: ${basescanTxUrl(requestPayload.chainId, hash)}\nPlease continue with the next required step.`
 				);
 			}
 		} catch (error) {
-			signingError = error instanceof Error ? error.message : 'Failed to sign transaction';
-			waitingForConfirmation = false;
+			patchTxSignState(requestId, {
+				signingError: error instanceof Error ? error.message : 'Failed to sign transaction',
+				waitingForConfirmation: false
+			});
 		} finally {
-			isSigningTx = false;
+			patchTxSignState(requestId, { isSigning: false });
 		}
 	}
 </script>
@@ -147,49 +208,60 @@
 		{#if rainlangReview}
 			<button class="review-btn" onclick={() => (isReviewModalOpen = true)}>Review Rainlang Strategy</button>
 		{/if}
-		{#if txSignRequest && !isUser && !isSystem}
-			<button class="sign-btn" onclick={handleSignTxRequest} disabled={isSigningTx || !!signedTxHash}>
-				{#if signedTxHash}
-					Transaction Submitted
-				{:else if isSigningTx}
-					Waiting for Signature...
-				{:else}
-					Sign Transaction
-				{/if}
-			</button>
-			{#if signedTxHash}
-				<div class="sign-status success">
-					Tx Hash: <code>{signedTxHash}</code>
-					<a
-						class="tx-link"
-						href={basescanTxUrl(txSignRequest.request.chainId, signedTxHash)}
-						target="_blank"
-						rel="noopener noreferrer"
+		{#if txSignRequests.length > 0 && !isUser && !isSystem}
+			{#each txSignRequests as txRequest, index (txRequest.id)}
+				{@const txState = getTxSignState(txRequest.id)}
+				<div class="tx-request-card">
+					<button
+						class="sign-btn"
+						onclick={() => handleSignTxRequest(txRequest.id, txRequest.request, index)}
+						disabled={txState.isSigning || !!txState.signedTxHash}
 					>
-						View on BaseScan
-					</a>
+						{#if txState.signedTxHash}
+							Transaction Submitted
+						{:else if txState.isSigning}
+							Waiting for Signature...
+						{:else if txSignRequests.length > 1}
+							Sign Transaction {index + 1}
+						{:else}
+							Sign Transaction
+						{/if}
+					</button>
+					{#if txState.signedTxHash}
+						<div class="sign-status success">
+							Tx Hash: <code>{txState.signedTxHash}</code>
+							<a
+								class="tx-link"
+								href={basescanTxUrl(txRequest.request.chainId, txState.signedTxHash)}
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								View on BaseScan
+							</a>
+						</div>
+					{/if}
+					{#if txState.waitingForConfirmation}
+						<div class="sign-status pending">Waiting for on-chain confirmation...</div>
+					{/if}
+					{#if txState.autoProceedSent}
+						<div class="sign-status success">Confirmed on-chain. Bot notified to proceed.</div>
+					{/if}
+					{#if txState.confirmationError}
+						<div class="sign-status error">{txState.confirmationError}</div>
+					{/if}
+					{#if txState.signingError}
+						<div class="sign-status error">{txState.signingError}</div>
+					{/if}
+					<details class="tx-details">
+						<summary>Transaction Details{txSignRequests.length > 1 ? ` (${index + 1})` : ''}</summary>
+						<div class="tx-row"><span>From</span><code>{txRequest.request.from}</code></div>
+						<div class="tx-row"><span>To</span><code>{txRequest.request.to}</code></div>
+						<div class="tx-row"><span>Value (wei)</span><code>{txRequest.request.value}</code></div>
+						<div class="tx-row"><span>Chain</span><code>{txRequest.request.chainId}</code></div>
+						<div class="tx-row"><span>Calldata</span><code>{shortenHex(txRequest.request.data, 14, 12)}</code></div>
+					</details>
 				</div>
-			{/if}
-			{#if waitingForConfirmation}
-				<div class="sign-status pending">Waiting for on-chain confirmation...</div>
-			{/if}
-			{#if autoProceedSent}
-				<div class="sign-status success">Confirmed on-chain. Bot notified to proceed.</div>
-			{/if}
-			{#if confirmationError}
-				<div class="sign-status error">{confirmationError}</div>
-			{/if}
-			{#if signingError}
-				<div class="sign-status error">{signingError}</div>
-			{/if}
-			<details class="tx-details">
-				<summary>Transaction Details</summary>
-				<div class="tx-row"><span>From</span><code>{txSignRequest.request.from}</code></div>
-				<div class="tx-row"><span>To</span><code>{txSignRequest.request.to}</code></div>
-				<div class="tx-row"><span>Value (wei)</span><code>{txSignRequest.request.value}</code></div>
-				<div class="tx-row"><span>Chain</span><code>{txSignRequest.request.chainId}</code></div>
-				<div class="tx-row"><span>Calldata</span><code>{shortenHex(txSignRequest.request.data, 14, 12)}</code></div>
-			</details>
+			{/each}
 		{/if}
 	</div>
 	<div class="bubble-time">{timeStr}</div>
@@ -308,6 +380,11 @@
 	.sign-btn:disabled {
 		cursor: not-allowed;
 		opacity: 0.7;
+	}
+
+	.tx-request-card + .tx-request-card {
+		border-top: 1px dashed #d1d5db;
+		padding-top: 0.5rem;
 	}
 
 	.sign-status {
