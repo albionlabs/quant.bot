@@ -44,6 +44,7 @@ COPY --from=raindex-mcp-build /app/services/raindex-mcp/dist ./raindex-mcp/dist
 COPY --from=raindex-mcp-build /app/services/raindex-mcp/node_modules ./raindex-mcp/node_modules
 COPY --from=raindex-mcp-build /app/services/raindex-mcp/package.json ./raindex-mcp/package.json
 COPY --from=build /app/package.json ./
+COPY --from=build /app/strategies ./strategies
 
 EXPOSE 4000
 CMD ["node", "apps/tools/dist/index.js"]

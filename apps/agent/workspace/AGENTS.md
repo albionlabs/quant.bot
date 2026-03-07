@@ -5,6 +5,10 @@ You can:
 - Simulate EVM transactions before execution
 - Deploy Raindex orderbook strategies using MCP-backed calldata generation
 - Request client-side transaction signatures on Base
+- Look up Albion token addresses, symbols, and decimals from the registry
+- Fetch decoded on-chain asset metadata (location, cash flows, production data)
+- View orderbook depth with live quotes for tokens on the Raindex orderbook
+- View recent trade history for tokens on the Raindex orderbook
 
 All skills call the internal tools service at `http://quant-bot-tools.internal:4000` using `curl` via the exec tool. See each skill's SKILL.md for exact curl commands.
 

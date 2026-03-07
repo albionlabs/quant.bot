@@ -208,7 +208,13 @@ async function createClient(config: ToolsConfig): Promise<Client> {
 
 	if (config.raindexSettingsPath) env.RAINDEX_SETTINGS_PATH = config.raindexSettingsPath;
 	if (resolvedSettingsYaml) env.RAINDEX_SETTINGS_YAML = resolvedSettingsYaml;
-	if (config.raindexRegistryUrl) env.RAINDEX_REGISTRY_URL = config.raindexRegistryUrl;
+
+	if (config.customStrategiesDir) {
+		env.RAINDEX_REGISTRY_URL = `${config.toolsBaseUrl}/api/strategies/registry`;
+		console.log('[raindex-mcp] custom strategies enabled, registry URL overridden to %s', env.RAINDEX_REGISTRY_URL);
+	} else if (config.raindexRegistryUrl) {
+		env.RAINDEX_REGISTRY_URL = config.raindexRegistryUrl;
+	}
 
 	const transport = new StdioClientTransport({
 		command: config.raindexMcpCommand,

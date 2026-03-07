@@ -15,6 +15,8 @@ export interface ToolsConfig {
 	raindexSettingsYaml: string;
 	raindexSettingsUrl: string;
 	raindexRegistryUrl: string;
+	customStrategiesDir: string;
+	toolsBaseUrl: string;
 }
 
 const DEFAULT_RAIN_STRATEGIES_COMMIT = '2c8192e9137736507041ebff820b0e7b5b29f0d2';
@@ -107,8 +109,14 @@ export function loadConfig(): ToolsConfig {
 		raindexSettingsPath,
 		raindexSettingsYaml,
 		raindexSettingsUrl,
-		raindexRegistryUrl: (process.env.RAINDEX_REGISTRY_URL ?? '').trim() || DEFAULT_RAINDEX_REGISTRY_URL
+		raindexRegistryUrl: (process.env.RAINDEX_REGISTRY_URL ?? '').trim() || DEFAULT_RAINDEX_REGISTRY_URL,
+		customStrategiesDir: (process.env.CUSTOM_STRATEGIES_DIR ?? '').trim(),
+		toolsBaseUrl: ''
 	};
+
+	config.toolsBaseUrl =
+		(process.env.TOOLS_BASE_URL ?? '').trim() ||
+		`http://127.0.0.1:${config.port}`;
 
 	requireNonEmpty('INTERNAL_SECRET', config.internalSecret);
 	requireNonEmpty('RAINDEX_MCP_COMMAND', config.raindexMcpCommand);
@@ -127,6 +135,16 @@ export function loadConfig(): ToolsConfig {
 	}
 
 	validateMcpEntrypoint(config.raindexMcpCommand, config.raindexMcpArgs, config.raindexMcpCwd);
+
+	if (config.customStrategiesDir) {
+		const resolvedDir = config.customStrategiesDir.startsWith('/')
+			? config.customStrategiesDir
+			: resolve(process.cwd(), config.customStrategiesDir);
+		if (!existsSync(resolvedDir)) {
+			throw new Error(`CUSTOM_STRATEGIES_DIR not found at "${resolvedDir}"`);
+		}
+		config.customStrategiesDir = resolvedDir;
+	}
 
 	return config;
 }

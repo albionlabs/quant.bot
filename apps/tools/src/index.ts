@@ -4,15 +4,31 @@ import { npvRoutes } from './routes/npv.js';
 import { evmSimulateRoutes } from './routes/evm-simulate.js';
 import { txExecuteRoutes } from './routes/tx-execute.js';
 import { raindexStrategyRoutes } from './routes/raindex-strategy.js';
+import { tokenRegistryRoutes } from './routes/token-registry.js';
+import { tokenMetadataRoutes } from './routes/token-metadata.js';
+import { orderbookRoutes } from './routes/orderbook.js';
+import { tradeHistoryRoutes } from './routes/trade-history.js';
+import { raindexOrderUrlRoutes } from './routes/raindex-order-url.js';
+import { customStrategiesRoutes } from './routes/custom-strategies.js';
 
 const config = loadConfig();
 const app = Fastify({ logger: true });
 
-// npvRoutes is config-free; other routes receive config via closure
+// Config-free routes
 await app.register(npvRoutes);
+await app.register(tokenMetadataRoutes);  // more specific path first
+await app.register(tokenRegistryRoutes);
+await app.register(tradeHistoryRoutes);
+await app.register(raindexOrderUrlRoutes);
+
+// Config-dependent routes
 await app.register((instance) => evmSimulateRoutes(instance, config));
 await app.register((instance) => txExecuteRoutes(instance, config));
 await app.register((instance) => raindexStrategyRoutes(instance, config));
+await app.register((instance) => orderbookRoutes(instance, config));
+if (config.customStrategiesDir) {
+	await app.register((instance) => customStrategiesRoutes(instance, config));
+}
 
 app.get('/api/health', async () => ({
 	status: 'ok',

@@ -28,7 +28,9 @@ const config = {
 	raindexSettingsPath: '',
 	raindexSettingsYaml: '',
 	raindexSettingsUrl: '',
-	raindexRegistryUrl: 'https://example.com/registry'
+	raindexRegistryUrl: 'https://example.com/registry',
+	customStrategiesDir: '',
+	toolsBaseUrl: 'http://127.0.0.1:4000'
 } satisfies ToolsConfig;
 
 describe('raindex strategy service', () => {
