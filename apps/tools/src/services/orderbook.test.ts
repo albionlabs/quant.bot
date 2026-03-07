@@ -55,7 +55,7 @@ describe('fetchOrderbookDepth', () => {
 	it('classifies bids and asks based on USDC direction', async () => {
 		// Bid: outputs USDC (buying token with USDC)
 		// Ask: inputs USDC (selling token for USDC)
-		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
 			new Response(
 				JSON.stringify({
 					data: {
@@ -79,6 +79,11 @@ describe('fetchOrderbookDepth', () => {
 		expect(result.bidCount).toBe(1);
 		expect(result.askCount).toBe(1);
 		expect(result.display).toContain('BID');
+
+		const queryBody = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+		expect(queryBody.query).toContain('and: [');
+		expect(queryBody.query).toContain('{ active: true }');
+		expect(queryBody.query).toContain('or: [');
 	});
 
 	it('omits arrays when detail is false', async () => {

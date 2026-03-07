@@ -66,6 +66,11 @@ describe('fetchTradeHistory', () => {
 		expect(result.trades![1].timestamp).toBe(1700000000);
 		expect(result.trades![0].input.readableAmount).toBeDefined();
 		expect(result.display).toContain('Recent trades');
+
+		const orderHashesQueryBody = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string);
+		expect(orderHashesQueryBody.query).toContain('and: [');
+		expect(orderHashesQueryBody.query).toContain('{ active: true }');
+		expect(orderHashesQueryBody.query).toContain('or: [');
 	});
 
 	it('omits trades array when detail is false', async () => {

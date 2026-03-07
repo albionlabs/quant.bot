@@ -26,6 +26,10 @@ export async function orderbookRoutes(app: FastifyInstance, config: ToolsConfig)
 				return await fetchOrderbookDepth(tokenAddress, sideParam, config, detail);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : 'Failed to fetch orderbook';
+				app.log.error(
+					{ err: error, tokenAddress, side: sideParam, detail },
+					'orderbook route failed'
+				);
 				return reply.status(500).send({ error: message });
 			}
 		}

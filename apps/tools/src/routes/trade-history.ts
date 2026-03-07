@@ -26,6 +26,10 @@ export async function tradeHistoryRoutes(app: FastifyInstance) {
 				return { tokenAddress, ...result };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : 'Failed to fetch trades';
+				app.log.error(
+					{ err: error, tokenAddress, limit, detail },
+					'trade-history route failed'
+				);
 				return reply.status(500).send({ error: message });
 			}
 		}

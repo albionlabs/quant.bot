@@ -31,10 +31,14 @@ const TOKEN_ORDERS_QUERY = `
 query TokenOrders($tokenAddress: Bytes!, $first: Int!) {
   orders(
     where: {
-      active: true,
-      or: [
-        { inputs_: { token: $tokenAddress } },
-        { outputs_: { token: $tokenAddress } }
+      and: [
+        { active: true },
+        {
+          or: [
+            { inputs_: { token: $tokenAddress } },
+            { outputs_: { token: $tokenAddress } }
+          ]
+        }
       ]
     }
     orderBy: timestampAdded

@@ -40,10 +40,14 @@ const ORDER_HASHES_QUERY = `
 query OrderHashes($tokenAddress: Bytes!, $first: Int!) {
   orders(
     where: {
-      active: true,
-      or: [
-        { inputs_: { token: $tokenAddress } },
-        { outputs_: { token: $tokenAddress } }
+      and: [
+        { active: true },
+        {
+          or: [
+            { inputs_: { token: $tokenAddress } },
+            { outputs_: { token: $tokenAddress } }
+          ]
+        }
       ]
     }
     first: $first
