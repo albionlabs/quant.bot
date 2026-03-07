@@ -1,0 +1,210 @@
+version: 4
+
+orders:
+  base:
+    orderbook: base
+    inputs:
+      - token: input
+    outputs:
+      - token: output
+
+scenarios:
+  oil-target-base:
+    orderbook: base
+    deployer: base
+    runs: 1
+    bindings:
+      raindex-subparser: 0x22839F16281E67E5Fd395fAFd1571e820CbD46cB
+      subparser-0: 0x21026b98bA3909E34e9a42295A812614bb0C7F21
+      pyth-pair: 0x27f0d5e09a830083e5491795cac9ca521399c8f7fd56240d09484b14e614d57a
+      target-price-fn: '''oil-target-price
+
+  oil-target-base-inv:
+    orderbook: base
+    deployer: base
+    runs: 1
+    bindings:
+      raindex-subparser: 0x22839F16281E67E5Fd395fAFd1571e820CbD46cB
+      subparser-0: 0x21026b98bA3909E34e9a42295A812614bb0C7F21
+      pyth-pair: 0x27f0d5e09a830083e5491795cac9ca521399c8f7fd56240d09484b14e614d57a
+      target-price-fn: '''oil-target-price-inv
+
+deployments:
+  base:
+    order: base
+    scenario: oil-target-base
+
+  base-inv:
+    order: base
+    scenario: oil-target-base-inv
+
+gui:
+  name: Oil reserve straight-line discount
+  description: >
+    Values a tokenised oil reserve from remaining time, a live Brent Pyth price,
+    and a required discount, then offers at that target price.
+  short-description: >
+    Straight-line remaining reserve valuation with Brent pricing.
+
+  deployments:
+    base:
+      name: Base sell reserve tokens
+      description: >
+        Deploy a strategy to sell reserve tokens for a payment token using a
+        discounted straight-line oil reserve valuation.
+      deposits:
+        - token: output
+      fields:
+        - binding: oracle-price-timeout
+          name: Oracle Price Timeout
+          description: How fresh the oracle price must be, in seconds.
+          show-custom-field: true
+          default: 300
+          presets:
+            - name: 5 minutes (300)
+              value: 300
+            - name: 1 hour (3600)
+              value: 3600
+            - name: 8 hours (28800)
+              value: 28800
+            - name: 3 days (259200)
+              value: 259200
+        - binding: start-time
+          name: Start time
+          description: Unix timestamp when the reserve decay starts.
+        - binding: end-time
+          name: End time
+          description: Unix timestamp when the reserve reaches zero.
+        - binding: barrels-of-oil
+          name: Total barrels of oil
+          description: Initial reserve in barrel units.
+        - binding: token-supply
+          name: Token supply
+          description: Total token supply representing the reserve.
+        - binding: required-discount
+          name: Required discount
+          description: Decimal discount fraction. Example: 0.20 = 20%.
+          show-custom-field: true
+          default: 0.20
+      select-tokens:
+        - key: output
+          name: Token to Sell
+          description: The reserve token.
+        - key: input
+          name: Token to Buy
+          description: The payment token.
+
+    base-inv:
+      name: Base buy reserve tokens
+      description: >
+        Deploy the inverse orientation of the same oil valuation strategy.
+      deposits:
+        - token: output
+      fields:
+        - binding: oracle-price-timeout
+          name: Oracle Price Timeout
+          description: How fresh the oracle price must be, in seconds.
+          show-custom-field: true
+          default: 300
+          presets:
+            - name: 5 minutes (300)
+              value: 300
+            - name: 1 hour (3600)
+              value: 3600
+            - name: 8 hours (28800)
+              value: 28800
+            - name: 3 days (259200)
+              value: 259200
+        - binding: start-time
+          name: Start time
+          description: Unix timestamp when the reserve decay starts.
+        - binding: end-time
+          name: End time
+          description: Unix timestamp when the reserve reaches zero.
+        - binding: barrels-of-oil
+          name: Total barrels of oil
+          description: Initial reserve in barrel units.
+        - binding: token-supply
+          name: Token supply
+          description: Total token supply representing the reserve.
+        - binding: required-discount
+          name: Required discount
+          description: Decimal discount fraction. Example: 0.20 = 20%.
+          show-custom-field: true
+          default: 0.20
+      select-tokens:
+        - key: output
+          name: Token to Sell
+          description: The reserve token.
+        - key: input
+          name: Token to Buy
+          description: The payment token.
+
+---
+#raindex-subparser !Raindex subparser.
+#subparser-0 !Subparser 0.
+#pyth-pair !The Pyth feed ID for Brent oil.
+#target-price-fn !Function that returns the target IO.
+#oracle-price-timeout !Fetch price no older than this, in seconds.
+#start-time !Unix timestamp when reserve decay starts.
+#end-time !Unix timestamp when reserve reaches zero.
+#barrels-of-oil !Initial reserve in barrels.
+#token-supply !Total reserve token supply.
+#required-discount !Decimal discount fraction, e.g. 0.20.
+
+#oil-price
+price _: pyth-price(pyth-pair oracle-price-timeout), _: price;
+
+#oil-target-price
+current-time: now(),
+duration: sub(end-time start-time),
+remaining-duration: sub(end-time current-time),
+
+remaining-barrels:
+  div(
+    mul(remaining-duration barrels-of-oil)
+    duration
+  ),
+
+fair-value:
+  div(
+    mul(remaining-barrels call<'oil-price>())
+    token-supply
+  ),
+
+discount-multiplier:
+  sub(1 required-discount),
+
+target:
+  mul(fair-value discount-multiplier),
+
+_: target;
+
+#oil-target-price-inv
+price _: call<'oil-target-price>(), _: inv(price);
+
+#calculate-io
+using-words-from raindex-subparser subparser-0
+
+:ensure(gt(end-time start-time) "end-time must be greater than start-time"),
+:ensure(gt(token-supply 0) "token-supply must be greater than zero"),
+:ensure(gte(required-discount 0) "required-discount must be >= 0"),
+:ensure(lt(required-discount 1) "required-discount must be < 1"),
+
+current-time: now(),
+
+is-live:
+  and(
+    gte(current-time start-time)
+    lt(current-time end-time)
+  ),
+
+offer-amount:
+  if(is-live max-positive-value() 0),
+
+io:
+  if(is-live call<'target-price-fn>() 0);
+
+#handle-io :;
+
+#handle-add-order :;

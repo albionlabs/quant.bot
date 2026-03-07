@@ -24,28 +24,16 @@ Optional query params: `?registryUrl=<url>&forceRefresh=true`
 curl -s 'http://quant-bot-tools.internal:4000/api/strategy/details/{strategyKey}'
 ```
 
-Returns available deployment keys (e.g. `base`, `polygon`, `fixed-limit-arbitrum`) and their descriptions.
-NOTE: This endpoint only returns deployment-level metadata, not field schemas. Use the strategy reference below for field names.
+Returns the full schema for a strategy including deployment keys, field bindings (with names, descriptions, defaults, and presets), token selectors, and deposit keys. **Always call this before deploying** to discover the exact parameter keys for any strategy.
 Optional query params: `?registryUrl=<url>&forceRefresh=true`
 
-## Strategy Field Reference
+## Deploying a Strategy
 
-Each strategy has specific field names, token selectors, and deposit keys. You MUST use the exact keys below.
+1. Call `/api/strategy/details/{strategyKey}` to discover deployments, fields, token selectors, and deposit keys.
+2. Use the returned keys exactly as field bindings, select-token keys, and deposit keys in the deploy request.
+3. All field values and deposit amounts are **human-readable strings** (e.g. `"0.0005"`, `"1000"`, `"0.2"`). The SDK handles decimal conversion internally.
 
-### fixed-limit
-
-A simple limit order at a fixed price.
-
-| Parameter | Key | Type | Description |
-|-----------|-----|------|-------------|
-| **Field** | `fixed-io` | string | Exchange rate: amount of input token per output token |
-| **Token selector** | `token1` | address | Token to buy |
-| **Token selector** | `token2` | address | Token to sell |
-| **Deposit** | `token2` | string | Amount of the sell token to deposit |
-
-Deployment keys: `base`, `polygon`, `fixed-limit-arbitrum`
-
-Example (buy WETH with USDC at 0.0005 WETH/USDC, depositing 1000 USDC):
+Example (fixed-limit: buy WETH with USDC at 0.0005 WETH/USDC, depositing 1000 USDC):
 ```bash
 curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy \
   -H 'Content-Type: application/json' \
@@ -54,15 +42,13 @@ curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy \
     "deploymentKey": "base",
     "owner": "0xUSER_ADDRESS",
     "fields": { "fixed-io": "0.0005" },
-    "deposits": { "token2": "1000000000" },
+    "deposits": { "token2": "1000" },
     "selectTokens": {
       "token1": "0x4200000000000000000000000000000000000006",
       "token2": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
     }
   }'
 ```
-
-Note: deposit amounts must be in the token's smallest unit (e.g. 6 decimals for USDC = 1000000000 for 1000 USDC).
 
 ## Deploy Strategy Calldata
 
