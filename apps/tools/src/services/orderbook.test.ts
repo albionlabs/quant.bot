@@ -4,6 +4,7 @@ import type { ToolsConfig } from '../config.js';
 
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const TOKEN = '0xf836a500910453A397084ADe41321ee20a5AAde1';
+const WETH = '0x4200000000000000000000000000000000000006';
 
 const mockConfig = {
 	raindexMcpCommand: 'node',
@@ -15,17 +16,23 @@ const mockConfig = {
 	raindexRegistryUrl: ''
 } as unknown as ToolsConfig;
 
-function makeOrder(hash: string, inputToken: string, outputToken: string) {
+function makeOrder(
+	hash: string,
+	inputToken: string,
+	outputToken: string,
+	inputSymbol: string | null = null,
+	outputSymbol: string | null = null
+) {
 	return {
 		orderHash: hash,
 		owner: '0xowner',
 		active: true,
 		inputs: [{
-			token: { address: inputToken, symbol: null, decimals: '18' },
+			token: { address: inputToken, symbol: inputSymbol, decimals: '18' },
 			balance: '1000'
 		}],
 		outputs: [{
-			token: { address: outputToken, symbol: null, decimals: '18' },
+			token: { address: outputToken, symbol: outputSymbol, decimals: '18' },
 			balance: '1000'
 		}]
 	};
@@ -76,7 +83,9 @@ describe('fetchOrderbookDepth', () => {
 		expect(result.asks).toHaveLength(1);
 		expect(result.bids![0].orderHash).toBe('0xbid1');
 		expect(result.asks![0].orderHash).toBe('0xask1');
-		expect(result.bestBid).toBe(1.5);
+		// Bid ioratio 1.5 → price = 1/1.5 ≈ 0.6667
+		expect(result.bestBid).toBeCloseTo(1 / 1.5, 4);
+		// Ask ioratio 1.5 → price = 1.5 directly
 		expect(result.bestAsk).toBe(1.5);
 		expect(result.bidCount).toBe(1);
 		expect(result.askCount).toBe(1);
@@ -86,6 +95,97 @@ describe('fetchOrderbookDepth', () => {
 		expect(queryBody.query).toContain('and: [');
 		expect(queryBody.query).toContain('{ active: true }');
 		expect(queryBody.query).toContain('or: [');
+	});
+
+	it('inverts bid ioratio to compute correct USD price', async () => {
+		const { callRaindexMcpTool } = await import('./raindex-mcp-client.js');
+		vi.mocked(callRaindexMcpTool).mockResolvedValue([{
+			pair: 'TOKEN/USDC',
+			success: true,
+			maxOutput: '500',
+			ratio: '10'
+		}]);
+
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: {
+						orders: [
+							makeOrder('0xbid1', TOKEN, USDC)  // outputs USDC -> bid
+						]
+					}
+				}),
+				{ status: 200 }
+			)
+		);
+
+		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig, true);
+		// Bid ioratio = 10 → price = 1/10 = 0.10
+		expect(result.bids![0].price).toBeCloseTo(0.1, 6);
+		expect(result.bids![0].ioRatio).toBe(10);
+		expect(result.bestBid).toBeCloseTo(0.1, 6);
+	});
+
+	it('uses ask ioratio directly as USD price', async () => {
+		const { callRaindexMcpTool } = await import('./raindex-mcp-client.js');
+		vi.mocked(callRaindexMcpTool).mockResolvedValue([{
+			pair: 'USDC/TOKEN',
+			success: true,
+			maxOutput: '200',
+			ratio: '0.95'
+		}]);
+
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: {
+						orders: [
+							makeOrder('0xask1', USDC, TOKEN)  // inputs USDC -> ask
+						]
+					}
+				}),
+				{ status: 200 }
+			)
+		);
+
+		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig, true);
+		expect(result.asks![0].price).toBe(0.95);
+		expect(result.asks![0].ioRatio).toBe(0.95);
+		expect(result.bestAsk).toBe(0.95);
+	});
+
+	it('handles non-USDC pairs with ioRatio and symbols', async () => {
+		const { callRaindexMcpTool } = await import('./raindex-mcp-client.js');
+		vi.mocked(callRaindexMcpTool).mockResolvedValue([{
+			pair: 'TOKEN/WETH',
+			success: true,
+			maxOutput: '50',
+			ratio: '3500'
+		}]);
+
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: {
+						orders: [
+							makeOrder('0xother1', TOKEN, WETH, 'ALB', 'WETH')
+						]
+					}
+				}),
+				{ status: 200 }
+			)
+		);
+
+		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig, true);
+		expect(result.bidCount).toBe(0);
+		expect(result.askCount).toBe(0);
+		expect(result.nonUsdOrders).toHaveLength(1);
+		expect(result.nonUsdOrders![0].price).toBeNull();
+		expect(result.nonUsdOrders![0].ioRatio).toBe(3500);
+		expect(result.nonUsdOrders![0].inputSymbol).toBe('ALB');
+		expect(result.nonUsdOrders![0].outputSymbol).toBe('WETH');
+		expect(result.display).toContain('NON-USD PAIRS');
+		expect(result.display).toContain('ALB/WETH');
 	});
 
 	it('omits arrays when detail is false', async () => {

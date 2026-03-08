@@ -21,7 +21,37 @@
 		"defaults": {
 			"workspace": "/app/workspace",
 			"model": {
-				"primary": "anthropic/claude-sonnet-4-6"
+				"primary": "anthropic/claude-sonnet-4-6",
+				"params": {
+					"cacheRetention": "long"
+				}
+			},
+			"contextPruning": {
+				"mode": "cache-ttl",
+				"ttl": "5m",
+				"keepLastAssistants": 3,
+				"softTrimRatio": 0.3,
+				"hardClearRatio": 0.5,
+				"softTrim": {
+					"maxChars": 4000,
+					"headChars": 1500,
+					"tailChars": 1500
+				},
+				"hardClear": {
+					"enabled": true,
+					"placeholder": "[Tool result cleared — re-run if needed]"
+				}
+			},
+			"heartbeat": {
+				"every": "55m"
+			},
+			"tools": {
+				"loopDetection": {
+					"enabled": true,
+					"historySize": 20,
+					"warningThreshold": 5,
+					"criticalThreshold": 10
+				}
 			}
 		}
 	}

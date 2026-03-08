@@ -181,11 +181,13 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 		const reqId = randomUUID();
 		let timeout: ReturnType<typeof setTimeout> | null = null;
 		const idleTimeoutMs = opts.timeoutMs ?? 120_000;
+		const ERROR_IDLE_TIMEOUT_MS = 15_000;
 		const usageAccumulator = new TokenUsageAccumulator();
 		const estimatedInputTokens = estimateTokens(opts.message);
 		let usageReported = false;
 		let runId: string | null = null;
 		let finalText = '';
+		let lastError: string | null = null;
 
 		const reportUsage = (status: AgentRunUsage['status']) => {
 			if (usageReported) return;
@@ -222,23 +224,36 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 			}
 		};
 
-		const resetIdleTimeout = () => {
+		const resetIdleTimeout = (customMs?: number) => {
 			if (timeout) clearTimeout(timeout);
 			timeout = setTimeout(() => {
 				runHandlers.delete(reqId);
 				responseHandlers.delete(reqId);
 				if (runId) runHandlers.delete(runId);
-				reportUsage('timeout');
-				reject(new Error('Agent response timeout'));
-			}, idleTimeoutMs);
+				const status = lastError ? 'error' as const : 'timeout' as const;
+				reportUsage(status);
+				reject(new Error(lastError
+					? `Agent error: ${lastError}`
+					: 'Agent response timeout'));
+			}, customMs ?? idleTimeoutMs);
 		};
 		resetIdleTimeout();
 		let lastProgress: string | null = null;
 
 		// Register event handler for agent events on this run
 		const onAgentEvent = (event: AgentEvent) => {
-			resetIdleTimeout();
 			usageAccumulator.addEvent(event.stream, event.data);
+
+			const isLifecycleError =
+				event.stream === 'lifecycle' && event.data?.phase === 'error';
+
+			if (isLifecycleError && typeof event.data?.error === 'string') {
+				lastError = event.data.error;
+			}
+
+			// Shorten idle timeout after lifecycle errors so we fail fast
+			// instead of waiting the full 120s when the agent has given up
+			resetIdleTimeout(isLifecycleError ? ERROR_IDLE_TIMEOUT_MS : undefined);
 
 			if (event.stream === 'assistant' && event.data) {
 				const delta = event.data.delta as string | undefined;
@@ -251,6 +266,10 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 					event.stream === 'lifecycle' && typeof event.data?.phase === 'string'
 						? event.data.phase
 						: null;
+				const errorDetail =
+					isLifecycleError && typeof event.data?.error === 'string'
+						? event.data.error
+						: null;
 				const toolName =
 					typeof event.data?.toolName === 'string'
 						? event.data.toolName
@@ -259,7 +278,9 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 							: null;
 
 				let progress: string;
-				if (lifecyclePhase) {
+				if (errorDetail) {
+					progress = `[error] ${errorDetail}`;
+				} else if (lifecyclePhase) {
 					progress = `[${lifecyclePhase}]`;
 				} else if (toolName) {
 					progress = `[tool] ${toolName}`;

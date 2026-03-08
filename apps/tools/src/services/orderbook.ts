@@ -136,6 +136,11 @@ function parsePrice(ratio: string | undefined): number | null {
 	return isFinite(parsed) ? parsed : null;
 }
 
+function invertPrice(price: number | null): number | null {
+	if (price === null || price === 0) return null;
+	return 1 / price;
+}
+
 function formatPrice(price: number | null): string {
 	if (price === null) return '—';
 	if (price < 0.01) return `$${price.toPrecision(3)}`;
@@ -149,9 +154,21 @@ function formatAmount(maxOutput: string | null): string {
 	return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
+function formatRate(
+	ioRatio: number | null,
+	inputSymbol: string | null,
+	outputSymbol: string | null
+): string {
+	if (ioRatio === null) return '—';
+	const unit = inputSymbol && outputSymbol ? ` ${inputSymbol}/${outputSymbol}` : '';
+	if (ioRatio < 0.01) return `${ioRatio.toPrecision(3)}${unit}`;
+	return `${ioRatio.toFixed(4)}${unit}`;
+}
+
 function buildDisplay(
 	bids: OrderSummary[],
 	asks: OrderSummary[],
+	nonUsdOrders: OrderSummary[],
 	bestBid: number | null,
 	bestAsk: number | null,
 	spread: number | null
@@ -159,26 +176,36 @@ function buildDisplay(
 	const lines: string[] = [];
 
 	const maxRows = Math.max(bids.length, asks.length);
-	if (maxRows === 0) {
+	if (maxRows === 0 && nonUsdOrders.length === 0) {
 		return 'No orders found.';
 	}
 
-	lines.push('BID                    ASK');
-	for (let i = 0; i < maxRows; i++) {
-		const bid = bids[i];
-		const ask = asks[i];
-		const bidStr = bid
-			? `${formatPrice(bid.price)}  ${formatAmount(bid.maxOutput)}`
-			: '';
-		const askStr = ask
-			? `${formatPrice(ask.price)}  ${formatAmount(ask.maxOutput)}`
-			: '';
-		lines.push(`${bidStr.padEnd(23)}${askStr}`);
+	if (maxRows > 0) {
+		lines.push('BID                    ASK');
+		for (let i = 0; i < maxRows; i++) {
+			const bid = bids[i];
+			const ask = asks[i];
+			const bidStr = bid
+				? `${formatPrice(bid.price)}  ${formatAmount(bid.maxOutput)}`
+				: '';
+			const askStr = ask
+				? `${formatPrice(ask.price)}  ${formatAmount(ask.maxOutput)}`
+				: '';
+			lines.push(`${bidStr.padEnd(23)}${askStr}`);
+		}
+
+		if (spread !== null && bestBid !== null) {
+			const pct = ((spread / bestBid) * 100).toFixed(2);
+			lines.push(`Spread: ${formatPrice(spread)} (${pct}%)`);
+		}
 	}
 
-	if (spread !== null && bestBid !== null) {
-		const pct = ((spread / bestBid) * 100).toFixed(2);
-		lines.push(`Spread: ${formatPrice(spread)} (${pct}%)`);
+	if (nonUsdOrders.length > 0) {
+		if (lines.length > 0) lines.push('');
+		lines.push('NON-USD PAIRS');
+		for (const order of nonUsdOrders) {
+			lines.push(`${formatRate(order.ioRatio, order.inputSymbol, order.outputSymbol)}  ${formatAmount(order.maxOutput)}`);
+		}
 	}
 
 	return lines.join('\n');
@@ -203,23 +230,39 @@ export async function fetchOrderbookDepth(
 
 	const bids: OrderSummary[] = [];
 	const asks: OrderSummary[] = [];
+	const nonUsdOrders: OrderSummary[] = [];
 
 	for (let i = 0; i < data.orders.length; i++) {
 		const order = data.orders[i];
 		const orderSide = classifySide(order);
-		if (!orderSide) continue;
-		if (side !== 'both' && orderSide !== side) continue;
 
 		const quoteSettled = quoteResults[i];
 		const quote = quoteSettled.status === 'fulfilled' ? quoteSettled.value : null;
+		const rawRatio = parsePrice(quote?.ratio);
 
 		const summary: OrderSummary = {
 			orderHash: order.orderHash,
-			price: parsePrice(quote?.ratio),
+			price: null,
+			ioRatio: rawRatio,
 			maxOutput: quote?.maxOutput ?? null,
 			inputToken: order.inputs[0]?.token.address ?? '',
-			outputToken: order.outputs[0]?.token.address ?? ''
+			outputToken: order.outputs[0]?.token.address ?? '',
+			inputSymbol: order.inputs[0]?.token.symbol ?? null,
+			outputSymbol: order.outputs[0]?.token.symbol ?? null
 		};
+
+		if (!orderSide) {
+			nonUsdOrders.push(summary);
+			continue;
+		}
+
+		if (side !== 'both' && orderSide !== side) continue;
+
+		// Bid ioratio = token/USDC → price = 1/ioratio (USDC per token)
+		// Ask ioratio = USDC/token → price = ioratio directly
+		summary.price = orderSide === 'buy'
+			? invertPrice(rawRatio)
+			: rawRatio;
 
 		if (orderSide === 'buy') {
 			bids.push(summary);
@@ -236,12 +279,13 @@ export async function fetchOrderbookDepth(
 	const bestAsk = asks[0]?.price ?? null;
 	const spread = bestBid !== null && bestAsk !== null ? bestAsk - bestBid : null;
 
-	const display = buildDisplay(bids, asks, bestBid, bestAsk, spread);
+	const display = buildDisplay(bids, asks, nonUsdOrders, bestBid, bestAsk, spread);
 
 	return {
 		tokenAddress,
 		display,
 		...(detail ? { bids, asks } : {}),
+		...(detail && nonUsdOrders.length > 0 ? { nonUsdOrders } : {}),
 		bestBid,
 		bestAsk,
 		spread,

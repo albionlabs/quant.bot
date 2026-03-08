@@ -99,14 +99,28 @@ export interface TokenMetadataResponse {
 	history: DecodedMetaEntry[];
 }
 
+export interface MetadataLoadResponse {
+	address: string;
+	schema: unknown;
+	cachedUntil: number;
+}
+
+export interface MetadataFieldsResponse {
+	address: string;
+	fields: Record<string, unknown>;
+}
+
 // ── Orderbook Depth ─────────────────────────────────────────────────
 
 export interface OrderSummary {
 	orderHash: string;
 	price: number | null;
+	ioRatio: number | null;
 	maxOutput: string | null;
 	inputToken: string;
 	outputToken: string;
+	inputSymbol: string | null;
+	outputSymbol: string | null;
 }
 
 export type OrderbookSide = 'buy' | 'sell';
@@ -116,6 +130,7 @@ export interface OrderbookResponse {
 	display: string;
 	bids?: OrderSummary[];
 	asks?: OrderSummary[];
+	nonUsdOrders?: OrderSummary[];
 	bestBid: number | null;
 	bestAsk: number | null;
 	spread: number | null;

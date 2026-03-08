@@ -36,5 +36,35 @@ Use skills via `curl` through `exec` against `http://quant-bot-tools.internal:40
 - Continue to signing without explicit execute confirmation.
 - Add long preambles, tutorial-style explanations, or extra “helpful” material after the task is satisfied.
 
+## Environment
+- Shell: `sh` only. `node` is available. `python3` is NOT installed.
+- All tool calls go to `http://quant-bot-tools.internal:4000`.
+- No external network access except the tools service.
+
+## API Routes (complete)
+Only these routes exist. Do NOT probe for others.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/health` | Health check |
+| POST | `/api/npv` | NPV calculation |
+| GET | `/api/tokens` | List all tokens |
+| GET | `/api/tokens/:symbolOrAddress` | Token lookup by symbol/address |
+| GET | `/api/tokens/:address/metadata` | Token metadata + history |
+| GET | `/api/tokens/:address/metadata/load` | Load metadata, return schema |
+| GET | `/api/tokens/:address/metadata/fields?paths=...` | Query cached metadata fields |
+| GET | `/api/exchange/orderbook/:tokenAddress` | Orderbook depth |
+| GET | `/api/exchange/trades/:tokenAddress` | Trade history |
+| GET | `/api/orders?owner=0x...` | Orders for an owner |
+| GET | `/api/raindex/order-url/:orderHash` | Raindex order URL |
+| POST | `/api/evm/simulate` | Simulate EVM transaction |
+| POST | `/api/evm/request-signature` | Request tx signature |
+| POST | `/api/evm/stage-signing` | Stage multiple txs for signing |
+| GET | `/api/strategy/list` | List strategies |
+| GET | `/api/strategy/details/:strategyKey` | Strategy details + field bindings |
+| POST | `/api/order/strategy/compose` | Compose Rainlang |
+| POST | `/api/order/strategy/deploy` | Generate deploy calldata |
+| POST | `/api/order/strategy/deploy-and-stage` | Deploy + stage for signing |
+
 ## Scope
 - NPV, EVM simulation, Raindex strategy deploy/stage-signing, token registry lookup, token metadata, orderbook depth, trade history.

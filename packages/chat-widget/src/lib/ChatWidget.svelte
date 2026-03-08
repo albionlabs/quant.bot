@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { connect, disconnect, chat } from './stores/chat.js';
+	import { connect, disconnect, reconnect, chat } from './stores/chat.js';
 	import MessageList from './components/MessageList.svelte';
 	import MessageInput from './components/MessageInput.svelte';
 	import type { ChatWidgetConfig } from './types.js';
@@ -21,7 +21,15 @@
 <div class="chat-widget">
 	<div class="chat-header">
 		<span class="chat-title">quant.bot</span>
-		<span class="status-dot" class:connected={$chat.connected}></span>
+		{#if $chat.reconnecting}
+			<span class="status-dot reconnecting"></span>
+			<span class="reconnecting-label">Reconnecting...</span>
+		{:else}
+			<span class="status-dot" class:connected={$chat.connected}></span>
+			{#if !$chat.connected}
+				<button class="reconnect-btn" onclick={reconnect}>Reconnect</button>
+			{/if}
+		{/if}
 		{#if $chat.connected && $chat.backendVersion}
 			<span class="version-label">v {$chat.backendVersion}</span>
 		{/if}
@@ -67,6 +75,36 @@
 
 	.status-dot.connected {
 		background: #22c55e;
+	}
+
+	.status-dot.reconnecting {
+		background: #f59e0b;
+		animation: pulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.4; }
+	}
+
+	.reconnecting-label {
+		font-size: 0.7rem;
+		color: #f59e0b;
+	}
+
+	.reconnect-btn {
+		font-size: 0.7rem;
+		padding: 0.15rem 0.5rem;
+		border: 1px solid #6b7280;
+		border-radius: 0.25rem;
+		background: transparent;
+		color: white;
+		cursor: pointer;
+	}
+
+	.reconnect-btn:hover {
+		background: rgba(255, 255, 255, 0.1);
+		border-color: #9ca3af;
 	}
 
 	.version-label {

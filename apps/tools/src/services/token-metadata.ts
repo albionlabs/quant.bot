@@ -238,6 +238,24 @@ function buildDisplay(latest: DecodedMetaEntry | null): string {
 	return lines.length > 0 ? lines.join('\n') : 'Metadata present but no readable fields.';
 }
 
+/** Fetch raw (non-truncated) decoded metadata for a token address. */
+export async function fetchRawTokenMetadata(
+	tokenAddress: string
+): Promise<Record<string, unknown> | null> {
+	const paddedSubject = `0x000000000000000000000000${tokenAddress.slice(2).toLowerCase()}`;
+
+	const data = await executeGraphQL<MetaV1SQueryResult>(
+		METADATA_SUBGRAPH,
+		METADATA_QUERY,
+		{ subject: paddedSubject }
+	);
+
+	const latest = data.metaV1S[0];
+	if (!latest?.meta) return null;
+
+	return decodeMeta(latest.meta);
+}
+
 export async function fetchTokenMetadata(tokenAddress: string, limit = 1): Promise<{
 	display: string;
 	latest: DecodedMetaEntry | null;

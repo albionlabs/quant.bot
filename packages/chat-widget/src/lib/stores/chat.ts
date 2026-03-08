@@ -13,6 +13,7 @@ import {
 export interface ChatState {
 	messages: DisplayMessage[];
 	connected: boolean;
+	reconnecting: boolean;
 	sessionId: string | null;
 	loading: boolean;
 	backendVersion: string | null;
@@ -21,6 +22,7 @@ export interface ChatState {
 const initial: ChatState = {
 	messages: [],
 	connected: false,
+	reconnecting: false,
 	sessionId: null,
 	loading: false,
 	backendVersion: null
@@ -77,12 +79,14 @@ function connectInternal(gatewayUrl: string, token: string) {
 		ws.close();
 	}
 
+	chat.update((s) => ({ ...s, reconnecting: true }));
+
 	const url = `${gatewayUrl}/api/chat?token=${encodeURIComponent(token)}`;
 	ws = new WebSocket(url);
 
 	ws.onopen = () => {
 		reconnectAttempts = 0;
-		chat.update((s) => ({ ...s, connected: true }));
+		chat.update((s) => ({ ...s, connected: true, reconnecting: false }));
 	};
 
 	ws.onmessage = (event) => {
@@ -154,10 +158,13 @@ function connectInternal(gatewayUrl: string, token: string) {
 				});
 				streamingAssistantMessageId = null;
 			} else if (msg.type === 'error') {
+				const hint = msg.code === 'AGENT_ERROR'
+					? ' You can retry by sending your message again.'
+					: '';
 				const errorMsg: DisplayMessage = {
 					id: `msg-${++messageCounter}`,
 					role: 'system',
-					content: `Error: ${msg.message ?? 'Unknown error'}`,
+					content: `Error: ${msg.message ?? 'Unknown error'}${hint}`,
 					timestamp: Date.now()
 				};
 				chat.update((s) => ({
@@ -173,14 +180,14 @@ function connectInternal(gatewayUrl: string, token: string) {
 	};
 
 	ws.onclose = () => {
-		chat.update((s) => ({ ...s, connected: false, loading: false }));
+		chat.update((s) => ({ ...s, connected: false, reconnecting: false, loading: false }));
 		ws = null;
 		streamingAssistantMessageId = null;
 		scheduleReconnect();
 	};
 
 	ws.onerror = () => {
-		chat.update((s) => ({ ...s, connected: false }));
+		chat.update((s) => ({ ...s, connected: false, reconnecting: false }));
 	};
 }
 
@@ -198,6 +205,13 @@ export function connect(gatewayUrl: string, token: string) {
 		window.addEventListener('online', reconnectIfDisconnected);
 		document.addEventListener('visibilitychange', handleVisibilityChange);
 	}
+}
+
+export function reconnect() {
+	if (!lastGatewayUrl || !lastToken) return;
+	reconnectAttempts = 0;
+	clearReconnectTimer();
+	connectInternal(lastGatewayUrl, lastToken);
 }
 
 function reconnectIfDisconnected() {
