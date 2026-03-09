@@ -34,12 +34,7 @@
 	"agents": {
 		"defaults": {
 			"workspace": "/app/workspace",
-			"model": {
-				"primary": "anthropic/claude-sonnet-4-6",
-				"params": {
-					"cacheRetention": "long"
-				}
-			},
+			"model": "anthropic/claude-sonnet-4-6",
 			"contextPruning": {
 				"mode": "cache-ttl",
 				"ttl": "3m",
