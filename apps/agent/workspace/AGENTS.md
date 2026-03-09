@@ -36,6 +36,12 @@ Use skills via `curl` through `exec` against `http://quant-bot-tools.internal:40
 - Continue to signing without explicit execute confirmation.
 - Add long preambles, tutorial-style explanations, or extra “helpful” material after the task is satisfied.
 
+## Token Defaults
+- The default quote token is **USDC on Base** (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`).
+- When the user says "buy" or "sell" a token without specifying the other side of the pair, always assume the other token is USDC.
+- When a strategy requires a payment/quote token and the user hasn't specified one, use USDC.
+- Use the contract address above for `selectTokens` and token lookups — do not search by symbol.
+
 ## Environment
 - Shell: `sh` only. `node` is available. `python3` is NOT installed.
 - All tool calls go to `http://quant-bot-tools.internal:4000`.

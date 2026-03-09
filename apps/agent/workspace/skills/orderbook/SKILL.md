@@ -38,6 +38,7 @@ Response shape:
 
 ### Step 3: Ask user for values
 Present each field from `details.deployments[].fields` — show its `name`, `description`, and `default` if present. Collect user values.
+- For `selectTokens`: if the user hasn't specified a token, default to USDC (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`). Use the contract address directly — do not look up by symbol.
 
 ### Step 4: Deploy (ONE call — do NOT retry with different field names)
 Map the details response directly into the deploy payload:

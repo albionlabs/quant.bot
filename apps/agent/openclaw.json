@@ -44,7 +44,7 @@
 			},
 			"contextPruning": {
 				"mode": "cache-ttl",
-				"ttl": "3m",
+				"ttl": "30m",
 				"keepLastAssistants": 2,
 				"softTrimRatio": 0.15,
 				"hardClearRatio": 0.3,

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { WebSocket } from 'ws';
 import { verifyToken } from '../middleware/auth.js';
-import { createSession, getSession, touchSession } from '../services/session.js';
+import { createSession, restoreSession, getSession, touchSession } from '../services/session.js';
 import { sendToAgent, isAgentConnected } from '../services/agent-proxy.js';
 import { createExecutionToken } from '../services/execution-token.js';
 import { recordTokenRun } from '../services/token-metrics.js';
@@ -56,9 +56,11 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 				if (msg.type !== 'message' || !msg.content) return;
 
 				let sessionId = msg.sessionId;
-				if (!sessionId || !getSession(sessionId)) {
+				if (!sessionId) {
 					const session = createSession(user!.sub);
 					sessionId = session.id;
+				} else if (!getSession(sessionId)) {
+					restoreSession(sessionId, user!.sub);
 				}
 
 				touchSession(sessionId);

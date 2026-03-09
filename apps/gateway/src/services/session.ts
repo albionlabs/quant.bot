@@ -15,6 +15,23 @@ export function createSession(userId: string): ChatSession {
 	return session;
 }
 
+/**
+ * Re-adopt a client-provided sessionId that is no longer in the in-memory map.
+ * This preserves the OpenClaw session key (which includes sessionId) so
+ * conversation context survives gateway restarts.
+ */
+export function restoreSession(sessionId: string, userId: string): ChatSession {
+	const now = Date.now();
+	const session: ChatSession = {
+		id: sessionId,
+		userId,
+		createdAt: now,
+		lastMessageAt: now
+	};
+	sessions.set(sessionId, session);
+	return session;
+}
+
 export function getSession(sessionId: string): ChatSession | undefined {
 	return sessions.get(sessionId);
 }
