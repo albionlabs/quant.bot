@@ -1,4 +1,5 @@
 import type { ToolsConfig } from '../config.js';
+import { getDotrainGui } from './dotrain-fields.js';
 import { RaindexMcpError, callRaindexMcpTool } from './raindex-mcp-client.js';
 
 export interface DeployStrategyRequest {
@@ -281,6 +282,15 @@ function summarizeStrategyDetails(raw: unknown): StrategyDetailsSummary | unknow
 	};
 }
 
+function deploymentLacksFields(result: unknown): boolean {
+	if (!result || typeof result !== 'object' || Array.isArray(result)) return true;
+	const r = result as Record<string, unknown>;
+	if (!Array.isArray(r.deployments)) return true;
+	return (r.deployments as DeploymentSummary[]).some(
+		(d) => Object.keys(d.fields).length === 0 && !d._guiError
+	);
+}
+
 export async function getStrategyDetails(
 	config: ToolsConfig,
 	params: { strategyKey: string; registryUrl?: string; forceRefresh?: boolean }
@@ -292,8 +302,28 @@ export async function getStrategyDetails(
 		...(params.forceRefresh !== undefined ? { force_refresh: params.forceRefresh } : {})
 	});
 	console.log('[strategy-details] raw MCP response for %s: %s', params.strategyKey, JSON.stringify(raw, null, 2).slice(0, 2000));
-	const result = summarizeStrategyDetails(raw);
+	let result = summarizeStrategyDetails(raw);
 	console.log('[strategy-details] summarized result for %s: %s', params.strategyKey, JSON.stringify(result, null, 2).slice(0, 2000));
+
+	// Fallback: if MCP returned deployments without field metadata (e.g. RPC failure
+	// in getGui()), parse the .rain file directly from CUSTOM_STRATEGIES_DIR.
+	if (config.customStrategiesDir && deploymentLacksFields(result)) {
+		console.log('[strategy-details] enriching %s from dotrain YAML (MCP lacked field metadata)', params.strategyKey);
+		const gui = await getDotrainGui(config.customStrategiesDir, params.strategyKey);
+		if (gui) {
+			const summary = result as StrategyDetailsSummary;
+			for (const dep of summary.deployments) {
+				const guiDep = gui.deployments.find((g) => g.key === dep.key);
+				if (!guiDep) continue;
+				if (Object.keys(dep.fields).length === 0) dep.fields = guiDep.fields;
+				if (Object.keys(dep.selectTokens).length === 0) dep.selectTokens = guiDep.selectTokens;
+				if (dep.deposits.length === 0) dep.deposits = guiDep.deposits;
+			}
+			if (!summary.name && gui.name) summary.name = gui.name;
+			if (!summary.description && gui.description) summary.description = gui.description;
+		}
+	}
+
 	return result;
 }
 
