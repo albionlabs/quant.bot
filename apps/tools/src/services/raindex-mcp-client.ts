@@ -128,44 +128,62 @@ function ensureLocalDbRemotes(yaml: string): string {
 	return yaml.endsWith('\n') ? `${yaml}local-db-remotes: {}` : `${yaml}\nlocal-db-remotes: {}`;
 }
 
-async function resolveSettingsYaml(config: ToolsConfig): Promise<string | null> {
-	if (config.raindexSettingsYaml) {
-		return ensureLocalDbRemotes(config.raindexSettingsYaml);
-	}
+/**
+ * Replace the Base network RPC URL in the settings YAML with the configured one.
+ * The official settings use free public RPCs (e.g. base-rpc.publicnode.com) that
+ * are rate-limited and return undecodable responses under load.
+ */
+export function patchSettingsRpc(yaml: string, rpcUrl: string): string {
+	return yaml.replace(
+		/(networks:\s*\n\s+base:\s*\n\s+rpcs:\s*\n\s+- )(\S+)/,
+		`$1${rpcUrl}`
+	);
+}
 
-	if (!config.raindexSettingsUrl) {
+async function resolveSettingsYaml(config: ToolsConfig): Promise<string | null> {
+	let yaml: string;
+
+	if (config.raindexSettingsYaml) {
+		yaml = config.raindexSettingsYaml;
+	} else if (config.raindexSettingsUrl) {
+		let response: Response;
+		try {
+			response = await fetch(config.raindexSettingsUrl, {
+				signal: AbortSignal.timeout(15_000)
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'request failed';
+			throw new RaindexMcpError(
+				502,
+				`Failed to fetch RAINDEX_SETTINGS_URL (${config.raindexSettingsUrl}): ${message}`
+			);
+		}
+
+		if (!response.ok) {
+			throw new RaindexMcpError(
+				502,
+				`Failed to fetch RAINDEX_SETTINGS_URL (${config.raindexSettingsUrl}): HTTP ${response.status}`
+			);
+		}
+
+		yaml = await response.text();
+		if (!yaml.trim()) {
+			throw new RaindexMcpError(
+				502,
+				`RAINDEX_SETTINGS_URL returned an empty settings document: ${config.raindexSettingsUrl}`
+			);
+		}
+	} else {
 		return null;
 	}
 
-	let response: Response;
-	try {
-		response = await fetch(config.raindexSettingsUrl, {
-			signal: AbortSignal.timeout(15_000)
-		});
-	} catch (error) {
-		const message = error instanceof Error ? error.message : 'request failed';
-		throw new RaindexMcpError(
-			502,
-			`Failed to fetch RAINDEX_SETTINGS_URL (${config.raindexSettingsUrl}): ${message}`
-		);
+	yaml = ensureLocalDbRemotes(yaml);
+
+	if (config.rpcUrl) {
+		yaml = patchSettingsRpc(yaml, config.rpcUrl);
 	}
 
-	if (!response.ok) {
-		throw new RaindexMcpError(
-			502,
-			`Failed to fetch RAINDEX_SETTINGS_URL (${config.raindexSettingsUrl}): HTTP ${response.status}`
-		);
-	}
-
-	const yaml = await response.text();
-	if (!yaml.trim()) {
-		throw new RaindexMcpError(
-			502,
-			`RAINDEX_SETTINGS_URL returned an empty settings document: ${config.raindexSettingsUrl}`
-		);
-	}
-
-	return ensureLocalDbRemotes(yaml);
+	return yaml;
 }
 
 async function createClient(config: ToolsConfig): Promise<Client> {

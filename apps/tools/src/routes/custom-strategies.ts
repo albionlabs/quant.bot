@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { ToolsConfig } from '../config.js';
+import { patchSettingsRpc } from '../services/raindex-mcp-client.js';
 
 interface CachedEntry {
 	content: string;
@@ -27,17 +28,6 @@ async function fetchCached(url: string): Promise<string> {
 	return content;
 }
 
-/**
- * Replace the Base network RPC URL in the settings YAML with the real one.
- * The official settings use free public RPCs that are rate-limited. The SDK's
- * DotrainRegistry.getGui() makes RPC calls using these — so they need to work.
- */
-function patchSettingsRpc(yaml: string, rpcUrl: string): string {
-	return yaml.replace(
-		/(networks:\s*\n\s+base:\s*\n\s+rpcs:\s*\n\s+- )(\S+)/,
-		`$1${rpcUrl}`
-	);
-}
 
 function parseLocalRegistry(content: string, toolsBaseUrl: string): string {
 	const lines = content.split('\n');
