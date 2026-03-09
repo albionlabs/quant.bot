@@ -253,7 +253,10 @@ export async function getStrategyDetails(
 		...(registryUrl ? { registry_url: registryUrl } : {}),
 		...(params.forceRefresh !== undefined ? { force_refresh: params.forceRefresh } : {})
 	});
-	return summarizeStrategyDetails(raw);
+	console.log('[strategy-details] raw MCP response for %s: %s', params.strategyKey, JSON.stringify(raw, null, 2).slice(0, 2000));
+	const result = summarizeStrategyDetails(raw);
+	console.log('[strategy-details] summarized result for %s: %s', params.strategyKey, JSON.stringify(result, null, 2).slice(0, 2000));
+	return result;
 }
 
 export async function composeStrategyRainlang(
