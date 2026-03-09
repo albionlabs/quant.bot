@@ -231,7 +231,7 @@ describe('fetchOrderbookDepth', () => {
 		expect(result.asks).toHaveLength(0);
 	});
 
-	it('handles failed dynamic quotes (success: false) as null price', async () => {
+	it('filters out orders with failed quotes (no liquidity)', async () => {
 		const { callRaindexMcpTool } = await import('./raindex-mcp-client.js');
 		vi.mocked(callRaindexMcpTool).mockResolvedValue([{
 			pair: 'USDC/TOKEN',
@@ -253,8 +253,9 @@ describe('fetchOrderbookDepth', () => {
 		);
 
 		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig, true);
-		expect(result.bids).toHaveLength(1);
-		expect(result.bids![0].price).toBeNull();
+		// Failed quote → null maxOutput → filtered out
+		expect(result.bids).toHaveLength(0);
+		expect(result.bestBid).toBeNull();
 	});
 
 	it('returns empty orderbook when no orders exist', async () => {

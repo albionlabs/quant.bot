@@ -78,6 +78,7 @@ interface McpQuoteEntry {
 	success?: boolean;
 	maxOutput?: string;
 	ratio?: string;
+	inverseRatio?: string;
 	error?: string;
 }
 
@@ -272,25 +273,35 @@ export async function fetchOrderbookDepth(
 		}
 	}
 
-	// Sort bids descending by price, asks ascending
-	bids.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
-	asks.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+	// Filter out orders with no available liquidity (maxOutput = 0 or null)
+	const liveBids = bids.filter((o) => {
+		const out = parseFloat(o.maxOutput ?? '0');
+		return isFinite(out) && out > 0;
+	});
+	const liveAsks = asks.filter((o) => {
+		const out = parseFloat(o.maxOutput ?? '0');
+		return isFinite(out) && out > 0;
+	});
 
-	const bestBid = bids[0]?.price ?? null;
-	const bestAsk = asks[0]?.price ?? null;
+	// Sort bids descending by price, asks ascending
+	liveBids.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+	liveAsks.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+
+	const bestBid = liveBids[0]?.price ?? null;
+	const bestAsk = liveAsks[0]?.price ?? null;
 	const spread = bestBid !== null && bestAsk !== null ? bestAsk - bestBid : null;
 
-	const display = buildDisplay(bids, asks, nonUsdOrders, bestBid, bestAsk, spread);
+	const display = buildDisplay(liveBids, liveAsks, nonUsdOrders, bestBid, bestAsk, spread);
 
 	return {
 		tokenAddress,
 		display,
-		...(detail ? { bids, asks } : {}),
+		...(detail ? { bids: liveBids, asks: liveAsks } : {}),
 		...(detail && nonUsdOrders.length > 0 ? { nonUsdOrders } : {}),
 		bestBid,
 		bestAsk,
 		spread,
-		bidCount: bids.length,
-		askCount: asks.length
+		bidCount: liveBids.length,
+		askCount: liveAsks.length
 	};
 }
