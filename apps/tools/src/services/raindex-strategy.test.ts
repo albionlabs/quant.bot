@@ -125,6 +125,94 @@ describe('raindex strategy service', () => {
 		});
 	});
 
+	it('extracts field bindings from object-format deployments (raindex-mcp format)', async () => {
+		callRaindexMcpTool.mockResolvedValueOnce({
+			deployments: {
+				'base-inv': {
+					name: 'Base buy reserve tokens',
+					description: 'Inverse orientation.',
+					fields: {
+						'oracle-price-timeout': { name: 'Oracle price timeout', description: 'Max staleness.', default: '300' },
+						'barrels-of-oil': { name: 'Total barrels of oil', description: 'Initial reserve.' },
+						'required-discount': { name: 'Required discount', description: 'Decimal fraction.', default: '0.20' }
+					},
+					selectTokens: {
+						output: { name: 'Token to Sell', description: 'Reserve token' },
+						input: { name: 'Token to Buy', description: 'Payment token' }
+					},
+					deposits: ['output']
+				}
+			}
+		});
+
+		const result = await getStrategyDetails(config, { strategyKey: 'oil-token-fair-value-dca' }) as {
+			deployments: Array<{
+				key: string;
+				fields: Record<string, { name: string; description: string; default?: string }>;
+				selectTokens: Record<string, { name: string; description: string }>;
+				deposits: string[];
+			}>;
+		};
+
+		expect(result.deployments).toHaveLength(1);
+		const dep = result.deployments[0];
+		expect(dep.key).toBe('base-inv');
+		expect(dep.fields['oracle-price-timeout']).toEqual({ name: 'Oracle price timeout', description: 'Max staleness.', default: '300' });
+		expect(dep.fields['barrels-of-oil']).toEqual({ name: 'Total barrels of oil', description: 'Initial reserve.' });
+		expect(dep.fields['required-discount']).toEqual({ name: 'Required discount', description: 'Decimal fraction.', default: '0.20' });
+		expect(dep.selectTokens).toEqual({
+			output: { name: 'Token to Sell', description: 'Reserve token' },
+			input: { name: 'Token to Buy', description: 'Payment token' }
+		});
+		expect(dep.deposits).toEqual(['output']);
+	});
+
+	it('extracts field bindings from array-format deployments', async () => {
+		callRaindexMcpTool.mockResolvedValueOnce({
+			name: 'Oil reserve auction DCA',
+			description: 'Auction-DCA with an oil-NAV floor.',
+			deployments: {
+				'base-inv': {
+					name: 'Base buy reserve tokens',
+					description: 'Inverse orientation.',
+					fields: [
+						{ binding: 'oracle-price-timeout', name: 'Oracle price timeout', description: 'Max staleness.', default: '300' },
+						{ binding: 'barrels-of-oil', name: 'Total barrels of oil', description: 'Initial reserve.' },
+						{ binding: 'required-discount', name: 'Required discount', description: 'Decimal fraction.', default: '0.20' }
+					],
+					selectTokens: [
+						{ key: 'output', name: 'Token to Sell', description: 'Reserve token' },
+						{ key: 'input', name: 'Token to Buy', description: 'Payment token' }
+					],
+					deposits: [{ token: 'output' }]
+				}
+			}
+		});
+
+		const result = await getStrategyDetails(config, { strategyKey: 'oil-token-fair-value-dca' }) as {
+			deployments: Array<{
+				key: string;
+				fields: Record<string, { name: string; description: string; default?: string }>;
+				selectTokens: Record<string, { name: string; description: string }>;
+				deposits: string[];
+			}>;
+		};
+
+		expect(result.deployments).toHaveLength(1);
+		const dep = result.deployments[0];
+		expect(dep.key).toBe('base-inv');
+		expect(dep.fields).toEqual({
+			'oracle-price-timeout': { name: 'Oracle price timeout', description: 'Max staleness.', default: '300' },
+			'barrels-of-oil': { name: 'Total barrels of oil', description: 'Initial reserve.' },
+			'required-discount': { name: 'Required discount', description: 'Decimal fraction.', default: '0.20' }
+		});
+		expect(dep.selectTokens).toEqual({
+			output: { name: 'Token to Sell', description: 'Reserve token' },
+			input: { name: 'Token to Buy', description: 'Payment token' }
+		});
+		expect(dep.deposits).toEqual(['output']);
+	});
+
 	it('normalizes deploy calldata response', async () => {
 		callRaindexMcpTool.mockResolvedValueOnce({
 			orderbookAddress: '0xOrderbook',

@@ -15,7 +15,7 @@ scenarios:
     runs: 1
     bindings:
       raindex-subparser: 0x22839F16281E67E5Fd395fAFd1571e820CbD46cB
-      subparser-0: 0x21026b98bA3909E34e9a42295A812614bb0C7F21
+      subparser-0: 0x3348438b5045f73568b3a871Bea55D7884c46d77
       pyth-pair: 0x27f0d5e09a830083e5491795cac9ca521399c8f7fd56240d09484b14e614d57a
       target-price-fn: '''oil-target-price'
 
@@ -25,7 +25,7 @@ scenarios:
     runs: 1
     bindings:
       raindex-subparser: 0x22839F16281E67E5Fd395fAFd1571e820CbD46cB
-      subparser-0: 0x21026b98bA3909E34e9a42295A812614bb0C7F21
+      subparser-0: 0x3348438b5045f73568b3a871Bea55D7884c46d77
       pyth-pair: 0x27f0d5e09a830083e5491795cac9ca521399c8f7fd56240d09484b14e614d57a
       target-price-fn: '''oil-target-price-inv'
 
@@ -183,13 +183,15 @@ _: target;
 #oil-target-price-inv
 price _: call<'oil-target-price>(), _: inv(price);
 
+#handle-add-order
+using-words-from raindex-subparser subparser-0
+:ensure(gt(end-time start-time) "end>start"),
+:ensure(gt(token-supply 0) "supply>0"),
+:ensure(gte(required-discount 0) "disc>=0"),
+:ensure(lt(required-discount 1) "disc<1");
+
 #calculate-io
 using-words-from raindex-subparser subparser-0
-
-:ensure(gt(end-time start-time) "end-time must be greater than start-time"),
-:ensure(gt(token-supply 0) "token-supply must be greater than zero"),
-:ensure(gte(required-discount 0) "required-discount must be >= 0"),
-:ensure(lt(required-discount 1) "required-discount must be < 1"),
 
 current-time: now(),
 
@@ -206,5 +208,3 @@ io:
   if(is-live call<'target-price-fn>() 0);
 
 #handle-io :;
-
-#handle-add-order :;

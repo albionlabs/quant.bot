@@ -190,9 +190,25 @@ function summarizeStrategyDetails(raw: unknown): StrategyDetailsSummary | unknow
 
 			const fields: Record<string, FieldSummary> = {};
 			if (d.fields && typeof d.fields === 'object') {
-				for (const [fk, fv] of Object.entries(d.fields as Record<string, unknown>)) {
-					if (!fv || typeof fv !== 'object' || Array.isArray(fv)) continue;
-					const f = fv as Record<string, unknown>;
+				const fieldEntries: Array<[string, Record<string, unknown>]> = [];
+
+				if (Array.isArray(d.fields)) {
+					// Array format: [{ binding: "key-name", name: "Display", ... }]
+					for (const item of d.fields) {
+						if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+						const f = item as Record<string, unknown>;
+						const key = typeof f.binding === 'string' ? f.binding : typeof f.key === 'string' ? f.key : '';
+						if (key) fieldEntries.push([key, f]);
+					}
+				} else {
+					// Object format: { "key-name": { name: "Display", ... } }
+					for (const [fk, fv] of Object.entries(d.fields as Record<string, unknown>)) {
+						if (!fv || typeof fv !== 'object' || Array.isArray(fv)) continue;
+						fieldEntries.push([fk, fv as Record<string, unknown>]);
+					}
+				}
+
+				for (const [fk, f] of fieldEntries) {
 					fields[fk] = {
 						name: pickString(f, 'name', fk),
 						description: pickString(f, 'description'),
@@ -203,9 +219,23 @@ function summarizeStrategyDetails(raw: unknown): StrategyDetailsSummary | unknow
 
 			const selectTokens: Record<string, { name: string; description: string }> = {};
 			if (d.selectTokens && typeof d.selectTokens === 'object') {
-				for (const [tk, tv] of Object.entries(d.selectTokens as Record<string, unknown>)) {
-					if (!tv || typeof tv !== 'object' || Array.isArray(tv)) continue;
-					const t = tv as Record<string, unknown>;
+				const tokenEntries: Array<[string, Record<string, unknown>]> = [];
+
+				if (Array.isArray(d.selectTokens)) {
+					for (const item of d.selectTokens) {
+						if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+						const t = item as Record<string, unknown>;
+						const key = typeof t.key === 'string' ? t.key : '';
+						if (key) tokenEntries.push([key, t]);
+					}
+				} else {
+					for (const [tk, tv] of Object.entries(d.selectTokens as Record<string, unknown>)) {
+						if (!tv || typeof tv !== 'object' || Array.isArray(tv)) continue;
+						tokenEntries.push([tk, tv as Record<string, unknown>]);
+					}
+				}
+
+				for (const [tk, t] of tokenEntries) {
 					selectTokens[tk] = {
 						name: pickString(t, 'name', tk),
 						description: pickString(t, 'description')
@@ -216,7 +246,15 @@ function summarizeStrategyDetails(raw: unknown): StrategyDetailsSummary | unknow
 			const deposits: string[] = [];
 			if (d.deposits && typeof d.deposits === 'object') {
 				if (Array.isArray(d.deposits)) {
-					deposits.push(...d.deposits.filter((x): x is string => typeof x === 'string'));
+					for (const item of d.deposits) {
+						if (typeof item === 'string') {
+							deposits.push(item);
+						} else if (item && typeof item === 'object' && !Array.isArray(item)) {
+							const obj = item as Record<string, unknown>;
+							const token = typeof obj.token === 'string' ? obj.token : typeof obj.key === 'string' ? obj.key : '';
+							if (token) deposits.push(token);
+						}
+					}
 				} else {
 					deposits.push(...Object.keys(d.deposits));
 				}

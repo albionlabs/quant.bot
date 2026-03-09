@@ -393,7 +393,7 @@ current-time: now(),
 duration: sub(end-time start-time),
 remaining-duration: sub(end-time current-time),
 remaining-barrels: div(mul(remaining-duration barrels-of-oil) duration),
-oil-price: pyth-price(pyth-pair oracle-price-timeout),
+oil-price _: pyth-price(pyth-pair oracle-price-timeout),
 fair-value: div(mul(remaining-barrels oil-price) token-supply),
 discount-multiplier: sub(1 required-discount),
 _: mul(fair-value discount-multiplier);
@@ -406,17 +406,17 @@ _: inv(call<'oil-floor-price>());
 
 #handle-add-order
 using-words-from raindex-subparser subparser-0
+:ensure(gt(end-time start-time) "end>start"),
+:ensure(gt(token-supply 0) "supply>0"),
+:ensure(gt(barrels-of-oil 0) "barrels>0"),
+:ensure(gte(required-discount 0) "disc>=0"),
+:ensure(lt(required-discount 1) "disc<1"),
 :call<'set-initial-time>();
 
 #calculate-io
 using-words-from raindex-subparser subparser-0
-:ensure(gt(end-time start-time) "end-time must be greater than start-time"),
-:ensure(gt(token-supply 0) "token-supply must be greater than zero"),
-:ensure(gt(barrels-of-oil 0) "barrels-of-oil must be greater than zero"),
-:ensure(gte(required-discount 0) "required-discount must be >= 0"),
-:ensure(lt(required-discount 1) "required-discount must be < 1"),
-:ensure(gte(now() start-time) "strategy has not started"),
-:ensure(lt(now() end-time) "strategy has ended"),
+:ensure(gte(now() start-time) "not started"),
+:ensure(lt(now() end-time) "ended"),
 amount-epochs
 trade-epochs:call<'get-epoch>(),
 max-output: call<'amount-for-epoch>(amount-epochs trade-epochs),
