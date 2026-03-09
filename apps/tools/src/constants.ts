@@ -21,7 +21,7 @@ export const CHAIN_ID = 8453;
 
 /** Raindex */
 export const RAINDEX_BASE_URL = 'https://v6.raindex.finance';
-export const RAINDEX_ORDERBOOK_ADDRESS = '0x52ceb8ebef648744ffdde89f7bc9c3ac35944775';
+export const RAINDEX_ORDERBOOK_ADDRESS = '0xe522cB4a5fCb2eb31a52Ff41a4653d85A4fd7C9D';
 
 /** CBOR magic numbers for Rain meta decoding */
 export const MAGIC_NUMBERS = {

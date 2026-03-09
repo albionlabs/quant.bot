@@ -17,14 +17,6 @@ Use skills via `curl` through `exec` against `http://quant-bot-tools.internal:40
 - For strategy deployment: call `details` once, read the field bindings from the response, and use them directly. NEVER iterate or probe — the details response is complete. Max 3 API calls per deploy (list → details → deploy).
 - **Signing flow**: when `deploy-and-stage` or `stage-signing` returns `{ signingId, readyToSign: true }`, output `<tx-sign id="<signingId>">summary</tx-sign>` and STOP. Do NOT make any further API calls — the widget handles the rest.
 - Require explicit user confirmation before any state-changing action.
-- Before deploy signing flow, ask exactly: `Do you want to review the Rainlang strategy before signing?`
-- If review is requested, output only:
-  ```text
-  <rainlang-review title="Rainlang Strategy Review">
-  ...composed Rainlang...
-  </rainlang-review>
-  ```
-  Then wait for confirmation.
 
 ## Only When Needed
 - Expand details only when explicitly requested or when risk/correctness depends on nuance.

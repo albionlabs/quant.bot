@@ -52,12 +52,20 @@ curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy-a
   -H 'Content-Type: application/json' \
   -d '{"strategyKey":"...","deploymentKey":"base-inv","owner":"0x...","fields":{"binding-key-1":"0.5","binding-key-2":"100"},"deposits":{},"selectTokens":{},"executionToken":"<trusted-execution-token>"}'
 ```
+Response includes `deployment.composedRainlang` — use this for the review step.
 
-### Step 5 (optional): Compose for review
-```bash
-curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/compose \
-  -H 'Content-Type: application/json' \
-  -d '{"dotrainSource":"...","deploymentKey":"..."}'
+### Step 5: Review and sign
+If `readyToSign=true`:
+1. Show the composed Rainlang from `deployment.composedRainlang` in a review tag:
+```text
+<rainlang-review title="Rainlang Strategy Review">
+...composedRainlang from response...
+</rainlang-review>
+```
+2. Wait for user confirmation.
+3. After confirmation, output the signing tag and STOP:
+```text
+<tx-sign id="<signingId>">summary</tx-sign>
 ```
 
 ## CRITICAL: Maximum Call Budget
@@ -66,12 +74,8 @@ curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/compose 
 - **NEVER "probe" or "iterate" to discover bindings.** The details response has everything.
 
 ## Output (Default)
-- Pre-signing: max 5 bullets: strategy, deployment, approval count, simulation status, readiness.
 - If `readyToSign=false`: max 3 bullets with blockers.
-- If `readyToSign=true` and user confirmed: output only:
-```text
-<tx-sign id="<signingId>">summary</tx-sign>
-```
+- If `readyToSign=true`: show `<rainlang-review>` tag, wait for confirmation, then output `<tx-sign>` tag.
 
 ## Never
 - Guess, invent, or "probe" for field binding names. Use ONLY the keys from the `details` response.
