@@ -1,7 +1,7 @@
 ---
 name: "Orderbook Depth"
 description: "View orderbook depth with live quotes for tokens on the Raindex orderbook"
-version: "1.6.0"
+version: "1.7.0"
 ---
 
 ## Use When
@@ -17,11 +17,10 @@ version: "1.6.0"
 curl -s 'http://quant-bot-tools.internal:4000/api/exchange/orderbook/0xTOKEN_ADDRESS?side=both'
 ```
 
-## IO Ratio Semantics
-- Quotes return **IO ratios** (input/output), NOT direct prices.
-- **Ask** (sell token for USDC): ioratio = USDC/token → this IS the USD price.
-- **Bid** (buy token with USDC): ioratio = token/USDC → USD price = **1 / ioratio**.
-- The `price` field in the response already applies this inversion — use it directly.
+## Response Fields — READ CAREFULLY
+- **ALWAYS use `bestBid`, `bestAsk`, `spread`, and the `price` field on individual orders.** These are already converted to USD prices (USDC per token).
+- **NEVER use `ioRatio` as a dollar price.** The `ioRatio` field is a raw on-chain ratio — for bids it is token/USDC (inverted), so displaying it as a price gives a wrong number (e.g. ioRatio=10 means $0.10/token, NOT $10). The `price` field already handles the conversion.
+- `ioRatio` is ONLY useful for non-USD pairs (see below). For all USD pairs, ignore it.
 
 ## Non-USD Pairs
 - Orders where neither token is USDC have `price: null`.

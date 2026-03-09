@@ -279,13 +279,23 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 
 				let progress: string;
 				if (errorDetail) {
-					progress = `[error] ${errorDetail}`;
+					progress = `Error: ${errorDetail}`;
+				} else if (lifecyclePhase === 'start' || lifecyclePhase === 'init') {
+					progress = 'Thinking…';
+				} else if (lifecyclePhase === 'planning') {
+					progress = 'Planning…';
+				} else if (lifecyclePhase === 'executing') {
+					progress = 'Working…';
 				} else if (lifecyclePhase) {
-					progress = `[${lifecyclePhase}]`;
+					progress = `${lifecyclePhase}…`;
+				} else if (toolName === 'exec') {
+					progress = 'Calling tools…';
 				} else if (toolName) {
-					progress = `[tool] ${toolName}`;
+					progress = `Running ${toolName}…`;
+				} else if (event.stream === 'model') {
+					progress = 'Thinking…';
 				} else {
-					progress = `[${event.stream}]`;
+					progress = 'Working…';
 				}
 
 				if (progress !== lastProgress) {

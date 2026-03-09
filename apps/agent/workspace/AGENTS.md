@@ -14,7 +14,7 @@ Use skills via `curl` through `exec` against `http://quant-bot-tools.internal:40
 - Prefer concise bullets over paragraphs.
 - For multiple options, show at most 3 with one-line tradeoff each.
 - Simulate before any signing/execution flow.
-- For strategy deployment: always call the details endpoint first. Field bindings are unique per strategy and MUST NOT be assumed.
+- For strategy deployment: call `details` once, read the field bindings from the response, and use them directly. NEVER iterate or probe — the details response is complete. Max 3 API calls per deploy (list → details → deploy).
 - Require explicit user confirmation before any state-changing action.
 - Before deploy signing flow, ask exactly: `Do you want to review the Rainlang strategy before signing?`
 - If review is requested, output only:
@@ -39,7 +39,7 @@ Use skills via `curl` through `exec` against `http://quant-bot-tools.internal:40
 ## Environment
 - Shell: `sh` only. `node` is available. `python3` is NOT installed.
 - All tool calls go to `http://quant-bot-tools.internal:4000`.
-- No external network access except the tools service.
+- External web search is available for market data, news, and general research.
 
 ## API Routes (complete)
 Only these routes exist. Do NOT probe for others.

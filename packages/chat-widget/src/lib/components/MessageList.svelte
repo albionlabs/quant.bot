@@ -18,6 +18,9 @@
 	{#if $chat.loading}
 		<div class="typing-indicator">
 			<span></span><span></span><span></span>
+			{#if $chat.thinkingStatus}
+				<span class="thinking-status">{$chat.thinkingStatus}</span>
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -35,6 +38,7 @@
 	.typing-indicator {
 		align-self: flex-start;
 		display: flex;
+		align-items: center;
 		gap: 0.25rem;
 		padding: 0.75rem 1rem;
 		background: #f3f4f6;
@@ -51,6 +55,13 @@
 
 	.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
 	.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+	.thinking-status {
+		font-size: 0.75rem;
+		color: #6b7280;
+		margin-left: 0.5rem;
+		white-space: nowrap;
+	}
 
 	@keyframes bounce {
 		0%, 80%, 100% { transform: scale(0); }

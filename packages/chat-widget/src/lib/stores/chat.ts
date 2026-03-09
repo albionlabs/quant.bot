@@ -16,6 +16,7 @@ export interface ChatState {
 	reconnecting: boolean;
 	sessionId: string | null;
 	loading: boolean;
+	thinkingStatus: string | null;
 	backendVersion: string | null;
 }
 
@@ -25,6 +26,7 @@ const initial: ChatState = {
 	reconnecting: false,
 	sessionId: null,
 	loading: false,
+	thinkingStatus: null,
 	backendVersion: null
 };
 
@@ -85,8 +87,9 @@ function connectInternal(gatewayUrl: string, token: string) {
 	ws = new WebSocket(url);
 
 	ws.onopen = () => {
-		reconnectAttempts = 0;
-		chat.update((s) => ({ ...s, connected: true, reconnecting: false }));
+		// Don't reset reconnectAttempts here – wait for the server's 'connected'
+		// message which confirms the agent is reachable. Otherwise the backoff
+		// resets on every TCP-level open and AGENT_UNAVAILABLE causes a tight loop.
 	};
 
 	ws.onmessage = (event) => {
@@ -94,11 +97,24 @@ function connectInternal(gatewayUrl: string, token: string) {
 			const msg = JSON.parse(event.data) as ServerMessage;
 
 			if (msg.type === 'connected') {
-				chat.update((s) => ({ ...s, backendVersion: msg.version ?? null }));
+				reconnectAttempts = 0;
+				chat.update((s) => ({
+					...s,
+					connected: true,
+					reconnecting: false,
+					backendVersion: msg.version ?? null
+				}));
 				return;
 			}
 
-			if (msg.type === 'stream' && msg.delta) {
+			if (msg.type === 'progress' && msg.status) {
+				chat.update((s) => ({
+					...s,
+					thinkingStatus: msg.status ?? null,
+					sessionId: msg.sessionId ?? s.sessionId,
+					loading: true
+				}));
+			} else if (msg.type === 'stream' && msg.delta) {
 				chat.update((s) => {
 					const messages = [...s.messages];
 					const now = Date.now();
@@ -126,6 +142,7 @@ function connectInternal(gatewayUrl: string, token: string) {
 					return {
 						...s,
 						messages,
+						thinkingStatus: null,
 						sessionId: msg.sessionId ?? s.sessionId,
 						loading: true
 					};
@@ -154,10 +171,14 @@ function connectInternal(gatewayUrl: string, token: string) {
 						);
 					}
 
-					return { ...s, messages, sessionId: msg.sessionId ?? s.sessionId, loading: false };
+					return { ...s, messages, sessionId: msg.sessionId ?? s.sessionId, loading: false, thinkingStatus: null };
 				});
 				streamingAssistantMessageId = null;
 			} else if (msg.type === 'error') {
+				// AGENT_UNAVAILABLE is sent right before the server closes the
+				// socket; the client will auto-reconnect so don't spam the UI.
+				if (msg.code === 'AGENT_UNAVAILABLE') return;
+
 				const hint = msg.code === 'AGENT_ERROR'
 					? ' You can retry by sending your message again.'
 					: '';
@@ -170,7 +191,8 @@ function connectInternal(gatewayUrl: string, token: string) {
 				chat.update((s) => ({
 					...s,
 					messages: [...s.messages, errorMsg],
-					loading: false
+					loading: false,
+					thinkingStatus: null
 				}));
 				streamingAssistantMessageId = null;
 			}

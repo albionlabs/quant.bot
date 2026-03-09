@@ -91,12 +91,12 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 							socket.send(JSON.stringify(streamMsg));
 						},
 						onProgress: (progress) => {
-							const streamMsg: ServerMessage = {
-								type: 'stream',
+							const progressMsg: ServerMessage = {
+								type: 'progress',
 								sessionId,
-								delta: `\n${progress}\n`
+								status: progress
 							};
-							socket.send(JSON.stringify(streamMsg));
+							socket.send(JSON.stringify(progressMsg));
 						},
 						onUsage: (usage) => {
 							if (config.tokenMetricsEnabled) {

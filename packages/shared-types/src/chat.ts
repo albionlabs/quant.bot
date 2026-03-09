@@ -20,7 +20,7 @@ export interface ClientMessage {
 }
 
 export interface ServerMessage {
-	type: 'message' | 'tool_call' | 'tool_result' | 'stream' | 'error' | 'connected';
+	type: 'message' | 'tool_call' | 'tool_result' | 'stream' | 'progress' | 'error' | 'connected';
 	sessionId: string;
 	role?: 'assistant';
 	content?: string;
@@ -28,6 +28,7 @@ export interface ServerMessage {
 	args?: Record<string, unknown>;
 	result?: unknown;
 	delta?: string;
+	status?: string;
 	code?: string;
 	message?: string;
 	version?: string;
