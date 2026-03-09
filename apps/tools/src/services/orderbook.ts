@@ -243,7 +243,6 @@ export async function fetchOrderbookDepth(
 		const summary: OrderSummary = {
 			orderHash: order.orderHash,
 			price: null,
-			ioRatio: rawRatio,
 			maxOutput: quote?.maxOutput ?? null,
 			inputToken: order.inputs[0]?.token.address ?? '',
 			outputToken: order.outputs[0]?.token.address ?? '',
@@ -252,6 +251,8 @@ export async function fetchOrderbookDepth(
 		};
 
 		if (!orderSide) {
+			// Non-USD pairs need ioRatio since price can't be computed
+			summary.ioRatio = rawRatio;
 			nonUsdOrders.push(summary);
 			continue;
 		}

@@ -1,7 +1,7 @@
 ---
 name: "Orderbook Depth"
 description: "View orderbook depth with live quotes for tokens on the Raindex orderbook"
-version: "1.7.0"
+version: "1.8.0"
 ---
 
 ## Use When
@@ -17,13 +17,11 @@ version: "1.7.0"
 curl -s 'http://quant-bot-tools.internal:4000/api/exchange/orderbook/0xTOKEN_ADDRESS?side=both'
 ```
 
-## Response Fields — READ CAREFULLY
-- **ALWAYS use `bestBid`, `bestAsk`, `spread`, and the `price` field on individual orders.** These are already converted to USD prices (USDC per token).
-- **NEVER use `ioRatio` as a dollar price.** The `ioRatio` field is a raw on-chain ratio — for bids it is token/USDC (inverted), so displaying it as a price gives a wrong number (e.g. ioRatio=10 means $0.10/token, NOT $10). The `price` field already handles the conversion.
-- `ioRatio` is ONLY useful for non-USD pairs (see below). For all USD pairs, ignore it.
+## Response Fields
+- Use `bestBid`, `bestAsk`, `spread`, and the `price` field on individual orders. These are already converted to USD prices (USDC per token).
 
 ## Non-USD Pairs
-- Orders where neither token is USDC have `price: null`.
+- Orders where neither token is USDC have `price: null` and include an `ioRatio` field.
 - Use the `ioRatio` field with `inputSymbol`/`outputSymbol` to present the rate.
 - Format as: `{ioRatio} {inputSymbol}/{outputSymbol}` (e.g. "10.0000 WETH/TOKEN").
 - Do NOT prefix with `$` — these are not USD prices.

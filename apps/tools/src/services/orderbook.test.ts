@@ -122,7 +122,7 @@ describe('fetchOrderbookDepth', () => {
 		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig, true);
 		// Bid ioratio = 10 → price = 1/10 = 0.10
 		expect(result.bids![0].price).toBeCloseTo(0.1, 6);
-		expect(result.bids![0].ioRatio).toBe(10);
+		expect(result.bids![0].ioRatio).toBeUndefined();
 		expect(result.bestBid).toBeCloseTo(0.1, 6);
 	});
 
@@ -150,7 +150,7 @@ describe('fetchOrderbookDepth', () => {
 
 		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig, true);
 		expect(result.asks![0].price).toBe(0.95);
-		expect(result.asks![0].ioRatio).toBe(0.95);
+		expect(result.asks![0].ioRatio).toBeUndefined();
 		expect(result.bestAsk).toBe(0.95);
 	});
 

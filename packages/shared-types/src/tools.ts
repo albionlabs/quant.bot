@@ -115,7 +115,7 @@ export interface MetadataFieldsResponse {
 export interface OrderSummary {
 	orderHash: string;
 	price: number | null;
-	ioRatio: number | null;
+	ioRatio?: number | null;
 	maxOutput: string | null;
 	inputToken: string;
 	outputToken: string;

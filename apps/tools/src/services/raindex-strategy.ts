@@ -159,6 +159,7 @@ interface DeploymentSummary {
 	description: string;
 	fields: Record<string, FieldSummary>;
 	selectTokens: Record<string, { name: string; description: string }>;
+	_guiError?: string;
 	deposits: string[];
 }
 
@@ -227,7 +228,8 @@ function summarizeStrategyDetails(raw: unknown): StrategyDetailsSummary | unknow
 				description: pickString(d, 'description'),
 				fields,
 				selectTokens,
-				deposits
+				deposits,
+				...(typeof d._guiError === 'string' ? { _guiError: d._guiError } : {})
 			});
 		}
 	}

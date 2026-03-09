@@ -53,7 +53,7 @@ export function loadConfig(): GatewayConfig {
 		jwtSecret,
 		jwtExpiry: process.env.JWT_EXPIRY ?? '24h',
 		agentWsUrl: process.env.AGENT_WS_URL ?? 'ws://agent:18789',
-		agentResponseTimeoutMs: parseInt(process.env.AGENT_RESPONSE_TIMEOUT_MS ?? '120000', 10),
+		agentResponseTimeoutMs: parseInt(process.env.AGENT_RESPONSE_TIMEOUT_MS ?? '300000', 10),
 		executionTokenTtlSeconds: parseInt(process.env.EXECUTION_TOKEN_TTL_SECONDS ?? '300', 10),
 		openclawGatewayToken,
 		rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX ?? '30', 10),
