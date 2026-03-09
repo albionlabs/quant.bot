@@ -35,6 +35,13 @@
 		"defaults": {
 			"workspace": "/app/workspace",
 			"model": "anthropic/claude-sonnet-4-6",
+			"models": {
+				"anthropic/claude-sonnet-4-6": {
+					"params": {
+						"cacheRetention": "long"
+					}
+				}
+			},
 			"contextPruning": {
 				"mode": "cache-ttl",
 				"ttl": "3m",
