@@ -204,7 +204,7 @@ function buildDisplay(
 		if (lines.length > 0) lines.push('');
 		lines.push('NON-USD PAIRS');
 		for (const order of nonUsdOrders) {
-			lines.push(`${formatRate(order.ioRatio, order.inputSymbol, order.outputSymbol)}  ${formatAmount(order.maxOutput)}`);
+			lines.push(`${formatRate(order.ioRatio ?? null, order.inputSymbol, order.outputSymbol)}  ${formatAmount(order.maxOutput)}`);
 		}
 	}
 

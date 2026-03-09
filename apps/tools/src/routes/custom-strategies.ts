@@ -3,24 +3,40 @@ import { join, basename } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { ToolsConfig } from '../config.js';
 
-let cachedOfficialRegistry: string | null = null;
-let cacheTimestamp = 0;
+interface CachedEntry {
+	content: string;
+	timestamp: number;
+}
+
+const cache = new Map<string, CachedEntry>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-async function fetchOfficialRegistry(url: string): Promise<string> {
-	const now = Date.now();
-	if (cachedOfficialRegistry !== null && now - cacheTimestamp < CACHE_TTL_MS) {
-		return cachedOfficialRegistry;
+async function fetchCached(url: string): Promise<string> {
+	const cached = cache.get(url);
+	if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+		return cached.content;
 	}
 
 	const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
 	if (!response.ok) {
-		throw new Error(`Failed to fetch official registry: HTTP ${response.status}`);
+		throw new Error(`Failed to fetch ${url}: HTTP ${response.status}`);
 	}
 
-	cachedOfficialRegistry = await response.text();
-	cacheTimestamp = now;
-	return cachedOfficialRegistry;
+	const content = await response.text();
+	cache.set(url, { content, timestamp: Date.now() });
+	return content;
+}
+
+/**
+ * Replace the Base network RPC URL in the settings YAML with the real one.
+ * The official settings use free public RPCs that are rate-limited. The SDK's
+ * DotrainRegistry.getGui() makes RPC calls using these — so they need to work.
+ */
+function patchSettingsRpc(yaml: string, rpcUrl: string): string {
+	return yaml.replace(
+		/(networks:\s*\n\s+base:\s*\n\s+rpcs:\s*\n\s+- )(\S+)/,
+		`$1${rpcUrl}`
+	);
 }
 
 function parseLocalRegistry(content: string, toolsBaseUrl: string): string {
@@ -66,11 +82,26 @@ export async function customStrategiesRoutes(app: FastifyInstance, config: Tools
 		}
 	);
 
+	// Serve the official settings YAML with the real RPC URL injected.
+	// The SDK's DotrainRegistry fetches this via the first line of the registry.
+	app.get('/api/strategies/settings.yaml', async (_request, reply) => {
+		const settingsUrl = config.raindexSettingsUrl || config.raindexRegistryUrl.replace(/\/registry$/, '/settings.yaml');
+		try {
+			const yaml = await fetchCached(settingsUrl);
+			const patched = patchSettingsRpc(yaml, config.rpcUrl);
+			return reply.type('text/plain').send(patched);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'unknown error';
+			app.log.error('Failed to serve patched settings: %s', message);
+			return reply.status(502).send({ error: message });
+		}
+	});
+
 	app.get('/api/strategies/registry', async (_request, reply) => {
 		let official = '';
 		let officialError: string | null = null;
 		try {
-			official = await fetchOfficialRegistry(config.raindexRegistryUrl);
+			official = await fetchCached(config.raindexRegistryUrl);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'unknown error';
 			officialError = message;
@@ -96,7 +127,12 @@ export async function customStrategiesRoutes(app: FastifyInstance, config: Tools
 			return reply.status(502).send({ error: 'No strategies available: empty official and local registries' });
 		}
 
-		const merged = parts.join('\n') + '\n';
+		let merged = parts.join('\n') + '\n';
+
+		// Rewrite the first line (settings URL) to point to our patched settings
+		// so the SDK's DotrainRegistry gets real RPC URLs instead of public ones.
+		const localSettingsUrl = `${config.toolsBaseUrl}/api/strategies/settings.yaml`;
+		merged = merged.replace(/^https?:\/\/\S+/, localSettingsUrl);
 
 		return reply.type('text/plain').send(merged);
 	});
