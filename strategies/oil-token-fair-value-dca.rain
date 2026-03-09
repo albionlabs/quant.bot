@@ -406,17 +406,17 @@ _: inv(call<'oil-floor-price>());
 
 #handle-add-order
 using-words-from raindex-subparser subparser-0
-:ensure(gt(end-time start-time) "end>start"),
-:ensure(gt(token-supply 0) "supply>0"),
-:ensure(gt(barrels-of-oil 0) "barrels>0"),
-:ensure(gte(required-discount 0) "disc>=0"),
-:ensure(lt(required-discount 1) "disc<1"),
+:ensure(greater-than(end-time start-time) "end>start"),
+:ensure(greater-than(token-supply 0) "supply>0"),
+:ensure(greater-than(barrels-of-oil 0) "barrels>0"),
+:ensure(greater-than-or-equal-to(required-discount 0) "disc>=0"),
+:ensure(less-than(required-discount 1) "disc<1"),
 :call<'set-initial-time>();
 
 #calculate-io
 using-words-from raindex-subparser subparser-0
-:ensure(gte(now() start-time) "not started"),
-:ensure(lt(now() end-time) "ended"),
+:ensure(greater-than-or-equal-to(now() start-time) "not started"),
+:ensure(less-than(now() end-time) "ended"),
 amount-epochs
 trade-epochs:call<'get-epoch>(),
 max-output: call<'amount-for-epoch>(amount-epochs trade-epochs),

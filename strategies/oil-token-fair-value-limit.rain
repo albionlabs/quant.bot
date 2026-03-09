@@ -185,10 +185,10 @@ price _: call<'oil-target-price>(), _: inv(price);
 
 #handle-add-order
 using-words-from raindex-subparser subparser-0
-:ensure(gt(end-time start-time) "end>start"),
-:ensure(gt(token-supply 0) "supply>0"),
-:ensure(gte(required-discount 0) "disc>=0"),
-:ensure(lt(required-discount 1) "disc<1");
+:ensure(greater-than(end-time start-time) "end>start"),
+:ensure(greater-than(token-supply 0) "supply>0"),
+:ensure(greater-than-or-equal-to(required-discount 0) "disc>=0"),
+:ensure(less-than(required-discount 1) "disc<1");
 
 #calculate-io
 using-words-from raindex-subparser subparser-0
@@ -197,8 +197,8 @@ current-time: now(),
 
 is-live:
   and(
-    gte(current-time start-time)
-    lt(current-time end-time)
+    greater-than-or-equal-to(current-time start-time)
+    less-than(current-time end-time)
   ),
 
 offer-amount:
