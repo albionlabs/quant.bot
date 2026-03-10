@@ -12,6 +12,7 @@ import { raindexOrderUrlRoutes } from './routes/raindex-order-url.js';
 import { ownerOrdersRoutes } from './routes/owner-orders.js';
 import { customStrategiesRoutes } from './routes/custom-strategies.js';
 import { signingRoutes } from './routes/signing.js';
+import { tokenSupplyRoutes } from './routes/token-supply.js';
 
 const config = loadConfig();
 const app = Fastify({ logger: true });
@@ -30,6 +31,7 @@ await app.register((instance) => txExecuteRoutes(instance, config));
 await app.register((instance) => raindexStrategyRoutes(instance, config));
 await app.register((instance) => orderbookRoutes(instance, config));
 await app.register((instance) => signingRoutes(instance, config));
+await app.register((instance) => tokenSupplyRoutes(instance, config));
 if (config.customStrategiesDir) {
 	await app.register((instance) => customStrategiesRoutes(instance, config));
 }
