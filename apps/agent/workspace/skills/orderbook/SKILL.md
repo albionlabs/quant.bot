@@ -71,7 +71,8 @@ If `readyToSign=true`:
 ```
 
 ## CRITICAL: Maximum Call Budget
-- Step 1: 1 call. Step 2: 1 call. Step 4: 1 call. Total: **3 calls max** for a deploy flow.
+- Single strategy: Step 1: 1 call. Step 2: 1 call. Step 4: 1 call. Total: **3 calls max**.
+- Two strategies: Step 1: 1 call. Step 2: 2 calls. Step 4: 2 calls. Total: **5 calls max**.
 - If deploy fails, report the error to the user. Do NOT retry with guessed field names.
 - **NEVER "probe" or "iterate" to discover bindings.** The details response has everything.
 
@@ -88,6 +89,49 @@ If `readyToSign=true`:
 - Ask user for execution token.
 - Output `<tx-sign>` before explicit confirmation.
 - Handle post-deployment lookups (widget handles completion).
+
+## Deployment Orientation (`base` vs `base-inv`)
+Each strategy has two deployments:
+- **`base`** = **sell** reserve tokens, receive payment tokens. `output` = reserve token, `input` = payment token (USDC).
+- **`base-inv`** = **buy** reserve tokens, spend payment tokens. `output` = payment token (USDC), `input` = reserve token.
+
+When the user says "buy ALB-WR1-R1":
+- Use `base-inv` deployment
+- `selectTokens`: `{"output": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "input": "<reserve-token-address>"}`
+- `deposits`: the `output` token is USDC, so deposit amount is in USDC
+
+When the user says "sell ALB-WR1-R1":
+- Use `base` deployment
+- `selectTokens`: `{"output": "<reserve-token-address>", "input": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"}`
+- `deposits`: the `output` token is the reserve token, so deposit amount is in reserve tokens
+
+## Oil Reserve Strategies
+Two strategies are available for oil-backed reserve tokens:
+
+**`oil-token-fair-value-limit`** — Simple limit order at discounted fair value. 6 fields. Best when user wants a straightforward price target.
+
+**`oil-token-fair-value-dca`** — Auction-DCA that gradually sells/buys using a halving auction around the fair value floor. 12 fields (the 6 limit fields + 6 auction parameters). Best for gradual execution with budget controls.
+
+### Shared fields (both strategies)
+These 6 fields are identical across both strategies:
+- `oracle-price-timeout` — Oracle staleness limit (default: 300 seconds)
+- `start-time` — Unix timestamp when reserve decay starts
+- `end-time` — Unix timestamp when reserve reaches zero
+- `barrels-of-oil` — Initial reserve in barrels
+- `token-supply` — Total supply of the reserve token
+- `required-discount` — Discount fraction, e.g. 0.20 = 20% (default: 0.20)
+
+### Helping the user with field values
+- **`barrels-of-oil`, `token-supply`, `start-time`, `end-time`**: These are properties of the specific reserve token. Try `/api/tokens/<address>/metadata/load` first — the metadata may contain production projections and expected end dates. If not available, ask the user.
+- **`amount-per-epoch`** (DCA only): This is the budget per period in the `output` token. Help the user work backwards from their total budget.
+- **`time-per-amount-epoch`** and **`time-per-trade-epoch`** (DCA only): These have presets (60s, 3600s, 86400s, etc.). Suggest a reasonable default and explain the tradeoff (shorter = more frequent auctions).
+
+### Deploying both strategies
+If the user wants both limit and DCA deployed:
+1. Get details for **both** strategy keys (2 calls).
+2. Collect field values **once** for the 6 shared fields, then collect the 6 DCA-specific fields.
+3. Deploy each strategy separately (2 deploy calls). Total: **4 calls** (2 details + 2 deploys).
+4. Each deploy produces its own `<tx-sign>`. Present them sequentially — first deploy, confirm, sign, then second deploy, confirm, sign.
 
 ## Stop
 - Stop after concise status, or after single `<tx-sign>` tag.
