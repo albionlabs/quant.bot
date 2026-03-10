@@ -125,8 +125,8 @@ export async function delegationRoutes(app: FastifyInstance, config: DelegationC
 			return reply.status(400).send({ error: 'publicKey is not a valid Ethereum address' });
 		}
 
-		let decryptedDelegatedShare: unknown = null;
-		let decryptedWalletApiKey = '';
+		let decryptedDelegatedShare: unknown;
+		let decryptedWalletApiKey: string;
 		try {
 			const decrypted = decryptDelegatedWebhookData({
 				privateKeyPem: config.dynamicDelegationPrivateKey,
