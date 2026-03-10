@@ -52,8 +52,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
+      - name: Clone raindex-mcp at pinned commit
+        run: |
+          rm -rf services/raindex-mcp
+          git clone https://github.com/alastairong1/raindex-mcp.git services/raindex-mcp
+          cd services/raindex-mcp && git checkout d602bbbb03db79f255f497c383b9dfc368b1f90c
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - run: flyctl deploy --config fly.tools.toml --remote-only --build-arg COMMIT_SHA=${GITHUB_SHA::7}
         env:
