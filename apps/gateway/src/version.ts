@@ -1,4 +1,4 @@
-export const UI_VERSION = '0.13.1';
+export const UI_VERSION = '0.13.2';
 export const MIN_WIDGET_VERSION = '0.1.0';
 
 export function semverLt(a: string, b: string): boolean {
