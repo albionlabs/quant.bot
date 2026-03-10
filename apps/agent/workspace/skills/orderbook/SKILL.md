@@ -39,6 +39,7 @@ Response shape:
 ### Step 3: Ask user for values
 Present each field from `details.deployments[].fields` — show its `name`, `description`, and `default` if present. Collect user values.
 - For `selectTokens`: if the user hasn't specified a token, default to USDC (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`). Use the contract address directly — do not look up by symbol.
+- For `deposits`: the details response lists deposit token keys (e.g. `["output"]`). You MUST ask the user how much to deposit. Without a deposit the order is created empty and cannot trade. Map each deposit key to the amount the user wants to deposit (e.g. `{"output": "1.0"}`).
 
 ### Step 4: Deploy (ONE call — do NOT retry with different field names)
 Map the details response directly into the deploy payload:
@@ -50,8 +51,9 @@ Map the details response directly into the deploy payload:
 ```bash
 curl -s -X POST http://quant-bot-tools.internal:4000/api/order/strategy/deploy-and-stage \
   -H 'Content-Type: application/json' \
-  -d '{"strategyKey":"...","deploymentKey":"base-inv","owner":"0x...","fields":{"binding-key-1":"0.5","binding-key-2":"100"},"deposits":{},"selectTokens":{},"executionToken":"<trusted-execution-token>"}'
+  -d '{"strategyKey":"...","deploymentKey":"base-inv","owner":"0x...","fields":{"binding-key-1":"0.5","binding-key-2":"100"},"deposits":{"output":"1.0"},"selectTokens":{"output":"0x...","input":"0x..."},"executionToken":"<trusted-execution-token>"}'
 ```
+- `deposits`: keys from `deployments[].deposits`, values are the deposit amounts the user specified. An order with no deposit cannot trade.
 Response includes `deployment.composedRainlang` — use this for the review step.
 
 ### Step 5: Review and sign
