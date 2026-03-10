@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { join, basename } from 'node:path';
+import { basename, join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 
 interface FieldDef {
