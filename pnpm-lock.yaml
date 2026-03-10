@@ -118,12 +118,21 @@ importers:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.0.0
         version: 5.1.1(svelte@5.53.5)(vite@6.4.1(@types/node@25.3.1)(tsx@4.21.0)(yaml@2.8.2))
+      '@wagmi/connectors':
+        specifier: ^7.2.1
+        version: 7.2.1(@coinbase/wallet-sdk@4.3.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))(@wagmi/core@3.4.0(ox@0.12.4(typescript@5.9.3)(zod@3.22.4))(react@19.2.4)(typescript@5.9.3)(use-sync-external-store@1.2.0(react@19.2.4))(viem@2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4)))(@walletconnect/ethereum-provider@2.21.5(bufferutil@4.1.0)(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))(typescript@5.9.3)(viem@2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))
+      '@wagmi/core':
+        specifier: ^3.4.0
+        version: 3.4.0(ox@0.12.4(typescript@5.9.3)(zod@3.22.4))(react@19.2.4)(typescript@5.9.3)(use-sync-external-store@1.2.0(react@19.2.4))(viem@2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))
       svelte:
         specifier: ^5.0.0
         version: 5.53.5
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
+      viem:
+        specifier: ^2.31.0
+        version: 2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4)
       vite:
         specifier: ^6.3.0
         version: 6.4.1(@types/node@25.3.1)(tsx@4.21.0)(yaml@2.8.2)
@@ -1842,6 +1851,52 @@ packages:
   '@vue/shared@3.5.29':
     resolution: {integrity: sha512-w7SR0A5zyRByL9XUkCfdLs7t9XOHUyJ67qPGQjOou3p6GvBeBW+AVjUUmlxtZ4PIYaRvE+1LmK44O4uajlZwcg==}
 
+  '@wagmi/connectors@7.2.1':
+    resolution: {integrity: sha512-/tyDepUMDM8eNzNX3ofjqHNRFZ6XcZ3u0+cQp5x0/LHCpMA8tRh7A1/e7dTrYiIJeL7iLgHzfHUXCsU02OKMLQ==}
+    peerDependencies:
+      '@base-org/account': ^2.5.1
+      '@coinbase/wallet-sdk': ^4.3.6
+      '@metamask/sdk': ~0.33.1
+      '@safe-global/safe-apps-provider': ~0.18.6
+      '@safe-global/safe-apps-sdk': ^9.1.0
+      '@wagmi/core': 3.4.0
+      '@walletconnect/ethereum-provider': ^2.21.1
+      porto: ~0.2.35
+      typescript: '>=5.7.3'
+      viem: 2.x
+    peerDependenciesMeta:
+      '@base-org/account':
+        optional: true
+      '@coinbase/wallet-sdk':
+        optional: true
+      '@metamask/sdk':
+        optional: true
+      '@safe-global/safe-apps-provider':
+        optional: true
+      '@safe-global/safe-apps-sdk':
+        optional: true
+      '@walletconnect/ethereum-provider':
+        optional: true
+      porto:
+        optional: true
+      typescript:
+        optional: true
+
+  '@wagmi/core@3.4.0':
+    resolution: {integrity: sha512-EU5gDsUp5t7+cuLv12/L8hfyWfCIKsBNiiBqpOqxZJxvAcAiQk4xFe2jMgaQPqApc3Omvxrk032M8AQ4N0cQeg==}
+    peerDependencies:
+      '@tanstack/query-core': '>=5.0.0'
+      ox: '>=0.11.1'
+      typescript: '>=5.7.3'
+      viem: 2.x
+    peerDependenciesMeta:
+      '@tanstack/query-core':
+        optional: true
+      ox:
+        optional: true
+      typescript:
+        optional: true
+
   '@wallet-standard/app@1.1.0':
     resolution: {integrity: sha512-3CijvrO9utx598kjr45hTbbeeykQrQfKmSnxeWOgU25TOEpvcipD/bYDQWIqUv1Oc6KK4YStokSMu/FBNecGUQ==}
     engines: {node: '>=16'}
@@ -3089,6 +3144,14 @@ packages:
     resolution: {integrity: sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==}
     engines: {node: '>= 18'}
 
+  mipd@0.0.7:
+    resolution: {integrity: sha512-aAPZPNDQ3uMTdKbuO2YmAw2TxLHO0moa4YKAyETM/DTj5FloZo+a+8tU+iv4GmW+sOxKLSRwcSFuczk+Cpt6fg==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}
     engines: {node: '>=4'}
@@ -4332,6 +4395,24 @@ packages:
 
   zod@4.0.5:
     resolution: {integrity: sha512-/5UuuRPStvHXu7RS+gmvRf4NXrNxpSllGwDnCBcJZtQsKrviYXm54yDGV2KYNLT5kq0lHGcl7lqWJLgSaG+tgA==}
+
+  zustand@5.0.0:
+    resolution: {integrity: sha512-LE+VcmbartOPM+auOjCCLQOsQ05zUTp8RkgwRzefUk+2jISdMMFnxvyTjA4YNWr5ZGXYbVsEMZosttuxUBkojQ==}
+    engines: {node: '>=12.20.0'}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      immer: '>=9.0.6'
+      react: '>=18.0.0'
+      use-sync-external-store: '>=1.2.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      immer:
+        optional: true
+      react:
+        optional: true
+      use-sync-external-store:
+        optional: true
 
   zustand@5.0.3:
     resolution: {integrity: sha512-14fwWQtU3pH4dE0dOpdMiWjddcH+QzKIgk1cl8epwSE7yag43k/AD/m4L6+K7DytAOr9gGBe3/EXj9g7cdostg==}
@@ -6700,6 +6781,30 @@ snapshots:
 
   '@vue/shared@3.5.29': {}
 
+  '@wagmi/connectors@7.2.1(@coinbase/wallet-sdk@4.3.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))(@wagmi/core@3.4.0(ox@0.12.4(typescript@5.9.3)(zod@3.22.4))(react@19.2.4)(typescript@5.9.3)(use-sync-external-store@1.2.0(react@19.2.4))(viem@2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4)))(@walletconnect/ethereum-provider@2.21.5(bufferutil@4.1.0)(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))(typescript@5.9.3)(viem@2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))':
+    dependencies:
+      '@wagmi/core': 3.4.0(ox@0.12.4(typescript@5.9.3)(zod@3.22.4))(react@19.2.4)(typescript@5.9.3)(use-sync-external-store@1.2.0(react@19.2.4))(viem@2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))
+      viem: 2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4)
+    optionalDependencies:
+      '@coinbase/wallet-sdk': 4.3.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4)
+      '@walletconnect/ethereum-provider': 2.21.5(bufferutil@4.1.0)(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4)
+      typescript: 5.9.3
+
+  '@wagmi/core@3.4.0(ox@0.12.4(typescript@5.9.3)(zod@3.22.4))(react@19.2.4)(typescript@5.9.3)(use-sync-external-store@1.2.0(react@19.2.4))(viem@2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))':
+    dependencies:
+      eventemitter3: 5.0.1
+      mipd: 0.0.7(typescript@5.9.3)
+      viem: 2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4)
+      zustand: 5.0.0(react@19.2.4)(use-sync-external-store@1.2.0(react@19.2.4))
+    optionalDependencies:
+      ox: 0.12.4(typescript@5.9.3)(zod@3.22.4)
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - '@types/react'
+      - immer
+      - react
+      - use-sync-external-store
+
   '@wallet-standard/app@1.1.0':
     dependencies:
       '@wallet-standard/base': 1.1.0
@@ -8480,6 +8585,10 @@ snapshots:
     dependencies:
       minipass: 7.1.3
 
+  mipd@0.0.7(typescript@5.9.3):
+    optionalDependencies:
+      typescript: 5.9.3
+
   mri@1.2.0: {}
 
   mrmime@2.0.1: {}
@@ -9708,6 +9817,11 @@ snapshots:
   zod@3.22.4: {}
 
   zod@4.0.5: {}
+
+  zustand@5.0.0(react@19.2.4)(use-sync-external-store@1.2.0(react@19.2.4)):
+    optionalDependencies:
+      react: 19.2.4
+      use-sync-external-store: 1.2.0(react@19.2.4)
 
   zustand@5.0.3(react@19.2.4)(use-sync-external-store@1.2.0(react@19.2.4)):
     optionalDependencies:
