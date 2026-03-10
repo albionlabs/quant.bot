@@ -43,4 +43,5 @@ jobs:
 
       - name: Publish to npm
         if: steps.version-check.outputs.exists == 'false'
-        run: pnpm --filter @albionlabs/chat-widget publish --access public --no-git-checks --provenance
+        working-directory: packages/chat-widget
+        run: npm publish --access public --provenance
