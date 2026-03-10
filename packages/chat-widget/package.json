@@ -2,6 +2,11 @@
 	"name": "@albionlabs/chat-widget",
 	"version": "0.2.0",
 	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/albionlabs/quant.bot.git",
+		"directory": "packages/chat-widget"
+	},
 	"svelte": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"exports": {
