@@ -114,15 +114,17 @@ Two strategies are available for oil-backed reserve tokens:
 
 ### Shared fields (both strategies)
 These 6 fields are identical across both strategies:
-- `oracle-price-timeout` — Oracle staleness limit (default: 300 seconds)
-- `start-time` — Unix timestamp when reserve decay starts
-- `end-time` — Unix timestamp when reserve reaches zero
-- `barrels-of-oil` — Initial reserve in barrels
-- `token-supply` — Total supply of the reserve token
-- `required-discount` — Discount fraction, e.g. 0.20 = 20% (default: 0.20)
+- `start-time` — Unix timestamp when reserve decay starts. **Default to "now"**: compute `Math.floor(Date.now() / 1000)` and use that. Only ask the user if they want a future start.
+- `end-time` — Unix timestamp when reserve reaches zero. **Ask the user** — this is the expected end-of-life for the reserve asset. There is no sensible default.
+- `barrels-of-oil` — Initial reserve in barrels. **Ask the user.**
+- `token-supply` — Total supply of the reserve token. **Ask the user.**
+- `oracle-price-timeout` — Oracle staleness limit (default: 300 seconds). Use default unless user specifies.
+- `required-discount` — Discount fraction, e.g. 0.20 = 20% (default: 0.20). Use default unless user specifies.
 
 ### Helping the user with field values
-- **`barrels-of-oil`, `token-supply`, `start-time`, `end-time`**: These are properties of the specific reserve token. Try `/api/tokens/<address>/metadata/load` first — the metadata may contain production projections and expected end dates. If not available, ask the user.
+- **`start-time`**: Auto-fill with current unix timestamp. Mention it in the summary ("starts immediately") so the user can override if needed.
+- **`end-time`**: Help the user convert a date to unix timestamp. E.g. "December 2030" → compute via `node -e "console.log(Math.floor(new Date('2030-12-31').getTime()/1000))"`.
+- **`barrels-of-oil`, `token-supply`**: These are properties of the specific reserve token. Ask the user directly — they know their asset.
 - **`amount-per-epoch`** (DCA only): This is the budget per period in the `output` token. Help the user work backwards from their total budget.
 - **`time-per-amount-epoch`** and **`time-per-trade-epoch`** (DCA only): These have presets (60s, 3600s, 86400s, etc.). Suggest a reasonable default and explain the tradeoff (shorter = more frequent auctions).
 
