@@ -9,6 +9,7 @@ import {
 	lookupToken,
 	setGatewayConfig
 } from '../services/gateway-api.js';
+import { WIDGET_VERSION } from '../version.js';
 
 export interface ChatState {
 	messages: DisplayMessage[];
@@ -84,7 +85,7 @@ function connectInternal(gatewayUrl: string, token: string) {
 
 	chat.update((s) => ({ ...s, reconnecting: true }));
 
-	let url = `${gatewayUrl}/api/chat?token=${encodeURIComponent(token)}`;
+	let url = `${gatewayUrl}/api/chat?token=${encodeURIComponent(token)}&widgetVersion=${encodeURIComponent(WIDGET_VERSION)}`;
 	if (lastApiKey) {
 		url += `&apiKey=${encodeURIComponent(lastApiKey)}`;
 	}
@@ -182,6 +183,11 @@ function connectInternal(gatewayUrl: string, token: string) {
 				// AGENT_UNAVAILABLE is sent right before the server closes the
 				// socket; the client will auto-reconnect so don't spam the UI.
 				if (msg.code === 'AGENT_UNAVAILABLE') return;
+
+				// Widget is too old — stop reconnecting so we don't loop.
+				if (msg.code === 'WIDGET_OUTDATED') {
+					intentionalClose = true;
+				}
 
 				const hint = msg.code === 'AGENT_ERROR'
 					? ' You can retry by sending your message again.'

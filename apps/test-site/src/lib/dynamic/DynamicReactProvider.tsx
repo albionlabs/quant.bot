@@ -2,8 +2,7 @@ import { useEffect, useRef } from 'react'
 import {
 	DynamicContextProvider,
 	useDynamicContext,
-	useUserWallets,
-	getAuthToken
+	useUserWallets
 } from '@dynamic-labs/sdk-react-core'
 import { EthereumWalletConnectors, isEthereumWallet } from '@dynamic-labs/ethereum'
 
@@ -122,21 +121,21 @@ function DynamicBridge({
 	useEffect(() => {
 		if (!sdkHasLoaded) return
 
-		const isAuthenticated = !!user
+		const isConnected = !!activeWallet
 
-		if (isAuthenticated && user && activeWallet) {
+		if (isConnected && activeWallet) {
 			wasAuthenticatedRef.current = true
 			onEventRef.current({
 				type: 'authenticated',
 				payload: {
-					userId: user.userId,
+					userId: user?.userId ?? activeWallet.address.toLowerCase(),
 					walletAddress: activeWallet.address,
-					email: user.email,
+					email: user?.email,
 					isAuthenticated: true,
 					walletType: embeddedWallet ? 'embedded' : 'external'
 				}
 			})
-		} else if (!isAuthenticated && wasAuthenticatedRef.current) {
+		} else if (!isConnected && wasAuthenticatedRef.current) {
 			wasAuthenticatedRef.current = false
 			onEventRef.current({
 				type: 'logout',
@@ -165,12 +164,12 @@ function DynamicBridge({
 			const provider = {
 				request: async (args: { method: string; params?: unknown[] }) => {
 					if (args.method === 'personal_sign' && args.params) {
-						const authToken = getAuthToken()
-						if (!authToken) {
-							throw new Error('Authentication required. Please log in again.')
-						}
 						const [message] = args.params as [string, string]
 						return await activeWallet.signMessage(message)
+					}
+
+					if (args.method === 'eth_accounts') {
+						return [activeWallet.address]
 					}
 
 					if (args.method === 'eth_sendTransaction') {
@@ -288,6 +287,7 @@ export function DynamicReactProvider(props: DynamicBridgeProps) {
 			settings={{
 				environmentId,
 				walletConnectors: [EthereumWalletConnectors],
+				initialAuthenticationMode: 'connect-only',
 				logLevel: 'WARN'
 			}}
 		>

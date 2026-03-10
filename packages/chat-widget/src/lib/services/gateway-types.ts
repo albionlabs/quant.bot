@@ -35,6 +35,7 @@ export interface ServerMessage {
 	code?: string;
 	message?: string;
 	version?: string;
+	minVersion?: string;
 }
 
 // ── Token Registry ──────────────────────────────────────────────────

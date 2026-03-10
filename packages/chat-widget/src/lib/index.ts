@@ -7,6 +7,7 @@ export { default as WalletStatusIndicator } from './components/WalletStatusIndic
 export { chat, connect, disconnect, reconnect, sendMessage } from './stores/chat.js';
 export { auth, setAuth, clearAuth } from './stores/auth.js';
 export { setWalletProvider, clearWalletProvider } from './stores/wallet.js';
+export { WIDGET_VERSION } from './version.js';
 export type {
 	ChatWidgetConfig,
 	DisplayMessage,

@@ -2,8 +2,10 @@ name: Publish Chat Widget
 
 on:
   push:
-    tags:
-      - 'chat-widget-v*'
+    branches: [main]
+    paths:
+      - 'packages/chat-widget/**'
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -27,5 +29,18 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo build --filter=@albionlabs/chat-widget
 
+      - name: Check if version already published
+        id: version-check
+        run: |
+          LOCAL=$(node -p "require('./packages/chat-widget/package.json').version")
+          if npm view @albionlabs/chat-widget@$LOCAL version 2>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Version $LOCAL already published, skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Version $LOCAL not found on npm, will publish."
+          fi
+
       - name: Publish to npm
+        if: steps.version-check.outputs.exists == 'false'
         run: pnpm --filter @albionlabs/chat-widget publish --access public --no-git-checks --provenance

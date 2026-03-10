@@ -6,7 +6,7 @@ import { sendToAgent, isAgentConnected } from '../services/agent-proxy.js';
 import { createExecutionToken } from '../services/execution-token.js';
 import { recordTokenRun } from '../services/token-metrics.js';
 import type { GatewayConfig } from '../config.js';
-import { UI_VERSION } from '../version.js';
+import { UI_VERSION, MIN_WIDGET_VERSION, semverLt } from '../version.js';
 import type { ClientMessage, ServerMessage } from '@quant-bot/shared-types';
 
 export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
@@ -18,6 +18,20 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 		if (config.apiKeys.length > 0 && (!apiKey || !config.apiKeys.includes(apiKey))) {
 			socket.send(
 				JSON.stringify({ type: 'error', code: 'API_KEY_INVALID', message: 'Invalid API key' })
+			);
+			socket.close();
+			return;
+		}
+
+		const widgetVersion = url.searchParams.get('widgetVersion');
+		if (widgetVersion && semverLt(widgetVersion, MIN_WIDGET_VERSION)) {
+			socket.send(
+				JSON.stringify({
+					type: 'error',
+					code: 'WIDGET_OUTDATED',
+					message: `Widget version ${widgetVersion} is outdated. Please upgrade to ${MIN_WIDGET_VERSION} or later.`,
+					minVersion: MIN_WIDGET_VERSION
+				})
 			);
 			socket.close();
 			return;
