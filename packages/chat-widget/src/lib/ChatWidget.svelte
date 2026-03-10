@@ -5,7 +5,7 @@
 	import MessageInput from './components/MessageInput.svelte';
 	import type { ChatWidgetConfig } from './types.js';
 
-	let { config }: { config: ChatWidgetConfig } = $props();
+	let { config, hideHeader = false }: { config: ChatWidgetConfig; hideHeader?: boolean } = $props();
 
 	onMount(() => {
 		if (config.token) {
@@ -19,6 +19,7 @@
 </script>
 
 <div class="chat-widget">
+	{#if !hideHeader}
 	<div class="chat-header">
 		<span class="chat-title">quant.bot</span>
 		{#if $chat.reconnecting}
@@ -34,6 +35,7 @@
 			<span class="version-label">v {$chat.backendVersion}</span>
 		{/if}
 	</div>
+	{/if}
 	<MessageList />
 	<MessageInput />
 </div>

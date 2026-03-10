@@ -1,4 +1,5 @@
 import type {
+	LoginResponse,
 	NpvResponse,
 	OrderbookResponse,
 	SigningBundle,
@@ -10,24 +11,37 @@ import type {
 
 let httpBaseUrl = '';
 let authToken = '';
+let apiKeyHeader = '';
 
 function wsUrlToHttp(wsUrl: string): string {
 	return wsUrl.replace(/^wss:\/\//, 'https://').replace(/^ws:\/\//, 'http://');
 }
 
-export function setGatewayConfig(gatewayUrl: string, token: string): void {
+export function setGatewayConfig(gatewayUrl: string, token: string, apiKey?: string): void {
 	httpBaseUrl = wsUrlToHttp(gatewayUrl);
 	authToken = token;
+	apiKeyHeader = apiKey ?? '';
+}
+
+export function setGatewayBaseUrl(gatewayUrl: string, apiKey?: string): void {
+	httpBaseUrl = wsUrlToHttp(gatewayUrl);
+	apiKeyHeader = apiKey ?? '';
 }
 
 async function gatewayFetch<T>(path: string, init?: RequestInit): Promise<T> {
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+		...init?.headers as Record<string, string>
+	};
+	if (authToken) {
+		headers['Authorization'] = `Bearer ${authToken}`;
+	}
+	if (apiKeyHeader) {
+		headers['X-Api-Key'] = apiKeyHeader;
+	}
 	const response = await fetch(`${httpBaseUrl}${path}`, {
 		...init,
-		headers: {
-			'Content-Type': 'application/json',
-			Authorization: `Bearer ${authToken}`,
-			...init?.headers
-		}
+		headers
 	});
 
 	if (!response.ok) {
@@ -91,5 +105,12 @@ export function fetchNpv(cashFlows: number[], discountRate: number): Promise<Npv
 	return gatewayFetch<NpvResponse>('/api/data/npv', {
 		method: 'POST',
 		body: JSON.stringify({ cashFlows, discountRate })
+	});
+}
+
+export function login(signature: string, message: string, address: string): Promise<LoginResponse> {
+	return gatewayFetch<LoginResponse>('/api/auth/login', {
+		method: 'POST',
+		body: JSON.stringify({ signature, message, address })
 	});
 }

@@ -14,6 +14,15 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 		const url = new URL(request.url, `http://${request.headers.host}`);
 		const token = url.searchParams.get('token');
 
+		const apiKey = url.searchParams.get('apiKey');
+		if (config.apiKeys.length > 0 && (!apiKey || !config.apiKeys.includes(apiKey))) {
+			socket.send(
+				JSON.stringify({ type: 'error', code: 'API_KEY_INVALID', message: 'Invalid API key' })
+			);
+			socket.close();
+			return;
+		}
+
 		if (!token) {
 			socket.send(
 				JSON.stringify({ type: 'error', code: 'AUTH_REQUIRED', message: 'Token required' })

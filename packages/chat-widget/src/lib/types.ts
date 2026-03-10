@@ -27,3 +27,17 @@ export interface ChatWidgetConfig {
 	gatewayUrl: string;
 	token?: string;
 }
+
+export interface FloatingChatWidgetConfig {
+	gatewayUrl: string;
+	apiKey: string;
+	position?: 'bottom-right' | 'bottom-left';
+	offset?: { x: number; y: number };
+	startOpen?: boolean;
+}
+
+export interface FloatingChatCallbacks {
+	onRequestWalletConnect?: () => void;
+	onOpen?: () => void;
+	onClose?: () => void;
+}

@@ -2,10 +2,13 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { SiweMessage } from 'siwe';
 import type { LoginRequest, LoginResponse, RefreshResponse } from '@quant-bot/shared-types';
 import { createToken, authMiddleware, type JwtPayload } from '../middleware/auth.js';
+import { apiKeyMiddleware } from '../middleware/api-key.js';
 import type { GatewayConfig } from '../config.js';
 
 export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
-	app.post<{ Body: LoginRequest }>('/api/auth/login', async (request, reply) => {
+	const preHandler = config.apiKeys.length > 0 ? [apiKeyMiddleware(config)] : [];
+
+	app.post<{ Body: LoginRequest }>('/api/auth/login', { preHandler }, async (request, reply) => {
 		const { signature, message, address } = request.body;
 
 		if (!signature || !message || !address) {

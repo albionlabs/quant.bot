@@ -40,6 +40,7 @@ let reconnectAttempts = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let lastGatewayUrl: string | null = null;
 let lastToken: string | null = null;
+let lastApiKey: string | null = null;
 let intentionalClose = false;
 
 const MAX_RECONNECT_ATTEMPTS = 10;
@@ -83,7 +84,10 @@ function connectInternal(gatewayUrl: string, token: string) {
 
 	chat.update((s) => ({ ...s, reconnecting: true }));
 
-	const url = `${gatewayUrl}/api/chat?token=${encodeURIComponent(token)}`;
+	let url = `${gatewayUrl}/api/chat?token=${encodeURIComponent(token)}`;
+	if (lastApiKey) {
+		url += `&apiKey=${encodeURIComponent(lastApiKey)}`;
+	}
 	ws = new WebSocket(url);
 
 	ws.onopen = () => {
@@ -213,12 +217,13 @@ function connectInternal(gatewayUrl: string, token: string) {
 	};
 }
 
-export function connect(gatewayUrl: string, token: string) {
+export function connect(gatewayUrl: string, token: string, apiKey?: string) {
 	intentionalClose = false;
 	reconnectAttempts = 0;
 	lastGatewayUrl = gatewayUrl;
 	lastToken = token;
-	setGatewayConfig(gatewayUrl, token);
+	lastApiKey = apiKey ?? null;
+	setGatewayConfig(gatewayUrl, token, apiKey);
 	clearReconnectTimer();
 	connectInternal(gatewayUrl, token);
 
@@ -434,6 +439,7 @@ export function disconnect() {
 	streamingAssistantMessageId = null;
 	lastGatewayUrl = null;
 	lastToken = null;
+	lastApiKey = null;
 	reconnectAttempts = 0;
 	chat.set(initial);
 }

@@ -772,7 +772,7 @@
 		justify-content: center;
 		align-items: center;
 		padding: 1rem;
-		z-index: 1000;
+		z-index: 10001;
 	}
 
 	.review-modal {

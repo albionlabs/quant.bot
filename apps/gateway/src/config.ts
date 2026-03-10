@@ -19,6 +19,7 @@ export interface GatewayConfig {
 	toolsBaseUrl: string;
 	tokenMetricsEnabled: boolean;
 	tokenMetricsMaxRuns: number;
+	apiKeys: string[];
 }
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
@@ -65,6 +66,7 @@ export function loadConfig(): GatewayConfig {
 		dynamicWebhookSecret,
 		toolsBaseUrl: (process.env.TOOLS_BASE_URL ?? '').trim() || 'http://127.0.0.1:4000',
 		tokenMetricsEnabled: parseBoolean(process.env.TOKEN_METRICS_ENABLED, true),
-		tokenMetricsMaxRuns: parseInt(process.env.TOKEN_METRICS_MAX_RUNS ?? '2000', 10)
+		tokenMetricsMaxRuns: parseInt(process.env.TOKEN_METRICS_MAX_RUNS ?? '2000', 10),
+		apiKeys: (process.env.WIDGET_API_KEYS ?? '').split(',').map((k) => k.trim()).filter(Boolean)
 	};
 }
