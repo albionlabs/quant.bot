@@ -1,6 +1,6 @@
 {
-	"name": "@quant-bot/chat-widget",
-	"version": "0.0.1",
+	"name": "@albionlabs/chat-widget",
+	"version": "0.1.0",
 	"type": "module",
 	"svelte": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -19,9 +19,6 @@
 	},
 	"peerDependencies": {
 		"svelte": "^5.0.0"
-	},
-	"dependencies": {
-		"@quant-bot/shared-types": "workspace:*"
 	},
 	"devDependencies": {
 		"@quant-bot/config": "workspace:*",

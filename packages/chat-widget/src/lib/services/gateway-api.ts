@@ -7,7 +7,7 @@ import type {
 	TokenLookupResponse,
 	TokenMetadataResponse,
 	TradeHistoryResponse
-} from '@quant-bot/shared-types';
+} from './gateway-types.js';
 
 let httpBaseUrl = '';
 let authToken = '';

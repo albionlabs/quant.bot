@@ -25,9 +25,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo build --filter=@quant-bot/chat-widget
+      - run: pnpm turbo build --filter=@albionlabs/chat-widget
 
       - name: Publish to npm
-        run: pnpm --filter @quant-bot/chat-widget publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm --filter @albionlabs/chat-widget publish --access public --no-git-checks --provenance

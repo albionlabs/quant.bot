@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { DisplayMessage, TxSignRequestPayload } from '../types.js';
-	import type { SigningBundle, SigningCompleteResponse } from '@quant-bot/shared-types';
+	import type { SigningBundle, SigningCompleteResponse } from '../services/gateway-types.js';
 	import { sendMessage } from '../stores/chat.js';
 	import { signTransactionRequest, waitForTransactionConfirmation } from '../stores/wallet.js';
 	import { fetchSigningBundle, completeSigningBundle } from '../services/gateway-api.js';

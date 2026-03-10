@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { env } from '$env/dynamic/public'
-	import { ChatWidgetFloating, setWalletProvider } from '@quant-bot/chat-widget'
+	import { ChatWidgetFloating, setWalletProvider } from '@albionlabs/chat-widget'
 	import {
 		dynamicWalletProvider,
 		loginWithDynamic

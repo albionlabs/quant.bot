@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import type { DisplayMessage } from '../types.js';
-import type { ClientMessage, ServerMessage } from '@quant-bot/shared-types';
+import type { ClientMessage, ServerMessage } from '../services/gateway-types.js';
 import {
 	fetchNpv,
 	fetchOrderbook,

@@ -90,15 +90,15 @@ importers:
 
   apps/test-site:
     dependencies:
+      '@albionlabs/chat-widget':
+        specifier: workspace:*
+        version: link:../../packages/chat-widget
       '@dynamic-labs/ethereum':
         specifier: ^4.65.0
         version: 4.65.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(use-sync-external-store@1.2.0(react@19.2.4))(utf-8-validate@6.0.6)(viem@2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))(zod@3.22.4)
       '@dynamic-labs/sdk-react-core':
         specifier: ^4.65.0
         version: 4.65.0(bufferutil@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6)
-      '@quant-bot/chat-widget':
-        specifier: workspace:*
-        version: link:../../packages/chat-widget
       react:
         specifier: ^19.2.4
         version: 19.2.4
@@ -181,10 +181,6 @@ importers:
         version: 4.0.18(@types/node@25.3.1)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/chat-widget:
-    dependencies:
-      '@quant-bot/shared-types':
-        specifier: workspace:*
-        version: link:../shared-types
     devDependencies:
       '@quant-bot/config':
         specifier: workspace:*
