@@ -91,8 +91,8 @@ importers:
   apps/test-site:
     dependencies:
       '@albionlabs/chat-widget':
-        specifier: ^0.1.0
-        version: 0.1.0(svelte@5.53.5)
+        specifier: workspace:*
+        version: link:../../packages/chat-widget
       '@dynamic-labs/ethereum':
         specifier: ^4.65.0
         version: 4.65.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(use-sync-external-store@1.2.0(react@19.2.4))(utf-8-validate@6.0.6)(viem@2.46.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.22.4))(zod@3.22.4)
@@ -280,11 +280,6 @@ packages:
 
   '@adraffy/ens-normalize@1.11.1':
     resolution: {integrity: sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==}
-
-  '@albionlabs/chat-widget@0.1.0':
-    resolution: {integrity: sha512-StuLqKNq3kkH8Tm5XOtS/GXowV1ulbHD4w/ag/TPIVCLDS9DX/jM9VNeFAx0T72kUoovbcxZ2DbsHIbZklE35w==}
-    peerDependencies:
-      svelte: ^5.0.0
 
   '@babel/runtime@7.28.6':
     resolution: {integrity: sha512-05WQkdpL9COIMz4LjTxGpPNCdlpyimKppYNoJ5Di5EUObifl8t4tuLuUBBZEpoLYOmfvIWrsp9fCl0HoPRVTdA==}
@@ -4371,10 +4366,6 @@ snapshots:
   '@adraffy/ens-normalize@1.10.1': {}
 
   '@adraffy/ens-normalize@1.11.1': {}
-
-  '@albionlabs/chat-widget@0.1.0(svelte@5.53.5)':
-    dependencies:
-      svelte: 5.53.5
 
   '@babel/runtime@7.28.6': {}
 
