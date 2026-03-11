@@ -26,6 +26,7 @@
 	let lastSeenMessageCount = $state(0);
 	let signingIn = $state(false);
 	let siweError = $state<string | null>(null);
+	let siweDismissed = $state(false);
 
 	const httpBaseUrl = $derived(
 		config.gatewayUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://')
@@ -59,9 +60,15 @@
 	$effect(() => {
 		const provider = $walletProvider;
 		const authenticated = $auth.authenticated;
-		if (provider && !authenticated && !signingIn) {
+		if (provider && !authenticated && !signingIn && !siweDismissed) {
 			handleSiweLogin();
 		}
+	});
+
+	// Reset dismissed state when wallet provider changes
+	$effect(() => {
+		$walletProvider;
+		siweDismissed = false;
 	});
 
 	// When auth completes, connect WebSocket
@@ -96,6 +103,7 @@
 		if (!provider || signingIn) return;
 
 		siweError = null;
+		siweDismissed = false;
 		signingIn = true;
 
 		try {
@@ -122,6 +130,7 @@
 			setAuth(result.token, walletAddress, result.user.id);
 		} catch (e) {
 			siweError = e instanceof Error ? e.message : 'Sign-in failed';
+			siweDismissed = true;
 		} finally {
 			signingIn = false;
 		}
