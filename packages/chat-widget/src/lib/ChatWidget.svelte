@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { connect, disconnect, reconnect, chat } from './stores/chat.js';
+	import AlbionMark from './components/AlbionMark.svelte';
 	import MessageList from './components/MessageList.svelte';
 	import MessageInput from './components/MessageInput.svelte';
 	import type { ChatWidgetConfig } from './types.js';
@@ -21,7 +22,10 @@
 <div class="chat-widget">
 	{#if !hideHeader}
 	<div class="chat-header">
-		<span class="chat-title">quant.bot</span>
+		<div class="chat-brand">
+			<AlbionMark size={18} />
+			<span class="chat-title">quant.bot</span>
+		</div>
 		{#if $chat.reconnecting}
 			<span class="status-dot reconnecting"></span>
 			<span class="reconnecting-label">Reconnecting...</span>
@@ -61,6 +65,12 @@
 		padding: 0.75rem 1rem;
 		background: #1f2937;
 		color: white;
+	}
+
+	.chat-brand {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
 	}
 
 	.chat-title {
