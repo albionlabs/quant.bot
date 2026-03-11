@@ -40,7 +40,8 @@ export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
 			};
 
 			return response;
-		} catch {
+		} catch (err) {
+			request.log.error({ err }, 'SIWE verification failed');
 			return reply.status(401).send({ error: 'Signature verification failed' });
 		}
 	});
