@@ -222,6 +222,7 @@
 		flex-direction: column;
 		align-items: flex-end;
 		gap: 0.75rem;
+		pointer-events: none;
 	}
 
 	.floating-container.bottom-right {
@@ -256,7 +257,7 @@
 	.chat-panel.open {
 		transform: scale(1) translateY(0);
 		opacity: 1;
-		pointer-events: auto;
+		pointer-events: auto !important;
 	}
 
 	.panel-header {
@@ -407,6 +408,7 @@
 		position: relative;
 		transition: transform 0.15s ease, box-shadow 0.15s ease;
 		flex-shrink: 0;
+		pointer-events: auto;
 	}
 
 	.chat-bubble-btn:hover {
