@@ -1,9 +1,23 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { SiweMessage } from 'siwe';
+import { getAddress } from 'ethers';
 import type { LoginRequest, LoginResponse, RefreshResponse } from '@quant-bot/shared-types';
 import { createToken, authMiddleware, type JwtPayload } from '../middleware/auth.js';
 import { apiKeyMiddleware } from '../middleware/api-key.js';
 import type { GatewayConfig } from '../config.js';
+
+function checksumAddressInMessage(message: string): string {
+	return message.replace(
+		/(0x[0-9a-fA-F]{40})/g,
+		(match) => {
+			try {
+				return getAddress(match);
+			} catch {
+				return match;
+			}
+		}
+	);
+}
 
 export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
 	const preHandler = config.apiKeys.length > 0 ? [apiKeyMiddleware(config)] : [];
@@ -16,7 +30,7 @@ export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
 		}
 
 		try {
-			const siweMessage = new SiweMessage(message);
+			const siweMessage = new SiweMessage(checksumAddressInMessage(message));
 			const result = await siweMessage.verify({ signature });
 
 			if (!result.success) {
