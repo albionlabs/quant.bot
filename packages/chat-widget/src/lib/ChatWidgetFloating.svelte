@@ -56,11 +56,11 @@
 		}
 	});
 
-	// Auto-trigger SIWE when wallet appears and not authed
+	// Auto-trigger SIWE when wallet appears, not authed, and widget is open
 	$effect(() => {
 		const provider = $walletProvider;
 		const authenticated = $auth.authenticated;
-		if (provider && !authenticated && !signingIn && !siweDismissed) {
+		if (provider && !authenticated && !signingIn && !siweDismissed && isOpen) {
 			handleSiweLogin();
 		}
 	});
