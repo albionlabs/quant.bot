@@ -216,6 +216,9 @@ async function createClient(config: ToolsConfig): Promise<Client> {
 		env.RAINDEX_REGISTRY_URL = config.raindexRegistryUrl;
 	}
 
+	// Pass the RPC URL so the MCP can inject it into registry settings
+	env.BASE_RPC_URL = config.rpcUrl;
+
 	const transport = new StdioClientTransport({
 		command: config.raindexMcpCommand,
 		args: config.raindexMcpArgs,
