@@ -14,9 +14,6 @@ primary_region = 'lhr'
   RAINDEX_REGISTRY_URL = 'https://raw.githubusercontent.com/rainlanguage/rain.strategies/2c8192e9137736507041ebff820b0e7b5b29f0d2/registry'
   CUSTOM_STRATEGIES_DIR = '/app/strategies'
 
-[restart]
-  policy = 'always'
-
 [[vm]]
   size = 'shared-cpu-1x'
   memory = '512mb'
