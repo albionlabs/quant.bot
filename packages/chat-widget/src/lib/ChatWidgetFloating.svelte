@@ -121,9 +121,14 @@
 				statement: 'Sign in to quant.bot'
 			});
 
+			// personal_sign expects hex-encoded data per EIP-191
+			const hexMessage = '0x' + Array.from(new TextEncoder().encode(message))
+				.map((b) => b.toString(16).padStart(2, '0'))
+				.join('');
+
 			const signature = await provider.request({
 				method: 'personal_sign',
-				params: [message, walletAddress]
+				params: [hexMessage, walletAddress]
 			}) as string;
 
 			const result = await login(signature, message, walletAddress);
