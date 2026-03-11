@@ -274,6 +274,9 @@
 				txHashes: collectedHashes,
 				completionResult: result
 			});
+			if (result.raindexUrl) {
+				sendMessage(`Order deployed. Raindex link: ${result.raindexUrl}`);
+			}
 		} catch (error) {
 			// Transactions are on-chain, just completion lookup failed
 			patchBundleState(signingId, {

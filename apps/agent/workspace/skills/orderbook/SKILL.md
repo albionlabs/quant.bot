@@ -81,6 +81,9 @@ If `readyToSign=true`:
 - If `readyToSign=false`: max 3 bullets with blockers.
 - If `readyToSign=true`: show `<rainlang-review>` tag, wait for confirmation, then output `<tx-sign>` tag.
 
+### Step 6: Post-deployment
+After signing completes, the widget sends back the Raindex order link. Always present this link to the user so they can view and manage their order on Raindex.
+
 ## Never
 - Guess, invent, or "probe" for field binding names. Use ONLY the keys from the `details` response.
 - Make more than 1 call to `details` per strategy. One call gives you everything.
@@ -89,7 +92,6 @@ If `readyToSign=true`:
 - Skip the discovery step. Deploying without calling `details` first will fail.
 - Ask user for execution token.
 - Output `<tx-sign>` before explicit confirmation.
-- Handle post-deployment lookups (widget handles completion).
 
 ## Deployment Orientation (`base` vs `base-inv`)
 Each strategy has two deployments:

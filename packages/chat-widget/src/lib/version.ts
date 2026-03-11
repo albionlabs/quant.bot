@@ -1,1 +1,1 @@
-export const WIDGET_VERSION = '0.2.5';
+export const WIDGET_VERSION = '0.2.6';

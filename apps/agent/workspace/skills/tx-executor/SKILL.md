@@ -45,7 +45,6 @@ If `readyToSign` is false, return max 3 bullets with blockers.
 - Ask user for `executionToken`.
 - Output `<tx-sign>` before explicit confirmation.
 - Manually simulate transactions already staged.
-- Handle post-deployment order hash lookups (widget completion does this).
 
 ## Stop
 - Stop after readiness summary, or after single `<tx-sign>` tag.
