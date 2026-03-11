@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store'
-import { connect, disconnect, getConnectorClient } from '@wagmi/core'
+import { connect, disconnect, getConnectorClient, signMessage } from '@wagmi/core'
 import { injected } from '@wagmi/connectors'
 import { wagmiConfig } from '$lib/wagmi/config.js'
 import type { WalletProvider } from './dynamicStore.js'
@@ -23,7 +23,7 @@ export async function connectWithWagmi(): Promise<void> {
 			request: async (args: { method: string; params?: unknown[] }) => {
 				if (args.method === 'personal_sign' && args.params) {
 					const [message] = args.params as [string, string]
-					return await client.signMessage({ message })
+					return await signMessage(wagmiConfig, { message })
 				}
 
 				if (args.method === 'eth_accounts') {
