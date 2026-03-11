@@ -21,6 +21,15 @@ export async function connectWithWagmi(): Promise<void> {
 		const client = await getConnectorClient(wagmiConfig)
 		const provider: WalletProvider = {
 			request: async (args: { method: string; params?: unknown[] }) => {
+				if (args.method === 'personal_sign' && args.params) {
+					const [message] = args.params as [string, string]
+					return await client.signMessage({ message })
+				}
+
+				if (args.method === 'eth_accounts') {
+					return [client.account.address]
+				}
+
 				return client.request({
 					method: args.method as never,
 					params: args.params as never
