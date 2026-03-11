@@ -2,7 +2,6 @@ import Fastify from 'fastify';
 import { loadConfig } from './config.js';
 import { npvRoutes } from './routes/npv.js';
 import { evmSimulateRoutes } from './routes/evm-simulate.js';
-import { txExecuteRoutes } from './routes/tx-execute.js';
 import { raindexStrategyRoutes } from './routes/raindex-strategy.js';
 import { tokenRegistryRoutes } from './routes/token-registry.js';
 import { tokenMetadataRoutes } from './routes/token-metadata.js';
@@ -27,7 +26,6 @@ await app.register(ownerOrdersRoutes);
 
 // Config-dependent routes
 await app.register((instance) => evmSimulateRoutes(instance, config));
-await app.register((instance) => txExecuteRoutes(instance, config));
 await app.register((instance) => raindexStrategyRoutes(instance, config));
 await app.register((instance) => orderbookRoutes(instance, config));
 await app.register((instance) => signingRoutes(instance, config));

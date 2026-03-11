@@ -24,6 +24,8 @@ interface DelegationInfo {
 	expiresAt: number;
 }
 
+const REQUEST_TIMEOUT_MS = 10_000;
+
 async function requestJson<T>(
 	config: DelegationClientConfig,
 	method: string,
@@ -38,7 +40,8 @@ async function requestJson<T>(
 			'X-Internal-Secret': config.internalSecret,
 			...extraHeaders
 		},
-		body: body ? JSON.stringify(body) : undefined
+		body: body ? JSON.stringify(body) : undefined,
+		signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
 	});
 
 	if (!res.ok) {

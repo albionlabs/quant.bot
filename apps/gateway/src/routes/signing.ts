@@ -11,6 +11,8 @@ async function forwardErrorOrJson<T>(upstream: Response, reply: FastifyReply): P
 	return await upstream.json() as T;
 }
 
+const TOOLS_TIMEOUT_MS = 15_000;
+
 export async function signingProxyRoutes(app: FastifyInstance, config: GatewayConfig): Promise<void> {
 	app.get<{ Params: { id: string } }>('/api/signing/:id', {
 		preHandler: authMiddleware(config),
@@ -19,7 +21,8 @@ export async function signingProxyRoutes(app: FastifyInstance, config: GatewayCo
 			const { id } = request.params;
 
 			const response = await fetch(`${config.toolsBaseUrl}/api/evm/signing/${id}`, {
-				headers: { 'x-internal-secret': config.internalSecret }
+				headers: { 'x-internal-secret': config.internalSecret },
+				signal: AbortSignal.timeout(TOOLS_TIMEOUT_MS)
 			});
 
 			const bundle = await forwardErrorOrJson<SigningBundle>(response, reply);
@@ -50,7 +53,8 @@ export async function signingProxyRoutes(app: FastifyInstance, config: GatewayCo
 					'Content-Type': 'application/json',
 					'x-internal-secret': config.internalSecret
 				},
-				body: JSON.stringify({ userId: user.sub, txHashes })
+				body: JSON.stringify({ userId: user.sub, txHashes }),
+				signal: AbortSignal.timeout(TOOLS_TIMEOUT_MS)
 			});
 
 			return forwardErrorOrJson<SigningCompleteResponse>(response, reply);

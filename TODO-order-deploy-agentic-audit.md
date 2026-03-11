@@ -1,69 +1,32 @@
 # TODO: Agentic Order-Deploy Flow Hardening
 
 Date: 2026-03-04
-Scope: Agent -> tools -> delegated signing/execution
+Scope: Agent -> tools -> signing/execution
 
-## Critical
+## Completed
 
-- [ ] Enforce execution auth binding in tools `POST /api/evm/execute`.
-  - Remove trust in caller-supplied `userId`.
-  - Validate `delegationId` belongs to authenticated user and is active.
-  - Reject mismatched `delegationId`/`userId`.
-  - Files:
-    - `apps/tools/src/routes/tx-execute.ts`
-    - `apps/tools/src/services/tx-executor.ts`
-    - `apps/tools/src/services/delegation-client.ts`
+- [x] Enforce execution auth binding — old `/api/evm/execute` and `/api/evm/request-signature` removed. Signing flow uses staged signing with `executionToken` validated via `resolveUserIdFromExecutionToken()`.
+- [x] Enforce Dynamic webhook signature verification (fail closed) — HMAC-SHA256 with `timingSafeEqual`, returns 401 if missing/invalid.
+- [x] Improve simulation fidelity with sender context — `from` address in `EvmSimulateRequest`, used in `simulateContract`/`estimateGas`/`call`.
+- [x] Add approval orchestration before deploy — approval detection, spender parsing, `requires_prior_state` status, approvals staged before deploy tx.
+- [x] Add explicit timeouts for upstream calls — delegation client (10s), signing proxy (15s), Raindex MCP (30s), token registry (10s), GraphQL (15s).
+- [x] Gateway-owned signing endpoints — `GET /api/signing/:id` and `POST /api/signing/:id/complete` with auth + ownership validation.
+- [x] Keep tools APIs internal — gateway proxies signing. Agent calls tools directly only on internal network.
+- [x] Keep token logging/metrics parallel-only — gateway logs + internal metrics, never model-mediated.
 
-## High
+## Remaining: Remove `[trusted-context]` Prompt Injection
 
-- [ ] Enforce Dynamic webhook signature verification (fail closed).
-  - Require signature at gateway ingress and delegation service.
-  - Remove permissive behavior when signature/secret missing.
-  - Files:
-    - `apps/gateway/src/routes/webhook.ts`
-    - `apps/delegation/src/routes.ts`
+The execution token and userId are still injected into the LLM prompt as a `[trusted-context]` block in `apps/gateway/src/routes/chat.ts`. This is the single remaining hardening item.
 
-- [ ] Add trusted runtime identity context to agent tool calls.
-  - Stop relying on user/model-provided identity values for execution.
-  - Attach authenticated user context in gateway->agent->tools path.
-  - Files:
-    - `apps/gateway/src/routes/chat.ts`
-    - `apps/gateway/src/services/agent-proxy.ts`
-    - `apps/agent/workspace/skills/tx-executor/SKILL.md`
+### TODO
+- [ ] Move execution identity binding to server-side only (gateway-proxied staging or out-of-band header injection).
+- [ ] Update agent skills to remove `executionToken` references from curl examples.
+- [ ] Add regression test ensuring prompts sent via `chat.send` do not contain `[trusted-context]`.
 
-## Medium
+### Design Options
+1. **Gateway-proxied staging** — agent calls gateway (which has the authenticated session), gateway forwards to tools with server-side identity.
+2. **Out-of-band header injection** — agent runtime injects token as an HTTP header rather than prompt text.
 
-- [ ] Improve simulation fidelity with sender context.
-  - Add `from` address support in simulation request/types.
-  - Use delegated wallet address for `call`/`estimateGas`.
-  - Files:
-    - `packages/shared-types/src/tools.ts`
-    - `apps/tools/src/services/evm-simulator.ts`
-    - `apps/tools/src/routes/evm-simulate.ts`
-
-- [ ] Add explicit approval orchestration before state-changing deploy execution.
-  - If order/swap returns approvals, execute approval tx(s) first.
-  - Then simulate+execute final deployment tx.
-  - Files:
-    - `apps/agent/workspace/skills/orderbook/SKILL.md`
-    - `apps/agent/workspace/skills/tx-executor/SKILL.md`
-    - (optional) dedicated orchestrator route in `apps/tools`
-
-## Low
-
-- [ ] Add explicit timeouts/retries for upstream calls.
-  - Orderbook fetch calls
-  - Delegation credential fetch calls
-  - Transaction receipt waiting
-  - Files:
-    - `apps/tools/src/services/delegation-client.ts`
-    - `apps/tools/src/services/tx-executor.ts`
-
-## Environment/Operations
-
-- [ ] Confirm required delegation signing env is present in tools.
-  - `DYNAMIC_ENVIRONMENT_ID`
-  - `DYNAMIC_SIGNING_KEY`
-  - `INTERNAL_SECRET`
-  - `DELEGATION_SERVICE_URL`
-
+### Acceptance Criteria
+- [ ] No `[trusted-context ...]` block in chat message forwarding.
+- [ ] Deploy/signing works end-to-end for authenticated users.
