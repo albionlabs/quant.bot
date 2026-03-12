@@ -4,9 +4,13 @@
 	import AlbionMark from './components/AlbionMark.svelte';
 	import MessageList from './components/MessageList.svelte';
 	import MessageInput from './components/MessageInput.svelte';
+	import { getThemeStyle } from './theme.js';
 	import type { ChatWidgetConfig } from './types.js';
 
 	let { config, hideHeader = false }: { config: ChatWidgetConfig; hideHeader?: boolean } = $props();
+
+	const theme = $derived(config.theme ?? 'dark');
+	const themeStyle = $derived(getThemeStyle(theme));
 
 	onMount(() => {
 		if (config.token) {
@@ -19,11 +23,11 @@
 	});
 </script>
 
-<div class="chat-widget">
+<div class="chat-widget" style={themeStyle}>
 	{#if !hideHeader}
 	<div class="chat-header">
 		<div class="chat-brand">
-			<AlbionMark size={18} />
+			<AlbionMark size={18} variant="light" />
 			<span class="chat-title">quant.bot</span>
 		</div>
 		{#if $chat.reconnecting}
@@ -51,11 +55,12 @@
 		width: 100%;
 		height: 100%;
 		min-height: 400px;
-		border: 1px solid #e5e7eb;
+		border: 1px solid var(--cw-border);
 		border-radius: 0.75rem;
 		overflow: hidden;
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-		background: white;
+		background: var(--cw-bg);
+		color: var(--cw-text);
 	}
 
 	.chat-header {
@@ -63,7 +68,7 @@
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.75rem 1rem;
-		background: #1f2937;
+		background: var(--cw-header-bg);
 		color: white;
 	}
 

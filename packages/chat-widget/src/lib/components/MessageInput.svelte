@@ -37,35 +37,37 @@
 		display: flex;
 		gap: 0.5rem;
 		padding: 0.75rem 1rem;
-		border-top: 1px solid #e5e7eb;
-		background: white;
+		border-top: 1px solid var(--cw-border);
+		background: var(--cw-bg);
 	}
 
 	textarea {
 		flex: 1;
 		resize: none;
-		border: 1px solid #d1d5db;
+		border: 1px solid var(--cw-input-border);
 		border-radius: 0.5rem;
 		padding: 0.5rem 0.75rem;
 		font-family: inherit;
 		font-size: 0.875rem;
 		line-height: 1.5;
 		outline: none;
+		background: var(--cw-input-bg);
+		color: var(--cw-text);
 	}
 
 	textarea:focus {
-		border-color: #3b82f6;
+		border-color: var(--cw-accent);
 		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 	}
 
 	textarea:disabled {
-		background: #f9fafb;
+		background: var(--cw-input-disabled-bg);
 		cursor: not-allowed;
 	}
 
 	button {
 		padding: 0.5rem 1rem;
-		background: #3b82f6;
+		background: var(--cw-accent);
 		color: white;
 		border: none;
 		border-radius: 0.5rem;
@@ -75,7 +77,7 @@
 	}
 
 	button:hover:not(:disabled) {
-		background: #2563eb;
+		background: var(--cw-accent-hover);
 	}
 
 	button:disabled {

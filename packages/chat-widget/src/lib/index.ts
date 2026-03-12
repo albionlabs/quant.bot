@@ -8,6 +8,7 @@ export { chat, connect, disconnect, reconnect, sendMessage } from './stores/chat
 export { auth, setAuth, clearAuth } from './stores/auth.js';
 export { setWalletProvider, clearWalletProvider } from './stores/wallet.js';
 export { WIDGET_VERSION } from './version.js';
+export type { Theme } from './theme.js';
 export type {
 	ChatWidgetConfig,
 	DisplayMessage,

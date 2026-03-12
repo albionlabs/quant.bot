@@ -1,19 +1,24 @@
 <script lang="ts">
-	import albionMarqueUrl from '../assets/albion-marque.svg';
+	import albionMarqueLightUrl from '../assets/albion-marque.svg';
+	import albionMarqueDarkUrl from '../assets/albion-marque-dark.svg';
 
 	let {
 		size = 20,
+		variant = 'light',
 		decorative = true,
 		alt = 'Albion'
 	}: {
 		size?: number;
+		variant?: 'light' | 'dark';
 		decorative?: boolean;
 		alt?: string;
 	} = $props();
+
+	const src = $derived(variant === 'dark' ? albionMarqueDarkUrl : albionMarqueLightUrl);
 </script>
 
 <img
-	src={albionMarqueUrl}
+	{src}
 	alt={decorative ? '' : alt}
 	aria-hidden={decorative}
 	width={size}

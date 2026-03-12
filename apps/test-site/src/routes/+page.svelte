@@ -20,6 +20,7 @@
 	const apiKey = env.PUBLIC_WIDGET_API_KEY ?? ''
 
 	let activeSource: 'dynamic' | 'wagmi' | null = $state(null)
+	let widgetTheme: 'light' | 'dark' = $state('dark')
 
 	$effect(() => {
 		if ($dynamicWalletProvider) {
@@ -93,11 +94,33 @@
 		{/if}
 	</div>
 
+	<div class="card">
+		<h2>Widget Theme</h2>
+		<div class="connect-buttons">
+			<button
+				class="btn"
+				class:btn-primary={widgetTheme === 'light'}
+				class:btn-secondary={widgetTheme !== 'light'}
+				onclick={() => (widgetTheme = 'light')}
+			>
+				Light
+			</button>
+			<button
+				class="btn"
+				class:btn-primary={widgetTheme === 'dark'}
+				class:btn-secondary={widgetTheme !== 'dark'}
+				onclick={() => (widgetTheme = 'dark')}
+			>
+				Dark
+			</button>
+		</div>
+	</div>
+
 	<p class="hint">Floating chat widget is in the bottom-right corner.</p>
 </div>
 
 <ChatWidgetFloating
-	config={{ gatewayUrl, apiKey }}
+	config={{ gatewayUrl, apiKey, theme: widgetTheme }}
 	callbacks={{ onRequestWalletConnect: () => connectWithWagmi() }}
 />
 

@@ -38,14 +38,14 @@
 		align-items: center;
 		gap: 0.25rem;
 		padding: 0.75rem 1rem;
-		background: #f3f4f6;
+		background: var(--cw-typing-bg);
 		border-radius: 1rem;
 	}
 
 	.typing-indicator span {
 		width: 0.5rem;
 		height: 0.5rem;
-		background: #9ca3af;
+		background: var(--cw-typing-dot);
 		border-radius: 50%;
 		animation: bounce 1.4s infinite ease-in-out both;
 	}

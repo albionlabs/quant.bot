@@ -26,6 +26,7 @@ export interface TxSignRequestPayload {
 export interface ChatWidgetConfig {
 	gatewayUrl: string;
 	token?: string;
+	theme?: 'light' | 'dark';
 }
 
 export interface FloatingChatWidgetConfig {
@@ -34,6 +35,7 @@ export interface FloatingChatWidgetConfig {
 	position?: 'bottom-right' | 'bottom-left';
 	offset?: { x: number; y: number };
 	startOpen?: boolean;
+	theme?: 'light' | 'dark';
 }
 
 export interface FloatingChatCallbacks {

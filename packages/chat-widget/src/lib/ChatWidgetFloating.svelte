@@ -9,6 +9,7 @@
 	import { walletProvider } from './stores/wallet.js';
 	import { setGatewayBaseUrl, login } from './services/gateway-api.js';
 	import { createSiweMessage, generateNonce } from './services/siwe.js';
+	import { getThemeStyle } from './theme.js';
 	import type { FloatingChatWidgetConfig, FloatingChatCallbacks, ChatWidgetConfig } from './types.js';
 
 	let {
@@ -21,6 +22,9 @@
 
 	const position = $derived(config.position ?? 'bottom-right');
 	const offset = $derived(config.offset ?? { x: 24, y: 24 });
+	const theme = $derived(config.theme ?? 'dark');
+	const themeStyle = $derived(getThemeStyle(theme));
+	const fabMarqueVariant = $derived(theme === 'light' ? 'dark' : 'light');
 
 	let isOpen = $state(false);
 	let unreadCount = $state(0);
@@ -38,7 +42,8 @@
 
 	const chatConfig = $derived<ChatWidgetConfig>({
 		gatewayUrl: wsUrl,
-		token: $auth.token ?? undefined
+		token: $auth.token ?? undefined,
+		theme
 	});
 
 	// Track unread messages while collapsed
@@ -142,13 +147,13 @@
 	class="floating-container"
 	class:bottom-right={position === 'bottom-right'}
 	class:bottom-left={position === 'bottom-left'}
-	style="--offset-x: {offset.x}px; --offset-y: {offset.y}px;"
+	style="--offset-x: {offset.x}px; --offset-y: {offset.y}px; {themeStyle}"
 >
 	<!-- Chat Panel -->
 	<div class="chat-panel" class:open={isOpen}>
 		<div class="panel-header">
 			<div class="panel-brand">
-				<AlbionMark size={18} />
+				<AlbionMark size={18} variant="light" />
 				<span class="panel-title">quant.bot</span>
 			</div>
 			<WalletStatusIndicator onRequestWalletConnect={callbacks.onRequestWalletConnect} />
@@ -205,10 +210,10 @@
 	<button class="chat-bubble-btn" onclick={toggle} aria-label={isOpen ? 'Close chat' : 'Open chat'}>
 		{#if isOpen}
 			<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-				<path d="M6 6L18 18M18 6L6 18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+				<path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
 			</svg>
 		{:else}
-			<AlbionMark size={28} />
+			<AlbionMark size={28} variant={fabMarqueVariant} />
 		{/if}
 		{#if unreadCount > 0 && !isOpen}
 			<span class="unread-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
@@ -244,9 +249,9 @@
 		max-width: calc(100vw - 48px);
 		max-height: calc(100vh - 120px);
 		border-radius: 0.75rem;
-		border: 1px solid #e5e7eb;
-		background: white;
-		box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+		border: 1px solid var(--cw-border);
+		background: var(--cw-bg);
+		box-shadow: var(--cw-shadow);
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
@@ -267,7 +272,7 @@
 		align-items: center;
 		gap: 0.5rem;
 		padding: 0.6rem 0.75rem;
-		background: #1f2937;
+		background: var(--cw-header-bg);
 		color: white;
 		flex-shrink: 0;
 	}
@@ -360,7 +365,7 @@
 		justify-content: center;
 		gap: 0.75rem;
 		padding: 2rem;
-		color: #6b7280;
+		color: var(--cw-text-secondary);
 		font-size: 0.875rem;
 	}
 
@@ -377,7 +382,7 @@
 		padding: 0.45rem 1rem;
 		border: none;
 		border-radius: 0.5rem;
-		background: #1f2937;
+		background: var(--cw-btn-secondary-bg);
 		color: white;
 		font-size: 0.8rem;
 		font-weight: 500;
@@ -385,14 +390,14 @@
 	}
 
 	.connect-wallet-btn:hover {
-		background: #374151;
+		background: var(--cw-btn-secondary-hover);
 	}
 
 	.spinner {
 		width: 1.5rem;
 		height: 1.5rem;
-		border: 2px solid #e5e7eb;
-		border-top-color: #1f2937;
+		border: 2px solid var(--cw-spinner-track);
+		border-top-color: var(--cw-spinner-head);
 		border-radius: 50%;
 		animation: spin 0.6s linear infinite;
 	}
@@ -405,14 +410,14 @@
 		width: 56px;
 		height: 56px;
 		border-radius: 50%;
-		border: none;
-		background: #1f2937;
-		color: white;
+		border: var(--cw-fab-border);
+		background: var(--cw-fab-bg);
+		color: var(--cw-fab-text);
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		box-shadow: var(--cw-fab-shadow);
 		position: relative;
 		transition: transform 0.15s ease, box-shadow 0.15s ease;
 		flex-shrink: 0;
@@ -421,7 +426,7 @@
 
 	.chat-bubble-btn:hover {
 		transform: scale(1.05);
-		box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+		box-shadow: var(--cw-fab-shadow-hover);
 	}
 
 	.unread-badge {
