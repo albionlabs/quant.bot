@@ -56,6 +56,7 @@ That's it. The widget handles SIWE sign-in, WebSocket connection, and chat UI au
 | `position` | `'bottom-right' \| 'bottom-left'` | No | `'bottom-right'` | Corner placement of the floating bubble. |
 | `offset` | `{ x: number; y: number }` | No | `{ x: 24, y: 24 }` | Pixel offset from the corner. |
 | `startOpen` | `boolean` | No | `false` | Open the chat panel immediately on mount. |
+| `theme` | `'light' \| 'dark'` | No | `'dark'` | Widget color theme. |
 
 ### `FloatingChatCallbacks`
 
@@ -219,6 +220,26 @@ When the AI agent deploys a strategy, the widget handles the full signing flow:
 6. On completion, the Raindex order link is sent to the chat
 
 No additional code is needed — transaction signing works automatically as long as a wallet provider is set.
+
+## Theming
+
+The widget supports light and dark color themes via the `theme` config property.
+
+```svelte
+<!-- Dark theme (default) -->
+<ChatWidgetFloating config={{ gatewayUrl, apiKey, theme: 'dark' }} />
+
+<!-- Light theme -->
+<ChatWidgetFloating config={{ gatewayUrl, apiKey, theme: 'light' }} />
+```
+
+In **dark** mode the floating bubble has a dark background with the white Albion marque. In **light** mode the bubble has a white background with the navy Albion marque. The header stays dark in both themes for brand consistency; the chat body, input, bubbles, modals, and status indicators all adapt.
+
+The inline `ChatWidget` also accepts `theme`:
+
+```svelte
+<ChatWidget config={{ gatewayUrl, token, theme: 'light' }} />
+```
 
 ## Styling
 
