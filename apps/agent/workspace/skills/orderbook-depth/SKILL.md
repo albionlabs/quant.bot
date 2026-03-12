@@ -1,11 +1,7 @@
 ---
 name: "Orderbook Depth"
-description: "View orderbook depth with live quotes for tokens on the Raindex orderbook"
-version: "1.8.0"
+description: "View orderbook depth with live quotes for tokens on the Raindex orderbook. Use when the user asks about orderbook depth, bid/ask prices, spread, liquidity, market depth, or wants a price snapshot for a token."
 ---
-
-## Use When
-- User asks for orderbook depth, bid/ask, spread, or liquidity snapshot.
 
 ## Inputs
 - `tokenAddress`

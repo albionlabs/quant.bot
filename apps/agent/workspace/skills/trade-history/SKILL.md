@@ -1,11 +1,7 @@
 ---
 name: "Trade History"
-description: "View recent trade history for tokens on the Raindex orderbook"
-version: "1.4.0"
+description: "View recent trade history for tokens on the Raindex orderbook. Use when the user asks about recent trades, trading activity, trade volume, who's been buying or selling, or wants to see transaction history for a token."
 ---
-
-## Use When
-- User asks for recent trades/activity for a token.
 
 ## Defaults
 - Use `limit=20` unless user asks otherwise.
@@ -14,6 +10,9 @@ version: "1.4.0"
 ```bash
 curl -s 'http://quant-bot-tools.internal:4000/api/exchange/trades/0xTOKEN_ADDRESS?limit=20'
 ```
+
+## Error Handling
+- If the API returns no trades, tell the user no recent activity was found. Do not fabricate trade data.
 
 ## Output (Default)
 - Max 3 bullets:

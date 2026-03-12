@@ -1,11 +1,7 @@
 ---
 name: "Transaction Executor"
-description: "Stage transactions for client-side batch signing on Base"
-version: "4.2.0"
+description: "Stage pre-built transactions for client-side batch signing on Base. Use when transactions are already constructed (with to/data/value) and need to be bundled and staged for the user to sign. Do NOT use for strategy deployments — use the Orderbook skill instead, which handles its own staging."
 ---
-
-## Use When
-- Transactions are already prepared and must be staged for client signing.
 
 ## Call
 Bundle all transactions in one request:

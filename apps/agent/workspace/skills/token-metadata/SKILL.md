@@ -1,11 +1,7 @@
 ---
 name: "Token Metadata"
-description: "Fetch decoded on-chain asset metadata (location, cash flows, production data)"
-version: "1.5.0"
+description: "Fetch decoded on-chain asset metadata (location, cash flows, production data). Use when the user asks about token metadata, asset details, production projections, payout data, or wants to inspect decoded on-chain data for a token address."
 ---
-
-## Use When
-- User asks for decoded metadata for a token/address.
 
 ## Two-Step Flow (preferred)
 Use the two-step flow to avoid flooding context with large metadata payloads.
