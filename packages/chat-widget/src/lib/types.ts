@@ -27,6 +27,7 @@ export interface ChatWidgetConfig {
 	gatewayUrl: string;
 	token?: string;
 	theme?: 'light' | 'dark';
+	name?: string;
 }
 
 export interface FloatingChatWidgetConfig {
@@ -36,6 +37,7 @@ export interface FloatingChatWidgetConfig {
 	offset?: { x: number; y: number };
 	startOpen?: boolean;
 	theme?: 'light' | 'dark';
+	name?: string;
 }
 
 export interface FloatingChatCallbacks {

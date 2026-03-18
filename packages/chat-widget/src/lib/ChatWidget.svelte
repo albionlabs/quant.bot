@@ -9,6 +9,7 @@
 
 	let { config, hideHeader = false }: { config: ChatWidgetConfig; hideHeader?: boolean } = $props();
 
+	const name = $derived(config.name ?? 'quant.bot');
 	const theme = $derived(config.theme ?? 'dark');
 	const themeStyle = $derived(getThemeStyle(theme));
 
@@ -28,7 +29,7 @@
 	<div class="chat-header">
 		<div class="chat-brand">
 			<AlbionMark size={18} variant="light" />
-			<span class="chat-title">quant.bot</span>
+			<span class="chat-title">{name}</span>
 		</div>
 		{#if $chat.reconnecting}
 			<span class="status-dot reconnecting"></span>

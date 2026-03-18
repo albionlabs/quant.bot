@@ -57,6 +57,7 @@ That's it. The widget handles SIWE sign-in, WebSocket connection, and chat UI au
 | `offset` | `{ x: number; y: number }` | No | `{ x: 24, y: 24 }` | Pixel offset from the corner. |
 | `startOpen` | `boolean` | No | `false` | Open the chat panel immediately on mount. |
 | `theme` | `'light' \| 'dark'` | No | `'dark'` | Widget color theme. |
+| `name` | `string` | No | `'quant.bot'` | Display name shown in the header and SIWE sign-in message. |
 
 ### `FloatingChatCallbacks`
 
@@ -204,7 +205,7 @@ For full-page layouts (no floating bubble), use `ChatWidget` directly. You must 
 </script>
 
 <div style="height: 600px;">
-  <ChatWidget config={{ gatewayUrl: 'wss://your-gateway.example.com', token: 'jwt-token' }} />
+  <ChatWidget config={{ gatewayUrl: 'wss://your-gateway.example.com', token: 'jwt-token', name: 'my-bot' }} />
 </div>
 ```
 

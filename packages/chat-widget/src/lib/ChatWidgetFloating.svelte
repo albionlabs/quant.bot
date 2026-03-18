@@ -20,6 +20,7 @@
 		callbacks?: FloatingChatCallbacks;
 	} = $props();
 
+	const name = $derived(config.name ?? 'quant.bot');
 	const position = $derived(config.position ?? 'bottom-right');
 	const offset = $derived(config.offset ?? { x: 24, y: 24 });
 	const theme = $derived(config.theme ?? 'dark');
@@ -43,7 +44,8 @@
 	const chatConfig = $derived<ChatWidgetConfig>({
 		gatewayUrl: wsUrl,
 		token: $auth.token ?? undefined,
-		theme
+		theme,
+		name
 	});
 
 	// Track unread messages while collapsed
@@ -124,7 +126,7 @@
 				uri: window.location.origin,
 				chainId: 1,
 				nonce: generateNonce(),
-				statement: 'Sign in to quant.bot'
+				statement: `Sign in to ${name}`
 			});
 
 			const signature = await provider.request({
@@ -154,7 +156,7 @@
 		<div class="panel-header">
 			<div class="panel-brand">
 				<AlbionMark size={18} variant="light" />
-				<span class="panel-title">quant.bot</span>
+				<span class="panel-title">{name}</span>
 			</div>
 			<WalletStatusIndicator onRequestWalletConnect={callbacks.onRequestWalletConnect} />
 			{#if $chat.reconnecting}
