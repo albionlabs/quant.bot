@@ -1,66 +1,77 @@
 {
-	"tools": {
-		"loopDetection": {
-			"enabled": true,
-			"historySize": 30,
-			"warningThreshold": 8,
-			"criticalThreshold": 15,
-			"globalCircuitBreakerThreshold": 25,
-			"detectors": {
-				"genericRepeat": true,
-				"knownPollNoProgress": true,
-				"pingPong": true
-			}
-		}
-	},
-	"gateway": {
-		"mode": "local",
-		"port": 18790,
-		"bind": "loopback",
-		"auth": {
-			"mode": "token"
-		},
-		"controlUi": {
-			"enabled": false
-		},
-		"http": {
-			"endpoints": {
-				"chatCompletions": {
-					"enabled": true
-				}
-			}
-		}
-	},
-	"agents": {
-		"defaults": {
-			"workspace": "/app/workspace",
-			"model": "anthropic/claude-sonnet-4-6",
-			"models": {
-				"anthropic/claude-sonnet-4-6": {
-					"params": {
-						"cacheRetention": "long"
-					}
-				}
-			},
-			"contextPruning": {
-				"mode": "cache-ttl",
-				"ttl": "30m",
-				"keepLastAssistants": 2,
-				"softTrimRatio": 0.15,
-				"hardClearRatio": 0.3,
-				"softTrim": {
-					"maxChars": 2500,
-					"headChars": 1000,
-					"tailChars": 1000
-				},
-				"hardClear": {
-					"enabled": true,
-					"placeholder": "[Tool result cleared — re-run if needed]"
-				}
-			},
-			"heartbeat": {
-				"every": "55m"
-			}
-		}
-	}
+  "agents": {
+    "defaults": {
+      "model": "anthropic/claude-sonnet-4-6",
+      "models": {
+        "anthropic/claude-sonnet-4-6": {
+          "params": {
+            "cacheRetention": "long"
+          }
+        }
+      },
+      "workspace": "/app/workspace",
+      "contextPruning": {
+        "mode": "cache-ttl",
+        "ttl": "30m",
+        "keepLastAssistants": 2,
+        "softTrimRatio": 0.15,
+        "hardClearRatio": 0.3,
+        "softTrim": {
+          "maxChars": 2500,
+          "headChars": 1000,
+          "tailChars": 1000
+        },
+        "hardClear": {
+          "enabled": true,
+          "placeholder": "[Tool result cleared — re-run if needed]"
+        }
+      },
+      "heartbeat": {
+        "every": "55m"
+      }
+    }
+  },
+  "tools": {
+    "loopDetection": {
+      "enabled": true,
+      "historySize": 30,
+      "warningThreshold": 8,
+      "criticalThreshold": 15,
+      "globalCircuitBreakerThreshold": 25,
+      "detectors": {
+        "genericRepeat": true,
+        "knownPollNoProgress": true,
+        "pingPong": true
+      }
+    }
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "gateway": {
+    "port": 18790,
+    "mode": "local",
+    "bind": "loopback",
+    "controlUi": {
+      "enabled": false
+    },
+    "auth": {
+      "mode": "token"
+    },
+    "trustedProxies": [],
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "meta": {
+    "lastTouchedVersion": "2026.3.24",
+    "lastTouchedAt": "2026-03-26T23:06:55.480Z"
+  }
 }
