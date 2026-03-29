@@ -39,10 +39,23 @@ async function gatewayFetch<T>(path: string, init?: RequestInit): Promise<T> {
 	if (apiKeyHeader) {
 		headers['X-Api-Key'] = apiKeyHeader;
 	}
-	const response = await fetch(`${httpBaseUrl}${path}`, {
-		...init,
-		headers
-	});
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), 15_000);
+	let response: Response;
+	try {
+		response = await fetch(`${httpBaseUrl}${path}`, {
+			...init,
+			headers,
+			signal: controller.signal
+		});
+	} catch (err) {
+		clearTimeout(timeout);
+		if (err instanceof DOMException && err.name === 'AbortError') {
+			throw new Error('Request timed out');
+		}
+		throw err;
+	}
+	clearTimeout(timeout);
 
 	if (!response.ok) {
 		const body = (await response.json().catch(() => ({ error: 'Unknown error' }))) as {
