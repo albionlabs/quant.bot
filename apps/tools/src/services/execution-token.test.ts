@@ -54,7 +54,7 @@ describe('resolveUserIdFromExecutionToken', () => {
 	it('throws when token is signed with wrong secret', async () => {
 		const token = await createExecutionToken('0xuser');
 		await expect(resolveUserIdFromExecutionToken(token, 'wrong-secret'))
-			.rejects.toThrow();
+			.rejects.toThrow('signature verification failed');
 	});
 
 	it('throws for expired token', async () => {
@@ -67,6 +67,6 @@ describe('resolveUserIdFromExecutionToken', () => {
 			.sign(secret);
 
 		await expect(resolveUserIdFromExecutionToken(token, SECRET))
-			.rejects.toThrow();
+			.rejects.toThrow('"exp" claim timestamp check failed');
 	});
 });

@@ -46,12 +46,18 @@ describe('delegation client', () => {
 		const result = await storeDelegationViaWebhook(config, { foo: 'bar' }, 'sig-123');
 		expect(result).toEqual(mockData);
 
-		const [url, options] = (fetch as any).mock.calls[0];
-		expect(url).toBe('https://delegation.test/webhook/created');
-		expect(options.method).toBe('POST');
-		expect(options.headers['X-Internal-Secret']).toBe('test-secret');
-		expect(options.headers['X-Dynamic-Signature-256']).toBe('sig-123');
-		expect(JSON.parse(options.body)).toEqual({ foo: 'bar' });
+		expect(fetch).toHaveBeenCalledWith(
+			'https://delegation.test/webhook/created',
+			expect.objectContaining({
+				method: 'POST',
+				headers: expect.objectContaining({
+					'Content-Type': 'application/json',
+					'X-Internal-Secret': 'test-secret',
+					'X-Dynamic-Signature-256': 'sig-123'
+				}),
+				body: JSON.stringify({ foo: 'bar' })
+			})
+		);
 	});
 
 	it('revokeDelegationViaWebhook sends POST', async () => {
@@ -65,8 +71,10 @@ describe('delegation client', () => {
 		vi.stubGlobal('fetch', mockFetchOk(mockData));
 		await getDelegationStatus(config, 'user/special');
 
-		const [url] = (fetch as any).mock.calls[0];
-		expect(url).toBe('https://delegation.test/status/user%2Fspecial');
+		expect(fetch).toHaveBeenCalledWith(
+			'https://delegation.test/status/user%2Fspecial',
+			expect.objectContaining({ method: 'GET' })
+		);
 	});
 
 	it('getDelegationById sends GET', async () => {
@@ -81,8 +89,13 @@ describe('delegation client', () => {
 		const result = await activateDelegation(config, 'user-1', 'del-1');
 		expect(result).toEqual({ activeDelegationId: 'del-1' });
 
-		const [, options] = (fetch as any).mock.calls[0];
-		expect(JSON.parse(options.body)).toEqual({ userId: 'user-1', delegationId: 'del-1' });
+		expect(fetch).toHaveBeenCalledWith(
+			'https://delegation.test/activate',
+			expect.objectContaining({
+				method: 'POST',
+				body: JSON.stringify({ userId: 'user-1', delegationId: 'del-1' })
+			})
+		);
 	});
 
 	it('revokeDelegation sends POST with userId', async () => {
@@ -122,7 +135,13 @@ describe('delegation client', () => {
 		vi.stubGlobal('fetch', mockFetchOk({ delegationId: 'abc' }));
 		await storeDelegationViaWebhook(config, {});
 
-		const [, options] = (fetch as any).mock.calls[0];
-		expect(options.headers['X-Dynamic-Signature-256']).toBeUndefined();
+		expect(fetch).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.objectContaining({
+				headers: expect.not.objectContaining({
+					'X-Dynamic-Signature-256': expect.anything()
+				})
+			})
+		);
 	});
 });

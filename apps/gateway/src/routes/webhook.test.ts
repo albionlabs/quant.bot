@@ -85,8 +85,18 @@ describe('webhook route', () => {
 		expect(res.statusCode).toBe(200);
 		expect(res.json()).toEqual({ delegationId: 'del-1' });
 		expect(fetch).toHaveBeenCalledOnce();
-		const [url] = (fetch as any).mock.calls[0];
-		expect(url).toBe('https://delegation.test/webhook/created');
+		expect(fetch).toHaveBeenCalledWith(
+			'https://delegation.test/webhook/created',
+			expect.objectContaining({
+				method: 'POST',
+				headers: expect.objectContaining({
+					'Content-Type': 'application/json',
+					'X-Internal-Secret': 'test-internal-secret',
+					'X-Dynamic-Signature-256': signature
+				}),
+				body: JSON.stringify(payload)
+			})
+		);
 	});
 
 	it('forwards wallet.delegation.revoked to delegation service', async () => {
@@ -107,8 +117,13 @@ describe('webhook route', () => {
 
 		expect(res.statusCode).toBe(200);
 		expect(res.json()).toEqual({ status: 'revoked' });
-		const [url] = (fetch as any).mock.calls[0];
-		expect(url).toBe('https://delegation.test/webhook/revoked');
+		expect(fetch).toHaveBeenCalledWith(
+			'https://delegation.test/webhook/revoked',
+			expect.objectContaining({
+				method: 'POST',
+				body: JSON.stringify(payload)
+			})
+		);
 	});
 
 	it('returns 502 when delegation service fails', async () => {

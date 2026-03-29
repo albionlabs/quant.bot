@@ -258,6 +258,40 @@ describe('fetchOrderbookDepth', () => {
 		expect(result.bestBid).toBeNull();
 	});
 
+	it('handles subgraph query failure gracefully', async () => {
+		vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('subgraph down'));
+
+		await expect(
+			fetchOrderbookDepth(TOKEN, 'both', mockConfig)
+		).rejects.toThrow();
+	});
+
+	it('handles quote failure for individual orders (Promise.allSettled)', async () => {
+		const { callRaindexMcpTool } = await import('./raindex-mcp-client.js');
+		vi.mocked(callRaindexMcpTool).mockRejectedValue(new Error('MCP unavailable'));
+
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: {
+						orders: [
+							makeOrder('0xbid1', TOKEN, USDC),
+							makeOrder('0xask1', USDC, TOKEN)
+						]
+					}
+				}),
+				{ status: 200 }
+			)
+		);
+
+		const result = await fetchOrderbookDepth(TOKEN, 'both', mockConfig);
+		// Orders exist but quotes all failed → no live liquidity
+		expect(result.bidCount).toBe(0);
+		expect(result.askCount).toBe(0);
+		expect(result.bestBid).toBeNull();
+		expect(result.bestAsk).toBeNull();
+	});
+
 	it('returns empty orderbook when no orders exist', async () => {
 		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
 			new Response(
