@@ -102,13 +102,10 @@ describe('delegation client', () => {
 		vi.stubGlobal('fetch', mockFetchError(404, { error: 'Not found' }));
 
 		await expect(getDelegationStatus(config, 'user-1')).rejects.toThrow(DelegationServiceError);
-		try {
-			await getDelegationStatus(config, 'user-1');
-		} catch (err) {
-			expect(err).toBeInstanceOf(DelegationServiceError);
-			expect((err as DelegationServiceError).status).toBe(404);
-			expect((err as DelegationServiceError).message).toBe('Not found');
-		}
+		await expect(getDelegationStatus(config, 'user-1')).rejects.toMatchObject({
+			status: 404,
+			message: 'Not found'
+		});
 	});
 
 	it('throws DelegationServiceError with fallback message when no error body', async () => {

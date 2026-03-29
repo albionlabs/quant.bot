@@ -26,20 +26,37 @@ describe('calculateNpv', () => {
 describe('calculateIrr', () => {
 	it('calculates IRR for a simple cash flow', () => {
 		const irr = calculateIrr([-1000, 300, 400, 500]);
-		expect(irr).toBeDefined();
-		expect(irr!).toBeCloseTo(0.0889, 2);
+		expect(irr).toBeCloseTo(0.0889, 2);
 	});
 
 	it('returns undefined when IRR cannot be found', () => {
 		const irr = calculateIrr([1000, 500, 500]);
 		expect(irr).toBeUndefined();
 	});
+
+	it('finds zero IRR for break-even cash flows', () => {
+		const irr = calculateIrr([-1000, 500, 500]);
+		expect(irr).toBeCloseTo(0, 4);
+	});
 });
 
 describe('handleNpv', () => {
-	it('returns NPV and IRR', () => {
+	it('returns NPV and IRR with correct values', () => {
 		const result = handleNpv({ cashFlows: [-1000, 300, 400, 500], discountRate: 0.1 });
 		expect(result.npv).toBeCloseTo(-21.04, 1);
-		expect(result.irr).toBeDefined();
+		expect(result.irr).toBeCloseTo(0.0889, 2);
+	});
+
+	it('returns undefined IRR for all-positive cash flows', () => {
+		const result = handleNpv({ cashFlows: [1000, 500, 500], discountRate: 0.1 });
+		expect(result.npv).toBeGreaterThan(0);
+		expect(result.irr).toBeUndefined();
+	});
+
+	it('rounds NPV to two decimal places', () => {
+		const result = handleNpv({ cashFlows: [-1000, 333, 333, 334], discountRate: 0.05 });
+		const str = result.npv.toString();
+		const decimals = str.includes('.') ? str.split('.')[1].length : 0;
+		expect(decimals).toBeLessThanOrEqual(2);
 	});
 });
