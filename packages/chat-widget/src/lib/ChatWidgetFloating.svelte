@@ -106,6 +106,16 @@
 		}
 	}
 
+	function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+		return new Promise<T>((resolve, reject) => {
+			const timer = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+			promise.then(
+				(v) => { clearTimeout(timer); resolve(v); },
+				(e) => { clearTimeout(timer); reject(e); }
+			);
+		});
+	}
+
 	async function handleSiweLogin() {
 		const provider = get(walletProvider);
 		if (!provider || signingIn) return;
@@ -115,8 +125,11 @@
 		signingIn = true;
 
 		try {
-			// Get wallet address
-			const accounts = await provider.request({ method: 'eth_accounts' }) as string[];
+			const accounts = await withTimeout(
+				provider.request({ method: 'eth_accounts' }) as Promise<string[]>,
+				10_000,
+				'Wallet connection'
+			);
 			const walletAddress = accounts?.[0];
 			if (!walletAddress) throw new Error('No wallet address available');
 
@@ -129,12 +142,20 @@
 				statement: `Sign in to ${name}`
 			});
 
-			const signature = await provider.request({
-				method: 'personal_sign',
-				params: [message, walletAddress]
-			}) as string;
+			const signature = await withTimeout(
+				provider.request({
+					method: 'personal_sign',
+					params: [message, walletAddress]
+				}) as Promise<string>,
+				60_000,
+				'Signature request'
+			);
 
-			const result = await login(signature, message, walletAddress);
+			const result = await withTimeout(
+				login(signature, message, walletAddress),
+				30_000,
+				'Sign-in'
+			);
 			setAuth(result.token, walletAddress, result.user.id);
 		} catch (e) {
 			siweError = e instanceof Error ? e.message : 'Sign-in failed';
