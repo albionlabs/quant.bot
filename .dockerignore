@@ -1,0 +1,5 @@
+.turbo
+.git
+node_modules
+**/dist
+apps/agent/openclaw.json.bak
