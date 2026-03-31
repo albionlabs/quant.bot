@@ -1,8 +1,18 @@
+export interface ToolCallInfo {
+	toolCallId?: string;
+	name: string;
+	args?: Record<string, unknown>;
+	result?: unknown;
+	status: 'running' | 'completed' | 'error';
+}
+
 export interface DisplayMessage {
 	id: string;
 	role: 'user' | 'assistant' | 'system';
 	content: string;
 	timestamp: number;
+	toolCalls?: ToolCallInfo[];
+	thinking?: string;
 }
 
 export interface WalletProvider {

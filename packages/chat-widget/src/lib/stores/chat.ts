@@ -103,10 +103,13 @@ function connectInternal(gatewayUrl: string, token: string) {
 
 			if (msg.type === 'connected') {
 				reconnectAttempts = 0;
+				streamingAssistantMessageId = null;
 				chat.update((s) => ({
 					...s,
 					connected: true,
 					reconnecting: false,
+					loading: false,
+					thinkingStatus: null,
 					backendVersion: msg.version ?? null
 				}));
 				return;
@@ -150,6 +153,71 @@ function connectInternal(gatewayUrl: string, token: string) {
 						thinkingStatus: null,
 						sessionId: msg.sessionId ?? s.sessionId,
 						loading: true
+					};
+				});
+			} else if (msg.type === 'tool_call' && msg.name) {
+				chat.update((s) => {
+					const messages = [...s.messages];
+					const now = Date.now();
+
+					let idx = streamingAssistantMessageId
+						? messages.findIndex((m) => m.id === streamingAssistantMessageId)
+						: -1;
+
+					if (idx < 0) {
+						streamingAssistantMessageId = `msg-${++messageCounter}`;
+						messages.push({
+							id: streamingAssistantMessageId,
+							role: 'assistant',
+							content: '',
+							timestamp: now,
+							toolCalls: []
+						});
+						idx = messages.length - 1;
+					}
+
+					const existing = messages[idx];
+					const toolCalls = [...(existing.toolCalls ?? [])];
+					toolCalls.push({
+						toolCallId: msg.toolCallId,
+						name: msg.name!,
+						args: msg.args,
+						status: 'running'
+					});
+					messages[idx] = { ...existing, toolCalls, timestamp: now };
+
+					return {
+						...s,
+						messages,
+						thinkingStatus: `Running ${msg.name}…`,
+						sessionId: msg.sessionId ?? s.sessionId,
+						loading: true
+					};
+				});
+			} else if (msg.type === 'tool_result' && msg.name) {
+				chat.update((s) => {
+					const messages = [...s.messages];
+					if (!streamingAssistantMessageId) return s;
+
+					const idx = messages.findIndex((m) => m.id === streamingAssistantMessageId);
+					if (idx < 0) return s;
+
+					const existing = messages[idx];
+					const toolCalls = (existing.toolCalls ?? []).map((tc) => {
+						if (msg.toolCallId && tc.toolCallId === msg.toolCallId) {
+							return { ...tc, result: msg.result, status: 'completed' as const };
+						}
+						if (!msg.toolCallId && tc.name === msg.name && tc.status === 'running') {
+							return { ...tc, result: msg.result, status: 'completed' as const };
+						}
+						return tc;
+					});
+					messages[idx] = { ...existing, toolCalls, timestamp: Date.now() };
+
+					return {
+						...s,
+						messages,
+						sessionId: msg.sessionId ?? s.sessionId
 					};
 				});
 			} else if (msg.type === 'message' && msg.content) {
