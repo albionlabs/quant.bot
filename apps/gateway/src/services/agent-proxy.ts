@@ -48,7 +48,7 @@ export function connectToAgent(config: GatewayConfig): Promise<void> {
 	savedConfig = config;
 
 	return new Promise<void>((resolve, reject) => {
-		const ws = new WebSocket(config.agentWsUrl);
+		const ws = new WebSocket(config.agentWsUrl, { headers: { Host: 'localhost' } });
 		agentWs = ws;
 
 		const fail = (err: Error) => {

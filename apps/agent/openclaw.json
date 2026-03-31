@@ -61,7 +61,6 @@
     "auth": {
       "mode": "token"
     },
-    "trustedProxies": [],
     "http": {
       "endpoints": {
         "chatCompletions": {
