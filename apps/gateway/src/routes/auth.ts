@@ -1,23 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { SiweMessage } from 'siwe';
-import { getAddress } from 'ethers';
+import { getAddress, verifyMessage } from 'ethers';
 import type { LoginRequest, LoginResponse, RefreshResponse } from '@quant-bot/shared-types';
 import { createToken, authMiddleware, type JwtPayload } from '../middleware/auth.js';
 import { apiKeyMiddleware } from '../middleware/api-key.js';
 import type { GatewayConfig } from '../config.js';
-
-function checksumAddressInMessage(message: string): string {
-	return message.replace(
-		/(0x[0-9a-fA-F]{40})/g,
-		(match) => {
-			try {
-				return getAddress(match);
-			} catch {
-				return match;
-			}
-		}
-	);
-}
 
 export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
 	const preHandler = config.apiKeys.length > 0 ? [apiKeyMiddleware(config)] : [];
@@ -30,25 +17,32 @@ export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
 		}
 
 		try {
-			const siweMessage = new SiweMessage(checksumAddressInMessage(message));
-			const result = await siweMessage.verify({ signature });
+			// Parse the original message — do NOT modify it before verification.
+			// The signature was created over the exact message text the wallet signed,
+			// so we must verify against that same text.
+			const siweMessage = new SiweMessage(message);
 
-			if (!result.success) {
+			// Recover the signer from the original message + signature
+			const recoveredAddress = verifyMessage(message, signature);
+
+			// Compare using checksummed addresses (case-insensitive)
+			if (getAddress(recoveredAddress) !== getAddress(siweMessage.address)) {
 				return reply.status(401).send({ error: 'Invalid signature' });
 			}
 
-			if (result.data.address.toLowerCase() !== address.toLowerCase()) {
+			if (getAddress(siweMessage.address) !== getAddress(address)) {
 				return reply.status(401).send({ error: 'Address mismatch' });
 			}
 
-			const userId = result.data.address.toLowerCase();
-			const token = await createToken(address, userId, config);
+			const checkedAddress = getAddress(siweMessage.address);
+			const userId = checkedAddress.toLowerCase();
+			const token = await createToken(checkedAddress, userId, config);
 
 			const response: LoginResponse = {
 				token,
 				user: {
 					id: userId,
-					address: result.data.address,
+					address: checkedAddress,
 					createdAt: Date.now()
 				}
 			};
