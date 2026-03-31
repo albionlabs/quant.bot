@@ -1,140 +1,80 @@
-import WebSocket from 'ws';
+import { GatewayClient } from 'openclaw/plugin-sdk/gateway-runtime';
+import type { EventFrame } from 'openclaw/plugin-sdk/gateway-runtime';
 import { randomUUID } from 'crypto';
 import type { GatewayConfig } from '../config.js';
 import { TokenUsageAccumulator, estimateTokens } from './token-usage.js';
 
-let agentWs: WebSocket | null = null;
+let client: GatewayClient | null = null;
 let connected = false;
 let savedConfig: GatewayConfig | null = null;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let reconnectDelay = 1000;
-const MAX_RECONNECT_DELAY = 30_000;
 
-type ResHandler = (msg: {
-	ok: boolean;
-	payload?: Record<string, unknown>;
-	error?: { code: string; message: string };
-}) => void;
-const responseHandlers = new Map<string, ResHandler>();
-
-interface AgentEvent {
+interface AgentEventData {
 	runId: string;
 	stream: string;
 	data: Record<string, unknown>;
-	sessionKey: string;
 	seq: number;
 	ts: number;
 }
 
-type AgentEventHandler = (event: AgentEvent) => void;
+type AgentEventHandler = (event: AgentEventData) => void;
 const runHandlers = new Map<string, AgentEventHandler>();
 
 export function isAgentConnected(): boolean {
 	return connected;
 }
 
-function scheduleReconnect(): void {
-	if (reconnectTimer || !savedConfig) return;
-	console.log(`[agent-proxy] reconnecting in ${reconnectDelay}ms`);
-	reconnectTimer = setTimeout(() => {
-		reconnectTimer = null;
-		connectToAgent(savedConfig!).catch(() => {});
-	}, reconnectDelay);
-	reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
-}
-
 export function connectToAgent(config: GatewayConfig): Promise<void> {
-	const isReconnect = savedConfig !== null;
 	savedConfig = config;
 
 	return new Promise<void>((resolve, reject) => {
-		const ws = new WebSocket(config.agentWsUrl, { headers: { Host: 'localhost' } });
-		agentWs = ws;
-
-		const fail = (err: Error) => {
-			connected = false;
-			agentWs = null;
-			if (!isReconnect) reject(err);
-			scheduleReconnect();
-		};
-
-		ws.on('message', (raw) => {
-			try {
-				const msg = JSON.parse(raw.toString());
-
-				// Handle connect.challenge — perform auth handshake
-				if (msg.type === 'event' && msg.event === 'connect.challenge') {
-					const id = randomUUID();
-					responseHandlers.set(id, (res) => {
-						if (res.ok) {
-							reconnectDelay = 1000;
-							connected = true;
-							console.log('[agent-proxy] connected to openclaw agent');
-							resolve();
-						} else {
-							fail(new Error(res.error?.message ?? 'Auth failed'));
-						}
-					});
-					ws.send(
-						JSON.stringify({
-							type: 'req',
-							id,
-							method: 'connect',
-							params: {
-								minProtocol: 3,
-								maxProtocol: 3,
-								client: {
-									id: 'node-host',
-									version: '2026.2.27',
-									platform: 'linux',
-									mode: 'backend',
-									displayName: 'Quant Bot Gateway'
-								},
-								role: 'operator',
-								scopes: ['operator.admin'],
-								caps: [],
-								auth: {
-									token: config.openclawGatewayToken
-								}
-							}
-						})
-					);
-					return;
-				}
-
-				// Handle response frames
-				if (msg.type === 'res' && msg.id) {
-					const handler = responseHandlers.get(msg.id);
-					if (handler) {
-						responseHandlers.delete(msg.id);
-						handler(msg);
-					}
-					return;
-				}
-
-				// Handle agent events — dispatch to run handlers
-				if (msg.type === 'event' && msg.event === 'agent' && msg.payload) {
-					const payload = msg.payload as AgentEvent;
+		// GatewayClient auto-creates device identity via loadOrCreateDeviceIdentity()
+		// when the deviceIdentity option is omitted (not null).
+		client = new GatewayClient({
+			url: config.agentWsUrl,
+			token: config.openclawGatewayToken,
+			clientName: 'gateway-client',
+			clientDisplayName: 'Quant Bot Gateway',
+			clientVersion: '1.0.0',
+			platform: process.platform,
+			mode: 'backend',
+			role: 'operator',
+			scopes: ['operator.admin'],
+			caps: ['tool-events'],
+			minProtocol: 3,
+			maxProtocol: 3,
+			onHelloOk: () => {
+				connected = true;
+				console.log('[agent-proxy] connected to openclaw agent (GatewayClient)');
+				resolve();
+			},
+			onConnectError: (err) => {
+				connected = false;
+				console.error('[agent-proxy] connect error:', err.message);
+				reject(err);
+			},
+			onEvent: (evt: EventFrame) => {
+				if (evt.event === 'agent' && evt.payload) {
+					const payload = evt.payload as AgentEventData;
 					const handler = runHandlers.get(payload.runId);
 					if (handler) handler(payload);
 				}
-			} catch {
-				// ignore malformed messages
+			},
+			onClose: (code, reason) => {
+				connected = false;
+				console.log(`[agent-proxy] disconnected (${code}: ${reason})`);
 			}
 		});
 
-		ws.on('close', () => {
-			connected = false;
-			agentWs = null;
-			console.log('[agent-proxy] disconnected from agent');
-			scheduleReconnect();
-		});
-
-		ws.on('error', (err) => {
-			console.error('[agent-proxy] ws error:', err.message);
-			fail(err);
-		});
+		client.start();
 	});
+}
+
+export function disconnectAgent(): void {
+	if (client) {
+		client.stop();
+		client = null;
+		connected = false;
+	}
 }
 
 export interface SendOptions {
@@ -143,6 +83,9 @@ export interface SendOptions {
 	sessionId: string;
 	onDelta?: (delta: string) => void;
 	onProgress?: (progress: string) => void;
+	onToolCall?: (name: string, args: Record<string, unknown>) => void;
+	onToolResult?: (name: string, result: unknown) => void;
+	onError?: (error: string) => void;
 	onUsage?: (usage: AgentRunUsage) => void;
 	timeoutMs?: number;
 }
@@ -165,16 +108,12 @@ export interface AgentRunUsage {
 	streamCounts: Record<string, number>;
 }
 
-/**
- * Send a message to the agent via WebSocket RPC and stream the response.
- * Returns the final complete text.
- */
 export function sendToAgent(opts: SendOptions): Promise<string> {
-	if (!connected || !agentWs) {
+	if (!connected || !client) {
 		return Promise.reject(new Error('Agent not connected'));
 	}
 
-	const ws = agentWs;
+	const activeClient = client;
 	const sessionKey = `agent:main:web:${opts.userId}:${opts.sessionId}`;
 
 	return new Promise<string>((resolve, reject) => {
@@ -188,6 +127,7 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 		let runId: string | null = null;
 		let finalText = '';
 		let lastError: string | null = null;
+		let lastProgress: string | null = null;
 
 		const reportUsage = (status: AgentRunUsage['status']) => {
 			if (usageReported) return;
@@ -224,12 +164,15 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 			}
 		};
 
+		const cleanup = () => {
+			if (timeout) clearTimeout(timeout);
+			if (runId) runHandlers.delete(runId);
+		};
+
 		const resetIdleTimeout = (customMs?: number) => {
 			if (timeout) clearTimeout(timeout);
 			timeout = setTimeout(() => {
-				runHandlers.delete(reqId);
-				responseHandlers.delete(reqId);
-				if (runId) runHandlers.delete(runId);
+				cleanup();
 				const status = lastError ? 'error' as const : 'timeout' as const;
 				reportUsage(status);
 				reject(new Error(lastError
@@ -238,10 +181,8 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 			}, customMs ?? idleTimeoutMs);
 		};
 		resetIdleTimeout();
-		let lastProgress: string | null = null;
 
-		// Register event handler for agent events on this run
-		const onAgentEvent = (event: AgentEvent) => {
+		const onAgentEvent = (event: AgentEventData) => {
 			usageAccumulator.addEvent(event.stream, event.data);
 
 			const isLifecycleError =
@@ -249,18 +190,41 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 
 			if (isLifecycleError && typeof event.data?.error === 'string') {
 				lastError = event.data.error;
+				if (opts.onError) opts.onError(event.data.error);
 			}
 
-			// Shorten idle timeout after lifecycle errors so we fail fast
-			// instead of waiting the full 120s when the agent has given up
 			resetIdleTimeout(isLifecycleError ? ERROR_IDLE_TIMEOUT_MS : undefined);
 
+			// Text streaming
 			if (event.stream === 'assistant' && event.data) {
 				const delta = event.data.delta as string | undefined;
 				if (delta && opts.onDelta) opts.onDelta(delta);
 				if (event.data.text) finalText = event.data.text as string;
 			}
 
+			// Tool call events
+			if (event.stream === 'tool_call' || (event.data?.toolName && event.stream !== 'assistant')) {
+				const toolName =
+					typeof event.data?.toolName === 'string' ? event.data.toolName
+					: typeof event.data?.name === 'string' ? event.data.name
+					: null;
+
+				if (toolName && opts.onToolCall) {
+					const args = (event.data?.args ?? event.data?.input ?? {}) as Record<string, unknown>;
+					opts.onToolCall(toolName, args);
+				}
+			}
+
+			// Tool result events
+			if (event.stream === 'tool_result' && opts.onToolResult) {
+				const toolName =
+					typeof event.data?.toolName === 'string' ? event.data.toolName
+					: typeof event.data?.name === 'string' ? event.data.name
+					: 'unknown';
+				opts.onToolResult(toolName, event.data?.result ?? event.data?.output ?? null);
+			}
+
+			// Progress updates for non-assistant streams
 			if (event.stream !== 'assistant' && opts.onProgress) {
 				const lifecyclePhase =
 					event.stream === 'lifecycle' && typeof event.data?.phase === 'string'
@@ -281,21 +245,21 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 				if (errorDetail) {
 					progress = `Error: ${errorDetail}`;
 				} else if (lifecyclePhase === 'start' || lifecyclePhase === 'init') {
-					progress = 'Thinking…';
+					progress = 'Thinking\u2026';
 				} else if (lifecyclePhase === 'planning') {
-					progress = 'Planning…';
+					progress = 'Planning\u2026';
 				} else if (lifecyclePhase === 'executing') {
-					progress = 'Working…';
+					progress = 'Working\u2026';
 				} else if (lifecyclePhase) {
-					progress = `${lifecyclePhase}…`;
+					progress = `${lifecyclePhase}\u2026`;
 				} else if (toolName === 'exec') {
-					progress = 'Calling tools…';
+					progress = 'Calling tools\u2026';
 				} else if (toolName) {
-					progress = `Running ${toolName}…`;
+					progress = `Running ${toolName}\u2026`;
 				} else if (event.stream === 'model') {
-					progress = 'Thinking…';
+					progress = 'Thinking\u2026';
 				} else {
-					progress = 'Working…';
+					progress = 'Working\u2026';
 				}
 
 				if (progress !== lastProgress) {
@@ -304,40 +268,30 @@ export function sendToAgent(opts: SendOptions): Promise<string> {
 				}
 			}
 
+			// Lifecycle end = completion
 			if (event.stream === 'lifecycle' && event.data?.phase === 'end') {
-				if (timeout) clearTimeout(timeout);
-				if (runId) runHandlers.delete(runId);
+				cleanup();
 				reportUsage('completed');
 				resolve(finalText);
 			}
 		};
 
-		// Register response handler for the chat.send RPC
-		responseHandlers.set(reqId, (res) => {
-			if (!res.ok) {
-				if (timeout) clearTimeout(timeout);
-				reportUsage('error');
-				reject(new Error(res.error?.message ?? 'chat.send failed'));
-				return;
-			}
+		// Register a temporary handler for the chat.send response
+		// which gives us the runId for event routing
+		activeClient.request<{ runId?: string }>('chat.send', {
+			message: opts.message,
+			idempotencyKey: randomUUID(),
+			sessionKey
+		}).then((res) => {
 			resetIdleTimeout();
-			runId = (res.payload?.runId as string) ?? null;
+			runId = res?.runId ?? null;
 			if (runId) {
 				runHandlers.set(runId, onAgentEvent);
 			}
+		}).catch((err) => {
+			cleanup();
+			reportUsage('error');
+			reject(new Error(err instanceof Error ? err.message : 'chat.send failed'));
 		});
-
-		ws.send(
-			JSON.stringify({
-				type: 'req',
-				id: reqId,
-				method: 'chat.send',
-				params: {
-					message: opts.message,
-					idempotencyKey: randomUUID(),
-					sessionKey
-				}
-			})
-		);
 	});
 }
