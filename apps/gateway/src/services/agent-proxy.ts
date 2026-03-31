@@ -91,7 +91,7 @@ export function connectToAgent(config: GatewayConfig): Promise<void> {
 									displayName: 'Quant Bot Gateway'
 								},
 								role: 'operator',
-								scopes: ['operator.admin'],
+								scopes: ['operator.admin', 'operator.write'],
 								caps: [],
 								auth: {
 									token: config.openclawGatewayToken
