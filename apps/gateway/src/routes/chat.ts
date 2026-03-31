@@ -102,6 +102,8 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 						msg.content
 					].join('\n');
 
+					let lastToolCallId: string | undefined;
+
 					const result = await sendToAgent({
 						message: messageWithContext,
 						userId: user!.sub,
@@ -122,6 +124,37 @@ export async function chatRoutes(app: FastifyInstance, config: GatewayConfig) {
 								status: progress
 							};
 							socket.send(JSON.stringify(progressMsg));
+						},
+						onToolCall: (name, args) => {
+							lastToolCallId = crypto.randomUUID();
+							const toolCallMsg: ServerMessage = {
+								type: 'tool_call',
+								sessionId,
+								name,
+								args,
+								toolCallId: lastToolCallId
+							};
+							socket.send(JSON.stringify(toolCallMsg));
+						},
+						onToolResult: (name, result) => {
+							const toolResultMsg: ServerMessage = {
+								type: 'tool_result',
+								sessionId,
+								name,
+								result,
+								toolCallId: lastToolCallId
+							};
+							socket.send(JSON.stringify(toolResultMsg));
+							lastToolCallId = undefined;
+						},
+						onError: (error) => {
+							const errorMsg: ServerMessage = {
+								type: 'error',
+								sessionId,
+								code: 'AGENT_ERROR',
+								message: error
+							};
+							socket.send(JSON.stringify(errorMsg));
 						},
 						onUsage: (usage) => {
 							if (config.tokenMetricsEnabled) {
