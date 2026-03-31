@@ -20,12 +20,13 @@ export interface ClientMessage {
 }
 
 export interface ServerMessage {
-	type: 'message' | 'tool_call' | 'tool_result' | 'stream' | 'progress' | 'error' | 'connected';
+	type: 'message' | 'tool_call' | 'tool_result' | 'stream' | 'progress' | 'thinking' | 'error' | 'connected';
 	sessionId: string;
 	role?: 'assistant';
 	content?: string;
 	name?: string;
 	args?: Record<string, unknown>;
+	toolCallId?: string;
 	result?: unknown;
 	delta?: string;
 	status?: string;
