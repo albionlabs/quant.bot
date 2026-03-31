@@ -1,5 +1,4 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { SiweMessage } from 'siwe';
 import { getAddress, verifyMessage } from 'ethers';
 import type { LoginRequest, LoginResponse, RefreshResponse } from '@quant-bot/shared-types';
 import { createToken, authMiddleware, type JwtPayload } from '../middleware/auth.js';
@@ -17,24 +16,18 @@ export async function authRoutes(app: FastifyInstance, config: GatewayConfig) {
 		}
 
 		try {
-			// Parse the original message — do NOT modify it before verification.
-			// The signature was created over the exact message text the wallet signed,
-			// so we must verify against that same text.
-			const siweMessage = new SiweMessage(message);
-
-			// Recover the signer from the original message + signature
+			// Recover the signer from the original message + signature.
+			// We skip SiweMessage parsing because siwe-parser@3 rejects
+			// lowercase (non-EIP-55) addresses and Dynamic embedded wallets
+			// produce lowercase addresses in the SIWE message text.
 			const recoveredAddress = verifyMessage(message, signature);
 
-			// Compare using checksummed addresses (case-insensitive)
-			if (getAddress(recoveredAddress) !== getAddress(siweMessage.address)) {
+			// Compare using checksummed addresses
+			if (getAddress(recoveredAddress) !== getAddress(address)) {
 				return reply.status(401).send({ error: 'Invalid signature' });
 			}
 
-			if (getAddress(siweMessage.address) !== getAddress(address)) {
-				return reply.status(401).send({ error: 'Address mismatch' });
-			}
-
-			const checkedAddress = getAddress(siweMessage.address);
+			const checkedAddress = getAddress(address);
 			const userId = checkedAddress.toLowerCase();
 			const token = await createToken(checkedAddress, userId, config);
 
