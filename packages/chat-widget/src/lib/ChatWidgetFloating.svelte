@@ -163,77 +163,83 @@
 	class:bottom-left={position === 'bottom-left'}
 	style="--offset-x: {offset.x}px; --offset-y: {offset.y}px; {themeStyle}"
 >
-	<!-- Chat Panel -->
-	<div class="chat-panel" class:open={isOpen}>
-		<div class="panel-header">
-			<div class="panel-brand">
-				<AlbionMark size={18} variant="light" />
-				<span class="panel-title">{name}</span>
+	{#snippet panelBody()}
+		{#if !$walletProvider && !$auth.authenticated}
+			<div class="auth-prompt">
+				<p>Connect your wallet to sign in</p>
+				<button class="connect-wallet-btn" onclick={() => callbacks.onRequestWalletConnect?.()}>
+					Connect Wallet
+				</button>
 			</div>
-			<WalletStatusIndicator onRequestWalletConnect={callbacks.onRequestWalletConnect} />
-			{#if $chat.reconnecting}
-				<span class="status-dot reconnecting"></span>
-			{:else if $auth.authenticated}
-				<span class="status-dot" class:connected={$chat.connected}></span>
-				{#if !$chat.connected}
-					<button class="reconnect-btn" onclick={reconnect}>Reconnect</button>
+		{:else if signingIn}
+			<div class="auth-prompt">
+				<p>Signing in...</p>
+				<div class="spinner"></div>
+			</div>
+		{:else if siweError}
+			<div class="auth-prompt">
+				<p class="error-text">{siweError}</p>
+				<button class="connect-wallet-btn" onclick={handleSiweLogin}>
+					Retry Sign In
+				</button>
+			</div>
+		{:else if $auth.authenticated}
+			<ChatWidget config={chatConfig} hideHeader={true} />
+		{:else}
+			<div class="auth-prompt">
+				<p>Preparing sign-in...</p>
+				<div class="spinner"></div>
+			</div>
+		{/if}
+	{/snippet}
+
+	<!-- Chat Panel (hidden while expanded modal is open) -->
+	{#if !expanded}
+		<div class="chat-panel" class:open={isOpen}>
+			<div class="panel-header">
+				<div class="panel-brand">
+					<AlbionMark size={18} variant="light" />
+					<span class="panel-title">{name}</span>
+				</div>
+				<WalletStatusIndicator onRequestWalletConnect={callbacks.onRequestWalletConnect} />
+				{#if $chat.reconnecting}
+					<span class="status-dot reconnecting"></span>
+				{:else if $auth.authenticated}
+					<span class="status-dot" class:connected={$chat.connected}></span>
+					{#if !$chat.connected}
+						<button class="reconnect-btn" onclick={reconnect}>Reconnect</button>
+					{/if}
 				{/if}
-			{/if}
-			{#if $chat.connected && $chat.backendVersion}
-				<span class="version-label">v {$chat.backendVersion}</span>
-			{/if}
-			{#if isOpen && !expanded}
-				<button
-					class="expand-btn"
-					onclick={() => {
-						unreadCount = 0;
-						lastSeenMessageCount = get(chat).messages.length;
-						expanded = true;
-					}}
-					aria-label="Expand chat to full screen"
-				>
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-						<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+				{#if $chat.connected && $chat.backendVersion}
+					<span class="version-label">v {$chat.backendVersion}</span>
+				{/if}
+				{#if isOpen && !expanded}
+					<button
+						class="expand-btn"
+						onclick={() => {
+							unreadCount = 0;
+							lastSeenMessageCount = get(chat).messages.length;
+							expanded = true;
+						}}
+						aria-label="Expand chat to full screen"
+					>
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+							<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+						</svg>
+					</button>
+				{/if}
+				<button class="close-btn" onclick={toggle} aria-label="Close chat">
+					<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+						<path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
 					</svg>
 				</button>
-			{/if}
-			<button class="close-btn" onclick={toggle} aria-label="Close chat">
-				<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-					<path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-				</svg>
-			</button>
-		</div>
+			</div>
 
-		<div class="panel-body">
-			{#if !$walletProvider && !$auth.authenticated}
-				<div class="auth-prompt">
-					<p>Connect your wallet to sign in</p>
-					<button class="connect-wallet-btn" onclick={() => callbacks.onRequestWalletConnect?.()}>
-						Connect Wallet
-					</button>
-				</div>
-			{:else if signingIn}
-				<div class="auth-prompt">
-					<p>Signing in...</p>
-					<div class="spinner"></div>
-				</div>
-			{:else if siweError}
-				<div class="auth-prompt">
-					<p class="error-text">{siweError}</p>
-					<button class="connect-wallet-btn" onclick={handleSiweLogin}>
-						Retry Sign In
-					</button>
-				</div>
-			{:else if $auth.authenticated}
-				<ChatWidget config={chatConfig} hideHeader={true} />
-			{:else}
-				<div class="auth-prompt">
-					<p>Preparing sign-in...</p>
-					<div class="spinner"></div>
-				</div>
-			{/if}
+			<div class="panel-body">
+				{@render panelBody()}
+			</div>
 		</div>
-	</div>
+	{/if}
 
 	<!-- Floating Bubble -->
 	<button class="chat-bubble-btn" onclick={toggle} aria-label={isOpen ? 'Close chat' : 'Open chat'}>
@@ -249,6 +255,51 @@
 		{/if}
 	</button>
 </div>
+
+{#if expanded}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div
+		class="expand-backdrop"
+		style={themeStyle}
+		onclick={() => (expanded = false)}
+		aria-hidden="true"
+	>
+		<div
+			class="expand-modal"
+			onclick={(e) => e.stopPropagation()}
+			role="dialog"
+			aria-modal="true"
+			aria-label="{name} — expanded"
+		>
+			<div class="expand-modal-header">
+				<div class="panel-brand">
+					<AlbionMark size={18} variant="light" />
+					<span class="panel-title">{name}</span>
+				</div>
+				<WalletStatusIndicator onRequestWalletConnect={callbacks.onRequestWalletConnect} />
+				{#if $chat.reconnecting}
+					<span class="status-dot reconnecting"></span>
+				{:else if $auth.authenticated}
+					<span class="status-dot" class:connected={$chat.connected}></span>
+					{#if !$chat.connected}
+						<button class="reconnect-btn" onclick={reconnect}>Reconnect</button>
+					{/if}
+				{/if}
+				{#if $chat.connected && $chat.backendVersion}
+					<span class="version-label">v {$chat.backendVersion}</span>
+				{/if}
+				<button class="close-btn" onclick={() => (expanded = false)} aria-label="Close expanded chat">
+					<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+						<path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+					</svg>
+				</button>
+			</div>
+			<div class="expand-modal-body">
+				{@render panelBody()}
+			</div>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.floating-container {
@@ -500,6 +551,56 @@
 			width: calc(100vw - 24px);
 			height: calc(100vh - 100px);
 			max-width: none;
+		}
+	}
+
+	.expand-backdrop {
+		position: fixed;
+		inset: 0;
+		background: var(--cw-backdrop, rgba(0, 0, 0, 0.5));
+		z-index: 10002;
+		display: flex;
+		align-items: stretch;
+		justify-content: stretch;
+	}
+
+	.expand-modal {
+		/* position: absolute (not fixed) — backdrop is already fixed + inset:0,
+		   so absolute inset:24px is visually equivalent to fixed inset:24px but
+		   avoids a fixed-in-fixed stacking context that breaks if backdrop ever
+		   gets a transform or will-change applied */
+		position: absolute;
+		inset: 24px;
+		z-index: 10003;
+		background: var(--cw-bg);
+		border: 1px solid var(--cw-border);
+		border-radius: 0.75rem;
+		box-shadow: var(--cw-shadow);
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.expand-modal-header {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.6rem 0.75rem;
+		background: var(--cw-header-bg);
+		color: white;
+		flex-shrink: 0;
+	}
+
+	.expand-modal-body {
+		flex: 1;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+	}
+
+	@media (max-width: 480px) {
+		.expand-modal {
+			inset: 8px;
 		}
 	}
 </style>
