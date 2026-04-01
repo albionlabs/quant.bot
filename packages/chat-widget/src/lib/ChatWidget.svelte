@@ -7,20 +7,22 @@
 	import { getThemeStyle } from './theme.js';
 	import type { ChatWidgetConfig } from './types.js';
 
-	let { config, hideHeader = false }: { config: ChatWidgetConfig; hideHeader?: boolean } = $props();
+	let { config, hideHeader = false, manageLifecycle = true }: { config: ChatWidgetConfig; hideHeader?: boolean; manageLifecycle?: boolean } = $props();
 
 	const name = $derived(config.name ?? 'quant.bot');
 	const theme = $derived(config.theme ?? 'dark');
 	const themeStyle = $derived(getThemeStyle(theme));
 
 	onMount(() => {
-		if (config.token) {
+		if (manageLifecycle && config.token) {
 			connect(config.gatewayUrl, config.token);
 		}
 	});
 
 	onDestroy(() => {
-		disconnect();
+		if (manageLifecycle) {
+			disconnect();
+		}
 	});
 </script>
 

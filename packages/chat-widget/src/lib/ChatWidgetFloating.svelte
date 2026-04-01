@@ -178,7 +178,7 @@
 			</button>
 		</div>
 	{:else if $auth.authenticated}
-		<ChatWidget config={chatConfig} hideHeader={true} />
+		<ChatWidget config={chatConfig} hideHeader={true} manageLifecycle={false} />
 	{:else}
 		<div class="auth-prompt">
 			<p>Preparing sign-in...</p>
