@@ -33,6 +33,7 @@
 	let signingIn = $state(false);
 	let siweError = $state<string | null>(null);
 	let siweDismissed = $state(false);
+	let expanded = $state(false);
 
 	const httpBaseUrl = $derived(
 		config.gatewayUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://')
@@ -77,6 +78,16 @@
 	$effect(() => {
 		$walletProvider;
 		siweDismissed = false;
+	});
+
+	// Close expanded modal on Escape
+	$effect(() => {
+		if (!expanded) return;
+		const handler = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') expanded = false;
+		};
+		document.addEventListener('keydown', handler);
+		return () => document.removeEventListener('keydown', handler);
 	});
 
 	// When auth completes, connect WebSocket
@@ -169,6 +180,21 @@
 			{/if}
 			{#if $chat.connected && $chat.backendVersion}
 				<span class="version-label">v {$chat.backendVersion}</span>
+			{/if}
+			{#if isOpen && !expanded}
+				<button
+					class="expand-btn"
+					onclick={() => {
+						unreadCount = 0;
+						lastSeenMessageCount = get(chat).messages.length;
+						expanded = true;
+					}}
+					aria-label="Expand chat to full screen"
+				>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+						<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+					</svg>
+				</button>
 			{/if}
 			<button class="close-btn" onclick={toggle} aria-label="Close chat">
 				<svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -348,6 +374,25 @@
 	}
 
 	.close-btn:hover {
+		color: white;
+		background: rgba(255, 255, 255, 0.1);
+	}
+
+	.expand-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.5rem;
+		height: 1.5rem;
+		border: none;
+		border-radius: 0.25rem;
+		background: transparent;
+		color: #9ca3af;
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.expand-btn:hover {
 		color: white;
 		background: rgba(255, 255, 255, 0.1);
 	}
