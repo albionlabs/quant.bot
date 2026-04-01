@@ -157,42 +157,42 @@
 	}
 </script>
 
+{#snippet panelBody()}
+	{#if !$walletProvider && !$auth.authenticated}
+		<div class="auth-prompt">
+			<p>Connect your wallet to sign in</p>
+			<button class="connect-wallet-btn" onclick={() => callbacks.onRequestWalletConnect?.()}>
+				Connect Wallet
+			</button>
+		</div>
+	{:else if signingIn}
+		<div class="auth-prompt">
+			<p>Signing in...</p>
+			<div class="spinner"></div>
+		</div>
+	{:else if siweError}
+		<div class="auth-prompt">
+			<p class="error-text">{siweError}</p>
+			<button class="connect-wallet-btn" onclick={handleSiweLogin}>
+				Retry Sign In
+			</button>
+		</div>
+	{:else if $auth.authenticated}
+		<ChatWidget config={chatConfig} hideHeader={true} />
+	{:else}
+		<div class="auth-prompt">
+			<p>Preparing sign-in...</p>
+			<div class="spinner"></div>
+		</div>
+	{/if}
+{/snippet}
+
 <div
 	class="floating-container"
 	class:bottom-right={position === 'bottom-right'}
 	class:bottom-left={position === 'bottom-left'}
 	style="--offset-x: {offset.x}px; --offset-y: {offset.y}px; {themeStyle}"
 >
-	{#snippet panelBody()}
-		{#if !$walletProvider && !$auth.authenticated}
-			<div class="auth-prompt">
-				<p>Connect your wallet to sign in</p>
-				<button class="connect-wallet-btn" onclick={() => callbacks.onRequestWalletConnect?.()}>
-					Connect Wallet
-				</button>
-			</div>
-		{:else if signingIn}
-			<div class="auth-prompt">
-				<p>Signing in...</p>
-				<div class="spinner"></div>
-			</div>
-		{:else if siweError}
-			<div class="auth-prompt">
-				<p class="error-text">{siweError}</p>
-				<button class="connect-wallet-btn" onclick={handleSiweLogin}>
-					Retry Sign In
-				</button>
-			</div>
-		{:else if $auth.authenticated}
-			<ChatWidget config={chatConfig} hideHeader={true} />
-		{:else}
-			<div class="auth-prompt">
-				<p>Preparing sign-in...</p>
-				<div class="spinner"></div>
-			</div>
-		{/if}
-	{/snippet}
-
 	<!-- Chat Panel (hidden while expanded modal is open) -->
 	{#if !expanded}
 		<div class="chat-panel" class:open={isOpen}>
