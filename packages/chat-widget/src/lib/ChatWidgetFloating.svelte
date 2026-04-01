@@ -113,6 +113,7 @@
 			lastSeenMessageCount = get(chat).messages.length;
 			callbacks.onOpen?.();
 		} else {
+			expanded = false;
 			callbacks.onClose?.();
 		}
 	}
