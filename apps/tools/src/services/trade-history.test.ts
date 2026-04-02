@@ -136,6 +136,109 @@ describe('fetchTradeHistory', () => {
 		expect(result.display).toBe('No trades found.');
 	});
 
+	it('handles v6 subgraph failure gracefully (returns legacy trades only)', async () => {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+		fetchSpy.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: { orders: [{ orderHash: '0xorder1' }] }
+				}),
+				{ status: 200 }
+			)
+		);
+
+		// v6 rejects
+		fetchSpy.mockRejectedValueOnce(new Error('v6 subgraph down'));
+
+		// legacy succeeds
+		fetchSpy.mockResolvedValueOnce(
+			makeTradeResponse([makeTrade('trade-legacy', '0xorder1', '1700000000')])
+		);
+
+		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1', 50, true);
+		expect(result.trades).toHaveLength(1);
+		expect(result.trades![0].timestamp).toBe(1700000000);
+	});
+
+	it('handles legacy subgraph failure gracefully (returns v6 trades only)', async () => {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+		fetchSpy.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: { orders: [{ orderHash: '0xorder1' }] }
+				}),
+				{ status: 200 }
+			)
+		);
+
+		// v6 succeeds
+		fetchSpy.mockResolvedValueOnce(
+			makeTradeResponse([makeTrade('trade-v6', '0xorder1', '1700000100')])
+		);
+
+		// legacy rejects
+		fetchSpy.mockRejectedValueOnce(new Error('legacy subgraph down'));
+
+		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1', 50, true);
+		expect(result.trades).toHaveLength(1);
+		expect(result.trades![0].timestamp).toBe(1700000100);
+	});
+
+	it('handles both subgraphs failing (returns empty)', async () => {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+		fetchSpy.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: { orders: [{ orderHash: '0xorder1' }] }
+				}),
+				{ status: 200 }
+			)
+		);
+
+		fetchSpy.mockRejectedValueOnce(new Error('v6 down'));
+		fetchSpy.mockRejectedValueOnce(new Error('legacy down'));
+
+		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1', 50, true);
+		expect(result.trades).toHaveLength(0);
+		expect(result.total).toBe(0);
+	});
+
+	it('skips trades with null vault balance changes', async () => {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+		fetchSpy.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					data: { orders: [{ orderHash: '0xorder1' }] }
+				}),
+				{ status: 200 }
+			)
+		);
+
+		const tradeWithNullVault = {
+			id: 'trade-null',
+			order: { orderHash: '0xorder1' },
+			timestamp: '1700000100',
+			inputVaultBalanceChange: null,
+			outputVaultBalanceChange: null,
+			tradeEvent: { transaction: { id: '0xtx' } }
+		};
+
+		fetchSpy.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({ data: { trades: [tradeWithNullVault] } }),
+				{ status: 200 }
+			)
+		);
+		fetchSpy.mockResolvedValueOnce(makeTradeResponse([]));
+
+		const result = await fetchTradeHistory('0xf836a500910453A397084ADe41321ee20a5AAde1', 50, true);
+		expect(result.trades).toHaveLength(0);
+	});
+
 	it('clamps limit between 1 and 100', async () => {
 		const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
